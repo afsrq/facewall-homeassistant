@@ -1,0 +1,9 @@
+{
+  "name": "facewall",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Watch faces and Home Assistant controls for a wall-mounted iPad",
+  "scripts": { "start": "node server/server.js" },
+  "engines": { "node": ">=22" }
+}
