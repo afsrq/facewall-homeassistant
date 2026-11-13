@@ -42,8 +42,8 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
   opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 5;
 }
 .pager-dots.show { opacity: 1; }
-.pager-dots span { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.45); transition: width 0.3s, background 0.3s; }
-.pager-dots span.on { width: 16px; background: #fff; }
+.pager-dots > * { width: 6px; height: 6px; padding: 0; border-radius: 3px; background: rgba(255,255,255,0.45); transition: width 0.3s, background 0.3s; }
+.pager-dots > .on { width: 16px; background: #fff; }
 .dim { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 2s; z-index: 40; }
 .status-pill {
   position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translate(-50%, -8px);
@@ -367,8 +367,8 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .ent-edit .row { border-bottom: 0; padding: 8px 0; }
 
 /* ------------------------------------------------------------ pages & screens */
-.pager-dots span.clock-dot { width: 7px; height: 7px; background: none; border: 1.5px solid rgba(255,255,255,0.6); }
-.pager-dots span.clock-dot.on { background: #fff; border-color: #fff; width: 7px; }
+.pager-dots > .clock-dot { width: 7px; height: 7px; background: none; border: 1.5px solid rgba(255,255,255,0.6); }
+.pager-dots > .clock-dot.on { background: #fff; border-color: #fff; width: 7px; }
 .ent-row.sel { background: rgba(10,132,255,0.12); border-radius: 12px; }
 .name-in { flex: 1; min-width: 0; width: auto; text-align: left; font-weight: 650; }
 .wide-in { width: min(280px, 40vw); text-align: left; }
@@ -381,6 +381,42 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .addr { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; background: rgba(255,255,255,0.07); font-family: ui-monospace, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; -webkit-user-select: all; user-select: all; }
 .set-sub { font-size: 12.5px; font-weight: 700; opacity: 0.5; margin: 14px 0 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 .row-value { font-weight: 650; opacity: 0.85; }
+
+/* ------------------------------------------------------------ mouse & keyboard (computers) */
+.nav-arrow, .clock-bar { opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; }
+.nav-arrow {
+  position: fixed; top: 50%; transform: translateY(-50%); z-index: 30; width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 24px; color: #fff; background: rgba(30,30,32,0.72);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+.nav-arrow.prev { left: 14px; }
+.nav-arrow.next { right: 14px; }
+.nav-arrow.next .ic, .pk-arrow.next .ic { transform: scaleX(-1); }
+.nav-arrow[hidden] { display: none; }
+.mouse.nav-show .nav-arrow { opacity: 0.92; pointer-events: auto; }
+.nav-arrow:hover, .pk-arrow:hover { background: rgba(60,60,64,0.9); }
+.clock-bar {
+  position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 10px); z-index: 30; display: flex; gap: 8px; padding: 8px;
+  border-radius: 99px; background: rgba(28,28,30,0.88); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 10px 34px rgba(0,0,0,0.5);
+}
+.mouse.nav-show.on-clock .clock-bar { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.mouse .pager-dots { pointer-events: auto; gap: 9px; padding: 8px 12px; }
+.mouse.nav-show .pager-dots { opacity: 1; }
+.mouse .pager-dots > * { cursor: pointer; }
+.mouse .pager-dots > :hover { background: rgba(255,255,255,0.85); }
+.mouse .card, .mouse .gl-tile, .mouse .pk-card { cursor: pointer; }
+.mouse button:not(:disabled) { cursor: pointer; }
+.mouse .card:hover { border-color: rgba(255,255,255,0.18); }
+.tile-more { width: 34px; height: 34px; margin: -6px -6px 0 0; border-radius: 50%; display: none; place-items: center; font-size: 17px; background: rgba(0,0,0,0.22); color: inherit; }
+.mouse .light:hover .tile-more { display: grid; }
+.home-grid.editing .tile-more { display: none !important; }
+.pk-arrow {
+  position: absolute; top: calc(15.5vh + 31vh); transform: translateY(-50%); z-index: 3; width: 56px; height: 56px; border-radius: 50%;
+  display: none; place-items: center; font-size: 26px; color: #fff; background: rgba(44,44,46,0.85);
+}
+.pk-arrow.prev { left: 2.2vw; }
+.pk-arrow.next { right: 2.2vw; }
+.mouse .pk-arrow { display: grid; }
 
 /* ------------------------------------------------------------ tile size adaptations (keep last) */
 /* Small tiles drop the extras that don't fit (sizes are the tile's inside, without padding). */

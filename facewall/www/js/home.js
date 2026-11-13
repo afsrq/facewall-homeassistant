@@ -371,7 +371,9 @@ export class HomePage {
     const name = h('div.tile-name', { text: st.name(id) });
     const state = h('div.tile-state');
     const ic = h('span.tile-ic', { html: icon('bulb') });
-    const el = h('div.card.tile.light', {}, h('div.tile-top', {}, ic), h('div.tile-bottom', {}, name, state));
+    const more = h('button.tile-more', { html: icon('sliders'), 'aria-label': 'Brightness and colour', onclick: (e) => { e.stopPropagation(); this.lightSheet(id); } });
+    more.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const el = h('div.card.tile.light', {}, h('div.tile-top', {}, ic, more), h('div.tile-bottom', {}, name, state));
     press(el, { onTap: () => st.activate(id), onLong: () => this.lightSheet(id) });
     const update = () => {
       const s = st.get(id), on = isOn(s);

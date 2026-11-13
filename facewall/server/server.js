@@ -11,7 +11,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);

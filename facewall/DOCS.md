@@ -30,6 +30,12 @@ Tiles can be 1–8 columns wide and 1–4 rows tall. Bigger tiles get bigger tex
 
 Settings are stored in the app, so every iPad or browser showing Facewall stays in sync.
 
+## Setting it up from a computer
+
+Open `http://homeassistant.local:8099` in any browser. With a mouse, move it to show arrows (‹ ›) and page dots, and on the clock a toolbar with **Change face**, **Customize**, **Pages** and ⚙︎. Right-click does what a long press does. Light tiles show a ⋯ button for brightness and colour. Keyboard: ← → switch pages, Esc closes panels. Changes appear on the iPads straight away.
+
+Tile sizes are in grid columns/rows, so set the page's **Columns** and **Rows** (not *Auto*) if you want the computer and the iPad to show exactly the same layout.
+
 ## Room pages and several iPads
 
 - **Pages:** ⚙︎ → *Pages*. Add a **blank page**, or **add a room from an area**: it starts with that Home Assistant area's lights, climate, locks, switches, covers and temperature/humidity sensors. Rename, reorder or delete pages there. Each page has its own tiles, tile sizes and grid.

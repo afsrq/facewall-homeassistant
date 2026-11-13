@@ -3,7 +3,7 @@ import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
 import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf } from './home.js';
 import { icon, domainIcon } from './icons.js';
-import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect } from './ui.js';
+import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -107,7 +107,15 @@ class App {
     this.showStatus();
 
     window.addEventListener('resize', () => { clearTimeout(this.rt); this.rt = setTimeout(() => { this.renderFace(); this.goTo(this.page, true); }, 150); });
-    document.addEventListener('pointerdown', () => { this.lastActivity = Date.now(); this.wake(); }, true);
+    document.addEventListener('pointerdown', (e) => {
+      this.lastActivity = Date.now(); this.wake();
+      if (e.pointerType === 'touch') this.setMouse(false);
+    }, true);
+    // Mouse & keyboard (a computer): show navigation controls, and count movement/typing as activity.
+    this.setMouse(matchMedia('(any-hover: hover) and (any-pointer: fine)').matches && !matchMedia('(pointer: coarse)').matches);
+    document.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') { this.setMouse(true); this.showNav(); this.lastActivity = Date.now(); } }, { passive: true });
+    document.addEventListener('wheel', () => { this.lastActivity = Date.now(); }, { passive: true });
+    document.addEventListener('keydown', (e) => this.onKey(e));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.wake(true); });
     setInterval(() => this.idleCheck(), 2000);
     setInterval(() => this.applyDim(), 20000);
@@ -149,7 +157,14 @@ class App {
     this.faceToast = h('div.face-toast');
     this.facePage.append(this.faceToast);
     this.statusPill = h('div.status-pill');
-    app.append(this.pager, this.dots, this.dim, this.statusPill);
+    this.navPrev = h('button.nav-arrow.prev', { 'aria-label': 'Previous page (←)', html: icon('back'), onclick: () => this.step(-1) });
+    this.navNext = h('button.nav-arrow.next', { 'aria-label': 'Next page (→)', html: icon('back'), onclick: () => this.step(1) });
+    this.clockBar = h('div.clock-bar', {},
+      h('button.pill', { html: icon('grid') + '<span>Change face</span>', onclick: () => this.openPicker() }),
+      h('button.pill', { html: icon('sliders') + '<span>Customize</span>', onclick: () => this.openCustomize(this.activeFace(), 'edit') }),
+      h('button.pill', { html: icon('home') + '<span>Pages</span>', onclick: () => this.goTo(1) }),
+      h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.openSettings() }));
+    app.append(this.pager, this.dots, this.navPrev, this.navNext, this.clockBar, this.dim, this.statusPill);
     this.pager.addEventListener('scroll', () => {
       const p = Math.round(this.pager.scrollLeft / Math.max(1, this.pager.clientWidth));
       if (p !== this.page) { this.page = p; this.onPage(); }
@@ -174,11 +189,45 @@ class App {
         return room;
       });
       this.dots.innerHTML = '';
-      for (let i = 0; i <= pages.length; i++) this.dots.append(h('span' + (i === 0 ? '.clock-dot' : '')));
+      for (let i = 0; i <= pages.length; i++) this.dots.append(h('button' + (i === 0 ? '.clock-dot' : ''), { 'aria-label': i === 0 ? 'Clock' : pages[i - 1].name, onclick: () => this.goTo(i) }));
       if (this.page > pages.length) this.goTo(pages.length, true);
     }
     this.rooms.forEach((r) => r.render());
     this.onPage();
+  }
+  get pageCount() { return 1 + (this.settings.pages || []).length; }
+  step(d) { this.goTo(Math.max(0, Math.min(this.pageCount - 1, this.page + d))); }
+  setMouse(on) { document.body.classList.toggle('mouse', !!on); }
+  showNav() {
+    document.body.classList.add('nav-show');
+    clearTimeout(this.navT);
+    this.navT = setTimeout(() => document.body.classList.remove('nav-show'), 2600);
+  }
+  /** Keyboard: ← → switch pages, Esc closes the top panel, Enter picks in the face picker. */
+  onKey(e) {
+    this.lastActivity = Date.now();
+    const tag = (e.target?.tagName || '').toLowerCase();
+    if (['input', 'select', 'textarea'].includes(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Escape') { this.closeTop(); return; }
+    const panel = document.querySelector('.sheet-backdrop, .overlay.customize, .overlay.gallery');
+    if (this.picker && !panel) {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); this.picker.step(e.key === 'ArrowLeft' ? -1 : 1); }
+      else if (e.key === 'Enter') { e.preventDefault(); this.picker.chooseCenter(); }
+      return;
+    }
+    if (panel || this.picker) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); this.step(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); this.step(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); this.goTo(0); }
+  }
+  closeTop() {
+    if (openSheets.length) return openSheets[openSheets.length - 1]();
+    const cz = document.querySelector('.overlay.customize');
+    if (cz) return cz.querySelector('.cz-head .icon-btn')?.click();
+    if (this.gallery) return this.gallery.close();
+    if (this.picker) return this.closePicker();
+    const ed = this.rooms.find((r) => r.editing);
+    if (ed) ed.setEditing(false);
   }
   roomFor(pageId) { return this.rooms.find((r) => r.pageId === pageId); }
   get currentRoom() { return this.rooms[this.page - 1] || null; }
@@ -193,6 +242,8 @@ class App {
     [...this.dots.children].forEach((d, i) => d.classList.toggle('on', i === this.page));
     this.dots.classList.toggle('show', this.page >= 1);
     if (this.face) this.face.paused = this.page !== 0;
+    document.body.classList.toggle('on-clock', this.page === 0);
+    if (this.navPrev) { this.navPrev.hidden = this.page === 0; this.navNext.hidden = this.page >= this.pageCount - 1; }
     this.rooms?.forEach((r, i) => { if (r.editing && i + 1 !== this.page) r.setEditing(false); });
   }
 
@@ -213,7 +264,11 @@ class App {
   faceTap() {
     const f = this.activeFace();
     if (!f?.tap) {
-      if (!this.hinted) { this.hinted = true; this.showFaceToast(null, 'Hold to change the face', 'Swipe left for Home'); }
+      if (!this.hinted) {
+        this.hinted = true;
+        if (document.body.classList.contains('mouse')) this.showFaceToast(null, 'Right-click to change the face', 'Move the mouse for buttons  ·  ← → for pages');
+        else this.showFaceToast(null, 'Hold to change the face', 'Swipe left for your pages');
+      }
       return;
     }
     const id = f.tap, d = domainOf(id);
@@ -251,7 +306,10 @@ class App {
         h('div.pk-head-btns', {},
           h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.openSettings() }),
           h('button.icon-btn.glass', { 'aria-label': 'Close', html: icon('close'), onclick: () => this.closePicker() }))),
-      track, h('div.pk-foot', {}, dots, h('div.pk-actions', {}, trash, custom)));
+      track,
+      h('button.pk-arrow.prev', { 'aria-label': 'Previous face', html: icon('back'), onclick: () => this.picker?.step(-1) }),
+      h('button.pk-arrow.next', { 'aria-label': 'Next face', html: icon('back'), onclick: () => this.picker?.step(1) }),
+      h('div.pk-foot', {}, dots, h('div.pk-actions', {}, trash, custom)));
     document.body.append(ov);
     this.picker = { ov, track, mounts: [], index: 0 };
 
@@ -303,6 +361,15 @@ class App {
     };
     custom.onclick = () => { const f = this.settings.faces[this.picker.index]; if (f) this.openCustomize(f, 'edit'); };
     this.picker.build = build;
+    this.picker.step = (d) => scrollToIndex(Math.max(0, Math.min(this.settings.faces.length, this.picker.index + d)));
+    this.picker.chooseCenter = () => track.querySelector('.pk-card.center')?.click();
+    let wheelT = 0;
+    track.addEventListener('wheel', (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // trackpads scroll sideways natively
+      e.preventDefault();
+      const now = Date.now(); if (now - wheelT < 320) return; wheelT = now;
+      this.picker.step(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
     build();
     requestAnimationFrame(() => ov.classList.add('open'));
   }
@@ -562,7 +629,7 @@ class App {
       const conn = this.store.mode === 'demo' ? 'Demo mode — not connected to Home Assistant'
         : st.connected ? `Connected to Home Assistant${st.haVersion ? ' ' + st.haVersion : ''}` : `Not connected${st.error ? ': ' + st.error : ''}`;
       const aboutSec = section('Connection', h('div.about', { text: conn }),
-        h('div.about.small', { text: 'Tip: hold the clock to change faces. Swipe left for your pages.' }));
+        h('div.about.small', { text: 'Tip: hold the clock to change faces and swipe for your pages. With a mouse: right-click the clock, use the ‹ › arrows or ← → keys, and Esc to close panels.' }));
       sh.body.append(screenSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, aboutSec);
     };
     render();

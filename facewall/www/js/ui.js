@@ -13,6 +13,8 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
     else e.setAttribute(k, v === true ? '' : v);
   }
+  // Mouse users get a tooltip from the accessible label.
+  if (attrs && attrs['aria-label'] && !attrs.title) e.title = attrs['aria-label'];
   for (const k of kids.flat()) if (k != null && k !== false) e.append(k.nodeType ? k : document.createTextNode(k));
   return e;
 }
@@ -31,8 +33,16 @@ export function press(el, { onTap, onLong, longMs = 520 } = {}) {
   el.addEventListener('pointerup', (e) => { if (!active) return; const wasFired = fired; cancel(); if (!wasFired && onTap) onTap(e); });
   el.addEventListener('pointercancel', cancel);
   el.addEventListener('pointerleave', () => { if (active && !fired) cancel(); });
-  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  // Right-click does what a long press does (mouse only, so a long touch never fires it twice).
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (!onLong || fired || (e.pointerType && e.pointerType !== 'mouse')) return;
+    cancel(); onLong(e);
+  });
 }
+
+/** Open sheets, newest last, so Esc can close the top one. */
+export const openSheets = [];
 
 /** Modal sheet. Returns { el, body, close }. */
 export function sheet({ title, cls = '', onClose, actions } = {}) {
@@ -47,8 +57,10 @@ export function sheet({ title, cls = '', onClose, actions } = {}) {
   document.body.appendChild(back);
   requestAnimationFrame(() => back.classList.add('open'));
   let closed = false;
+  openSheets.push(close);
   function close() {
     if (closed) return; closed = true;
+    const i = openSheets.indexOf(close); if (i >= 0) openSheets.splice(i, 1);
     back.classList.remove('open');
     setTimeout(() => back.remove(), 280);
     onClose?.();
