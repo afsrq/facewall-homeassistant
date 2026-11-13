@@ -1,7 +1,8 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf } from './home.js';
+import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf } from './home.js';
+import { loadMdi, mdiSvg, mdiNames, mdiHas, SUGGESTED } from './mdi.js';
 import { icon, domainIcon } from './icons.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
@@ -97,6 +98,8 @@ class App {
     this.renderRooms();
     this.goTo(this.startIndex(), true);
     document.body.classList.remove('loading');
+    // Icons load in the background; tiles switch to their Home Assistant / custom icons when ready.
+    loadMdi().then(() => this.rooms.forEach((r) => r.render()));
 
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
@@ -579,24 +582,21 @@ class App {
       const ents = pg.entities;
       const upd = (fn) => { this.update((x) => fn(pageOf(x, editPage).entities)); render(); refreshRoom(); };
       ents.forEach((item, i) => {
-        const id = item.id, d = domainOf(id);
+        const id = item.id;
         const area = id === ALL_OFF ? '' : this.store.area(id);
         const [w, hh] = sizeOf(item);
-        const isOpen = openTile === id;
+        const isOpen = openTile === i;
+        const style = stylesFor(id).find((x) => x.v === styleOf(item));
+        const sub = id === ALL_OFF ? 'Turns off every light on this page' : [style && style !== stylesFor(id)[0] ? style.label : null, area, id].filter(Boolean).join('  ·  ');
         list.append(h('div.ent-row', {},
-          h('span.ent-ic', { html: icon(tileIcon(id)) }),
-          h('div.ent-text', {}, h('div.ent-name', { text: tileName(this.store, id) }), h('div.ent-sub', { text: id === ALL_OFF ? 'Turns off every light on this page' : [area, id].filter(Boolean).join('  ·  ') })),
-          h('button.size-badge' + (isOpen ? '.on' : ''), { text: `${Math.min(w, cols)} × ${hh}`, 'aria-label': 'Tile size', onclick: () => { openTile = isOpen ? null : id; render(); } }),
-          h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move up', disabled: i === 0, onclick: () => upd((a) => a.splice(i - 1, 0, a.splice(i, 1)[0])) }),
-          h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move down', disabled: i === ents.length - 1, onclick: () => upd((a) => a.splice(i + 1, 0, a.splice(i, 1)[0])) }),
-          h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => upd((a) => a.splice(i, 1)) })));
-        if (isOpen) {
-          const widths = Array.from({ length: Math.min(cols, 8) }, (_, k) => ({ v: k + 1, label: String(k + 1) }));
-          list.append(h('div.ent-edit', {},
-            row('Width (columns)', segmented(widths, Math.min(w, cols), (v) => upd((a) => { a[i].w = v; }))),
-            row('Height (rows)', segmented([1, 2, 3, 4].map((v) => ({ v, label: String(v) })), hh, (v) => upd((a) => { a[i].h = v; }))),
-            TIMER_OK(id) && d !== 'water_heater' ? row('Timer buttons', toggle(item.timer, (v) => upd((a) => { a[i].timer = v; })), 'Show 15/30/45/60-minute buttons') : null));
-        }
+          h('span.ent-ic', { html: iconHtml(this.store, item, tileIcon(id)) }),
+          h('div.ent-text', {}, h('div.ent-name', { text: tileName(this.store, item) }), h('div.ent-sub', { text: sub })),
+          h('button.size-badge' + (isOpen ? '.on' : ''), { text: `${Math.min(w, cols)} × ${hh}`, 'aria-label': 'Tile options', onclick: () => { openTile = isOpen ? null : i; render(); } }),
+          h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move up', disabled: i === 0, onclick: () => { openTile = null; upd((a) => a.splice(i - 1, 0, a.splice(i, 1)[0])); } }),
+          h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move down', disabled: i === ents.length - 1, onclick: () => { openTile = null; upd((a) => a.splice(i + 1, 0, a.splice(i, 1)[0])); } }),
+          h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => { openTile = null; upd((a) => a.splice(i, 1)); } })));
+        if (isOpen) list.append(h('div.ent-edit', {}, ...this.tileOptionRows(editPage, i, render),
+          h('button.pill.sm', { html: icon('plus') + '<span>Add another copy</span>', onclick: () => { upd((a) => a.splice(i + 1, 0, { id })); toast('Added a copy. Give it a different style or size.'); } })));
       });
       if (!ents.length) list.append(h('div.ent-empty', { text: 'No tiles on this page yet.' }));
       const hasAllOff = ents.some((e) => e.id === ALL_OFF);
@@ -635,6 +635,81 @@ class App {
     render();
   }
 
+  /** Rows for a tile's options (name, style, icon, size). Used inline in Settings and in the tile Options panel. */
+  tileOptionRows(pageId, i, after) {
+    const item = pageOf(this.settings, pageId)?.entities?.[i];
+    if (!item) return [];
+    const set = (fn) => { this.update((x) => { const it = pageOf(x, pageId)?.entities?.[i]; if (it) fn(it); }); this.roomFor(pageId)?.render(); after?.(); };
+    const rows = [];
+    rows.push(row('Name', h('input.text-in.wide-in', { value: item.name || '', placeholder: tileName(this.store, { id: item.id }), onchange: (e) => set((it) => { const v = e.target.value.trim(); if (v) it.name = v; else delete it.name; }) }), 'Leave empty to use the name from Home Assistant'));
+    const styles = stylesFor(item.id);
+    if (styles.length) {
+      const cur = styleOf(item);
+      rows.push(row('Style', segmented(styles.map((x) => ({ v: x.v, label: x.label })), cur, (v) => set((it) => { it.style = v; delete it.timer; })), styles.find((x) => x.v === cur)?.sub));
+    }
+    const haIcon = item.id !== ALL_OFF && this.store.get(item.id)?.attributes?.icon;
+    rows.push(row('Icon', h('div.icon-ctl', {},
+      h('span.icon-prev', { html: iconHtml(this.store, item, tileIcon(item.id)) }),
+      h('button.pill.sm', { text: 'Choose…', onclick: () => this.iconPicker(item.icon || haIcon, (name) => set((it) => { if (name) it.icon = name; else delete it.icon; })) }),
+      item.icon ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.icon; }) }) : null),
+    item.icon || (haIcon ? `${haIcon} (from Home Assistant)` : 'Built-in icon')));
+    const cols = this.roomFor(pageId)?.cols || 5;
+    const [w, hh] = sizeOf(item);
+    rows.push(row('Width (columns)', segmented(Array.from({ length: Math.min(cols, 8) }, (_, k) => ({ v: k + 1, label: String(k + 1) })), Math.min(w, cols), (v) => set((it) => { it.w = v; }))));
+    rows.push(row('Height (rows)', segmented([1, 2, 3, 4].map((v) => ({ v, label: String(v) })), hh, (v) => set((it) => { it.h = v; }))));
+    return rows;
+  }
+
+  /** A panel with one tile's options (opened from Edit layout). */
+  tileOptions(pageId, i) {
+    const first = pageOf(this.settings, pageId)?.entities?.[i];
+    if (!first) return;
+    const sh = sheet({ title: tileName(this.store, first), cls: 'tile-sheet' });
+    const render = () => {
+      const it = pageOf(this.settings, pageId)?.entities?.[i];
+      if (!it) return sh.close();
+      sh.setTitle(tileName(this.store, it));
+      sh.body.innerHTML = '';
+      sh.body.append(...this.tileOptionRows(pageId, i, render), h('div.sheet-actions', {},
+        h('button.pill', { html: icon('plus') + '<span>Add another copy</span>', onclick: () => {
+          this.update((x) => { pageOf(x, pageId).entities.splice(i + 1, 0, { id: it.id }); });
+          this.roomFor(pageId)?.render(); toast('Added a copy next to it. Give it a different style or size.');
+        } }),
+        h('button.pill.danger-pill', { text: 'Remove tile', onclick: () => { this.update((x) => { pageOf(x, pageId).entities.splice(i, 1); }); this.roomFor(pageId)?.render(); sh.close(); } })));
+    };
+    render();
+  }
+
+  /** Searchable picker over Material Design Icons. onPick('mdi:name'). */
+  async iconPicker(current, onPick) {
+    const sh = sheet({ title: 'Choose an icon', cls: 'icon-sheet' });
+    const search = h('input.search', { type: 'search', placeholder: 'Search 7,000+ icons: lamp, sofa, tv, fan…', autocomplete: 'off', autocapitalize: 'off' });
+    const grid = h('div.icon-grid', {}, h('div.ent-empty', { text: 'Loading icons…' }));
+    sh.body.append(search, h('div.about.small', { text: 'Material Design Icons, the same set Home Assistant uses. You can paste a name like mdi:ceiling-light.' }), grid);
+    await loadMdi();
+    const render = () => {
+      const q = search.value.trim().toLowerCase().replace(/^mdi:/, '');
+      let names;
+      if (!q) names = SUGGESTED.filter(mdiHas);
+      else {
+        const words = q.split(/[\s-]+/).filter(Boolean);
+        names = mdiNames().filter((n) => words.every((w) => n.includes(w)));
+        names.sort((a, b) => (a === q ? -1 : b === q ? 1 : 0) || (a.startsWith(q) ? 0 : 1) - (b.startsWith(q) ? 0 : 1) || a.length - b.length);
+        names = names.slice(0, 180);
+      }
+      grid.innerHTML = '';
+      for (const n of names) {
+        const b = h('button.icon-cell' + (current === 'mdi:' + n ? '.on' : ''), { title: 'mdi:' + n, onclick: () => { onPick('mdi:' + n); sh.close(); } });
+        b.innerHTML = mdiSvg(n) + `<span>${n}</span>`;
+        grid.append(b);
+      }
+      if (!names.length) grid.append(h('div.ent-empty', { text: 'No icons match.' }));
+    };
+    search.addEventListener('input', render);
+    render();
+    if (document.body.classList.contains('mouse')) setTimeout(() => search.focus(), 60);
+  }
+
   /** Name this screen. A remembered (random) screen id switches to the name, so the ?screen= address is readable. */
   renameScreen(name) {
     name = String(name || '').trim();
@@ -671,7 +746,6 @@ class App {
     };
     const renderList = () => {
       const q = search.value.trim().toLowerCase();
-      const chosen = new Set((pageOf(this.settings, pageId)?.entities || []).map((e) => e.id));
       list.innerHTML = '';
       const items = this.store.list(TILE_DOMAINS).filter((st) => {
         const d = domainOf(st.entity_id);
@@ -680,17 +754,22 @@ class App {
         return (this.store.name(st.entity_id) + ' ' + st.entity_id + ' ' + this.store.area(st.entity_id)).toLowerCase().includes(q);
       }).slice(0, 300);
       for (const st of items) {
-        const id = st.entity_id, on = chosen.has(id);
-        const rowEl = h('button.ent-row.pickable' + (on ? '.on' : ''), {},
-          h('span.ent-ic', { html: icon(domainIcon(domainOf(id), isOn(st))) }),
+        const id = st.entity_id;
+        const count = (pageOf(this.settings, pageId)?.entities || []).filter((e) => e.id === id).length;
+        const minus = count ? h('button.icon-btn.sm', { html: icon('minus'), 'aria-label': 'Remove one from this page', onclick: (e) => {
+          e.stopPropagation();
+          this.update((x) => { const a = pageOf(x, pageId).entities; for (let k = a.length - 1; k >= 0; k--) if (a[k].id === id) { a.splice(k, 1); break; } });
+          renderList(); onChange?.();
+        } }) : null;
+        const rowEl = h('button.ent-row.pickable' + (count ? '.on' : ''), {},
+          h('span.ent-ic', { html: iconHtml(this.store, { id }, domainIcon(domainOf(id), isOn(st))) }),
           h('div.ent-text', {}, h('div.ent-name', { text: this.store.name(id) }), h('div.ent-sub', { text: [this.store.area(id), id].filter(Boolean).join('  ·  ') })),
-          h('span.ent-check', { html: icon(on ? 'check' : 'plus') }));
+          count ? h('span.ent-count', { text: count > 1 ? `On page ×${count}` : 'On page' }) : null,
+          minus,
+          h('span.ent-check', { html: icon('plus'), title: count ? 'Add another copy' : 'Add' }));
         rowEl.onclick = () => {
-          this.update((x) => {
-            const a = pageOf(x, pageId).entities;
-            const i = a.findIndex((e) => e.id === id);
-            if (i >= 0) a.splice(i, 1); else a.push({ id });
-          });
+          this.update((x) => { pageOf(x, pageId).entities.push({ id }); });
+          if (count) toast(`Added another ${this.store.name(id)}. Set its style in Options.`);
           renderList(); onChange?.();
         };
         list.append(rowEl);

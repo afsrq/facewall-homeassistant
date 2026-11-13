@@ -2,13 +2,31 @@
 import { icon, domainIcon } from './icons.js';
 import { domainOf, isOn, lightRGB, formatState, cap } from './data.js';
 import { h, press, sheet, toast } from './ui.js';
+import { mdiSvg } from './mdi.js';
 
 const TOGGLES = ['switch', 'input_boolean', 'fan', 'automation', 'siren', 'humidifier'];
 const ACTIONS = ['scene', 'script', 'button', 'input_button'];
 export const TIMER_OK = (id) => ['switch', 'input_boolean', 'fan', 'water_heater', 'light'].includes(domainOf(id));
 
 export const ALL_OFF = '_alloff';
-export const tileName = (store, id) => (id === ALL_OFF ? 'All lights off' : store.name(id));
+/** A tile's label: its custom name, or the entity's name. Accepts a tile item or an entity id. */
+export const tileName = (store, x) => {
+  const item = typeof x === 'string' ? { id: x } : x || {};
+  return item.name || (item.id === ALL_OFF ? 'All lights off' : store.name(item.id));
+};
+/** Icon markup for a tile: the tile's own icon, else the entity's Home Assistant icon, else the built-in one. */
+export function iconHtml(store, item, fallback) {
+  const name = item?.icon || (item?.id ? store.get(item.id)?.attributes?.icon : null);
+  return (name && mdiSvg(name)) || icon(fallback);
+}
+/** Tile styles a given entity can use (first = default). */
+export function stylesFor(id) {
+  const d = domainOf(id);
+  if (d === 'light') return [{ v: 'light', label: 'Light', sub: 'Tap on/off · hold for colour' }, { v: 'switch', label: 'Quick switch', sub: 'Tap on/off only' }, { v: 'controls', label: 'Controls', sub: 'Tap opens colour, dim & scenes' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
+  if (['switch', 'input_boolean', 'fan'].includes(d)) return [{ v: 'toggle', label: 'Switch', sub: 'Tap on/off' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
+  return [];
+}
+export const styleOf = (item) => item.style || (item.timer ? 'timer' : stylesFor(item.id)[0]?.v || null);
 export const tileIcon = (id) => (id === ALL_OFF ? 'bulbOff' : domainIcon(domainOf(id)));
 export const MAX_H = 4;
 export const pageOf = (settings, pageId) => settings?.pages?.find((p) => p.id === pageId) || null;
@@ -17,9 +35,10 @@ export function kindFor(item) {
   if (item.id === ALL_OFF) return 'alloff';
   const d = domainOf(item.id);
   if (d === 'climate') return 'climate';
-  if (d === 'water_heater' || (item.timer && TIMER_OK(item.id))) return 'timer';
+  const style = styleOf(item);
+  if (d === 'water_heater' || (style === 'timer' && TIMER_OK(item.id))) return 'timer';
   if (d === 'lock') return 'lock';
-  if (d === 'light') return 'light';
+  if (d === 'light') return style === 'switch' ? 'toggle' : 'light';
   if (TOGGLES.includes(d)) return 'toggle';
   if (d === 'cover') return 'cover';
   if (ACTIONS.includes(d)) return 'action';
@@ -154,7 +173,7 @@ export class HomePage {
   attachEditor(el, item, index) {
     let [w, hgt] = sizeOf(item);
     w = Math.min(w, this.cols);
-    const label = h('div.eo-size', {}, h('div.eo-dims', { text: `${w} × ${hgt}` }), h('div.eo-name', { text: tileName(this.store, item.id) }));
+    const label = h('div.eo-size', {}, h('div.eo-dims', { text: `${w} × ${hgt}` }), h('div.eo-name', { text: tileName(this.store, item) }));
     const save = (fn) => { this.app.update((s) => fn(pageOf(s, this.pageId).entities)); this.render(); };
     const last = this.items.length - 1;
     const handle = h('div.eo-handle', { html: icon('resize'), 'aria-label': 'Drag to resize' });
@@ -163,7 +182,9 @@ export class HomePage {
       h('div.eo-move', {},
         h('button', { 'aria-label': 'Move earlier', html: icon('back'), disabled: index === 0, onclick: () => save((a) => a.splice(index - 1, 0, a.splice(index, 1)[0])) }),
         h('button.flip', { 'aria-label': 'Move later', html: icon('back'), disabled: index === last, onclick: () => save((a) => a.splice(index + 1, 0, a.splice(index, 1)[0])) })),
-      label, handle);
+      label,
+      h('button.eo-opts', { html: icon('sliders') + '<span>Options</span>', 'aria-label': 'Tile options (style, icon, name)', onclick: () => this.app.tileOptions(this.pageId, index) }),
+      handle);
     // Keep taps from reaching the tile underneath.
     for (const t of ['pointerdown', 'pointerup', 'click', 'contextmenu']) ov.addEventListener(t, (e) => e.stopPropagation());
 
@@ -230,19 +251,19 @@ export class HomePage {
   // ------------------------------------------------------------------ cards
   makeCard(item) {
     const kind = kindFor(item);
-    if (kind === 'alloff') return this.allOffCard(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id));
+    if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
     const fn = { climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard }[kind];
-    return fn.call(this, item.id);
+    return fn.call(this, item.id, item);
   }
 
-  headEl(id, ic) {
+  headEl(id, ic, item = { id }) {
     const area = this.store.area(id);
     return h('div.card-head', {},
-      h('span.card-ic', { html: icon(ic) }),
-      h('div.card-titles', {}, h('div.card-title', { text: this.store.name(id) }), area ? h('div.card-sub', { text: area }) : null));
+      h('span.card-ic', { html: iconHtml(this.store, item, ic) }),
+      h('div.card-titles', {}, h('div.card-title', { text: tileName(this.store, item) }), area ? h('div.card-sub', { text: area }) : null));
   }
 
-  climateCard(id) {
+  climateCard(id, item = { id }) {
     const st = this.store;
     const MODES = { cool: ['snow', 'Cool'], heat: ['sun', 'Heat'], dry: ['drop', 'Dry'], fan_only: ['fan', 'Fan'], auto: ['auto', 'Auto'], heat_cool: ['auto', 'Heat/Cool'] };
     const temp = h('div.cl-temp');
@@ -252,7 +273,7 @@ export class HomePage {
     const down = h('button.round-btn', { html: icon('down'), 'aria-label': 'Cooler' });
     const modes = h('div.cl-modes');
     const el = h('div.card.climate', {},
-      h('div.card-head-row', {}, this.headEl(id, 'snow'), pwr),
+      h('div.card-head-row', {}, this.headEl(id, 'snow', item), pwr),
       h('div.cl-main', {}, h('div', {}, temp, inside), h('div.cl-arrows', {}, up, down)),
       modes);
     let pending = null, sendT = null, clearT = null, lastMode = null;
@@ -302,7 +323,7 @@ export class HomePage {
     return { id, el, update };
   }
 
-  timerCard(id) {
+  timerCard(id, item = { id }) {
     const st = this.store;
     const minutes = this.store.settings.dashboard?.timerMinutes || [15, 30, 45, 60];
     const C = 2 * Math.PI * 44;
@@ -311,7 +332,7 @@ export class HomePage {
       `<div class="ring-label">${icon(domainOf(id) === 'water_heater' ? 'flame' : domainIcon(domainOf(id)))}<span></span></div>` });
     const chips = h('div.chips');
     const small = h('div.tile-state.t-state');
-    const el = h('div.card.timer', {}, this.headEl(id, domainOf(id) === 'water_heater' ? 'flame' : domainIcon(domainOf(id))), h('div.ring-wrap', {}, ring), small, chips);
+    const el = h('div.card.timer', {}, this.headEl(id, domainOf(id) === 'water_heater' ? 'flame' : domainIcon(domainOf(id)), item), h('div.ring-wrap', {}, ring), small, chips);
     const arc = ring.querySelector('.ring-arc'), label = ring.querySelector('.ring-label span');
     chips.addEventListener('pointerdown', (e) => e.stopPropagation());
     press(el, {
@@ -339,12 +360,12 @@ export class HomePage {
     return { id, el, update, timer: true };
   }
 
-  lockCard(id) {
+  lockCard(id, item = { id }) {
     const st = this.store;
     const big = h('div.lock-big');
     const label = h('div.tile-state');
     const hint = h('div.tile-hint');
-    const el = h('div.card.lock', {}, this.headEl(id, 'lock'), big, h('div.tile-bottom', {}, label, hint));
+    const el = h('div.card.lock', {}, this.headEl(id, 'lock', item), big, h('div.tile-bottom', {}, label, hint));
     let armed = null;
     press(el, {
       onTap: () => {
@@ -366,15 +387,17 @@ export class HomePage {
     return { id, el, update };
   }
 
-  lightCard(id) {
+  lightCard(id, item = { id }) {
     const st = this.store;
-    const name = h('div.tile-name', { text: st.name(id) });
+    const name = h('div.tile-name', { text: tileName(st, item) });
     const state = h('div.tile-state');
-    const ic = h('span.tile-ic', { html: icon('bulb') });
-    const more = h('button.tile-more', { html: icon('sliders'), 'aria-label': 'Brightness and colour', onclick: (e) => { e.stopPropagation(); this.lightSheet(id); } });
+    const ic = h('span.tile-ic', { html: iconHtml(st, item, 'bulb') });
+    const more = h('button.tile-more', { html: icon('sliders'), 'aria-label': 'Brightness and colour', onclick: (e) => { e.stopPropagation(); this.lightSheet(id, item); } });
     more.addEventListener('pointerdown', (e) => e.stopPropagation());
     const el = h('div.card.tile.light', {}, h('div.tile-top', {}, ic, more), h('div.tile-bottom', {}, name, state));
-    press(el, { onTap: () => st.activate(id), onLong: () => this.lightSheet(id) });
+    // "Controls" style: a tap opens the light's controls; otherwise a tap switches it and a hold opens them.
+    if (styleOf(item) === 'controls') press(el, { onTap: () => this.lightSheet(id, item), onLong: () => this.lightSheet(id, item) });
+    else press(el, { onTap: () => st.activate(id), onLong: () => this.lightSheet(id, item) });
     const update = () => {
       const s = st.get(id), on = isOn(s);
       el.classList.toggle('on', on);
@@ -390,10 +413,10 @@ export class HomePage {
     return { id, el, update };
   }
 
-  allOffCard(ids) {
+  allOffCard(ids, item = { id: ALL_OFF }) {
     const st = this.store;
     const state = h('div.tile-state');
-    const el = h('div.card.tile.alloff', {}, h('div.tile-top', {}, h('span.tile-ic', { html: icon('bulbOff') })), h('div.tile-bottom', {}, h('div.tile-name', { text: 'All lights off' }), state));
+    const el = h('div.card.tile.alloff', {}, h('div.tile-top', {}, h('span.tile-ic', { html: iconHtml(st, item, 'bulbOff') })), h('div.tile-bottom', {}, h('div.tile-name', { text: tileName(st, item) }), state));
     press(el, {
       onTap: () => {
         const on = ids.filter((i) => isOn(st.get(i)));
@@ -409,19 +432,19 @@ export class HomePage {
     return { id: '_alloff', watch: ids, el, update };
   }
 
-  toggleCard(id) {
+  toggleCard(id, item = { id }) {
     const st = this.store, d = domainOf(id);
     const state = h('div.tile-state');
-    const el = h('div.card.tile.toggle', {}, h('div.tile-top', {}, h('span.tile-ic', { html: icon(domainIcon(d)) })), h('div.tile-bottom', {}, h('div.tile-name', { text: st.name(id) }), state));
+    const el = h('div.card.tile.toggle', {}, h('div.tile-top', {}, h('span.tile-ic', { html: iconHtml(st, item, domainIcon(d)) })), h('div.tile-bottom', {}, h('div.tile-name', { text: tileName(st, item) }), state));
     press(el, { onTap: () => st.activate(id) });
     const update = () => { const s = st.get(id); el.classList.toggle('on', isOn(s)); state.textContent = s ? cap(s.state) : 'Missing'; };
     return { id, el, update };
   }
 
-  actionCard(id) {
+  actionCard(id, item = { id }) {
     const st = this.store, d = domainOf(id);
     const state = h('div.tile-state', { text: d === 'scene' ? 'Scene' : 'Tap to run' });
-    const el = h('div.card.tile.action', {}, h('div.tile-top', {}, h('span.tile-ic', { html: icon(domainIcon(d)) })), h('div.tile-bottom', {}, h('div.tile-name', { text: st.name(id) }), state));
+    const el = h('div.card.tile.action', {}, h('div.tile-top', {}, h('span.tile-ic', { html: iconHtml(st, item, domainIcon(d)) })), h('div.tile-bottom', {}, h('div.tile-name', { text: tileName(st, item) }), state));
     press(el, {
       onTap: () => {
         st.activate(id);
@@ -432,12 +455,12 @@ export class HomePage {
     return { id, el, update: () => {} };
   }
 
-  coverCard(id) {
+  coverCard(id, item = { id }) {
     const st = this.store;
     const state = h('div.tile-state');
     const mk = (ic, svc) => { const b = h('button.mini', { html: icon(ic) }); b.onclick = (e) => { e.stopPropagation(); st.call('cover', svc, {}, { entity_id: id }); }; return b; };
-    const el = h('div.card.tile.cover', {}, h('div.tile-top', {}, h('span.tile-ic', { html: icon('blinds') })),
-      h('div.tile-bottom', {}, h('div.tile-name', { text: st.name(id) }), state, h('div.mini-row', {}, mk('up', 'open_cover'), mk('stop', 'stop_cover'), mk('down', 'close_cover'))));
+    const el = h('div.card.tile.cover', {}, h('div.tile-top', {}, h('span.tile-ic', { html: iconHtml(st, item, 'blinds') })),
+      h('div.tile-bottom', {}, h('div.tile-name', { text: tileName(st, item) }), state, h('div.mini-row', {}, mk('up', 'open_cover'), mk('stop', 'stop_cover'), mk('down', 'close_cover'))));
     const update = () => {
       const s = st.get(id), p = s?.attributes?.current_position;
       state.textContent = !s ? 'Missing' : p != null && p > 0 && p < 100 ? `${p}% open` : cap(s.state);
@@ -446,19 +469,20 @@ export class HomePage {
     return { id, el, update };
   }
 
-  sensorCard(id) {
+  sensorCard(id, item = { id }) {
     const st = this.store, d = domainOf(id);
     const val = h('div.sensor-val');
-    const el = h('div.card.tile.sensor', {}, h('div.tile-top', {}, h('span.tile-ic', { html: icon(st.get(id)?.attributes?.device_class === 'temperature' ? 'thermo' : domainIcon(d)) })),
-      h('div.tile-bottom', {}, val, h('div.tile-name', { text: st.name(id) })));
+    const el = h('div.card.tile.sensor', {}, h('div.tile-top', {}, h('span.tile-ic', { html: iconHtml(st, item, st.get(id)?.attributes?.device_class === 'temperature' ? 'thermo' : domainIcon(d)) })),
+      h('div.tile-bottom', {}, val, h('div.tile-name', { text: tileName(st, item) })));
     const update = () => { val.textContent = formatState(st, id); };
     return { id, el, update };
   }
 
-  // ------------------------------------------------------------------ light detail
-  lightSheet(id) {
+  // ------------------------------------------------------------------ light controls pop-up
+  lightSheet(id, item = { id }) {
     const st = this.store;
-    const sh = sheet({ title: st.name(id), cls: 'light-sheet', onClose: () => st.removeEventListener('state', onState) });
+    let onState = () => {};
+    const sh = sheet({ title: tileName(st, item), cls: 'light-sheet', onClose: () => st.removeEventListener('state', onState) });
     const fill = h('div.bri-fill');
     const pct = h('div.bri-label');
     const bar = h('div.bri-bar', {}, fill, pct);
@@ -466,15 +490,48 @@ export class HomePage {
     const side = h('div.ls-side', {}, pwr);
     sh.body.append(h('div.ls-body', {}, bar, side));
     const s0 = st.get(id);
-    const modes = s0?.attributes?.supported_color_modes || [];
+    const a0 = s0?.attributes || {};
+    const modes = a0.supported_color_modes || [];
+    const turnOn = (data) => st.call('light', 'turn_on', data, { entity_id: id });
+    const section = (label, ...kids) => side.append(h('div.ls-label', { text: label }), ...kids);
+
+    // Colour: presets + any colour.
     if (modes.some((m) => ['hs', 'rgb', 'rgbw', 'rgbww', 'xy'].includes(m))) {
       const COLORS = [[255, 214, 140], [255, 159, 10], [255, 69, 58], [255, 55, 95], [191, 90, 242], [94, 92, 230], [10, 132, 255], [100, 210, 255], [48, 209, 88], [255, 255, 255]];
-      side.append(h('div.ls-label', { text: 'Colour' }), h('div.ls-colors', {}, COLORS.map((c) => h('button.ls-color', { style: { background: `rgb(${c})` }, onclick: () => st.call('light', 'turn_on', { rgb_color: c }, { entity_id: id }) }))));
+      const custom = h('input.ls-picker', { type: 'color', value: '#ff8a3d', 'aria-label': 'Pick any colour' });
+      custom.addEventListener('change', () => { const v = custom.value; turnOn({ rgb_color: [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16)) }); });
+      section('Colour', h('div.ls-colors', {},
+        COLORS.map((c) => h('button.ls-color', { style: { background: `rgb(${c})` }, 'aria-label': `Colour ${c}`, onclick: () => turnOn({ rgb_color: c }) })),
+        h('label.ls-color.ls-custom', { title: 'Any colour' }, custom)));
     }
+    // White: warm → cool slider, with quick presets.
     if (modes.includes('color_temp')) {
-      const temps = [['Warm', 2700, '#ffc58a'], ['Neutral', 4000, '#fff1dc'], ['Cool', 6000, '#dfeaff']];
-      side.append(h('div.ls-label', { text: 'White' }), h('div.ls-temps', {}, temps.map(([l, k, c]) => h('button.ls-temp', { style: { background: c }, text: l, onclick: () => st.call('light', 'turn_on', { color_temp_kelvin: k }, { entity_id: id }) }))));
+      const min = a0.min_color_temp_kelvin || 2000, max = a0.max_color_temp_kelvin || 6500;
+      const slider = h('input.ls-ct', { type: 'range', min, max, step: 50, value: a0.color_temp_kelvin || Math.round((min + max) / 2), 'aria-label': 'White temperature' });
+      slider.addEventListener('change', () => turnOn({ color_temp_kelvin: Number(slider.value) }));
+      const temps = [['Warm', Math.max(min, 2700), '#ffc58a'], ['Neutral', Math.min(max, Math.max(min, 4000)), '#fff1dc'], ['Cool', Math.min(max, 6000), '#dfeaff']];
+      section('White', slider, h('div.ls-temps', {}, temps.map(([l, k, c]) => h('button.ls-temp', { style: { background: c }, text: l, onclick: () => { slider.value = k; turnOn({ color_temp_kelvin: k }); } }))));
     }
+    // Effects the light offers (WLED, Hue, Govee…).
+    const effects = (a0.effect_list || []).filter((e) => e && !/^none$/i.test(e)).slice(0, 60);
+    const effectBtns = [];
+    if (effects.length) {
+      section('Effects', h('div.ls-chips', {}, effects.map((e) => {
+        const b = h('button.ls-chip', { text: e, 'data-v': e, onclick: () => turnOn({ effect: e }) });
+        effectBtns.push(b); return b;
+      })));
+    }
+    // Scenes: the ones in this light's room, or all of them if it has no room.
+    const area = st.area(id);
+    let scenes = st.list(['scene']);
+    const inArea = area ? scenes.filter((sc) => st.area(sc.entity_id) === area) : [];
+    scenes = (inArea.length ? inArea : area ? [] : scenes).slice(0, 24);
+    if (scenes.length) {
+      section(inArea.length ? `Scenes · ${area}` : 'Scenes', h('div.ls-chips', {}, scenes.map((sc) => h('button.ls-chip.scene', {
+        onclick: () => { st.call('scene', 'turn_on', {}, { entity_id: sc.entity_id }); toast(`${st.name(sc.entity_id)} on`); },
+      }, h('span.chip-ic', { html: iconHtml(st, { id: sc.entity_id }, 'sparkles') }), st.name(sc.entity_id)))));
+    }
+
     let dragging = false, dragPct = null;
     const paint = () => {
       const s = st.get(id), on = isOn(s);
@@ -485,17 +542,19 @@ export class HomePage {
       fill.style.background = `linear-gradient(to top, rgba(${c},0.75), rgb(${c}))`;
       pwr.textContent = on ? 'Turn off' : 'Turn on';
       pwr.classList.toggle('primary', !on);
+      const cur = s?.attributes?.effect;
+      for (const b of effectBtns) b.classList.toggle('on', on && b.dataset.v === cur);
     };
     const fromEvent = (e) => { const r = bar.getBoundingClientRect(); return Math.max(1, Math.min(100, Math.round((1 - (e.clientY - r.top) / r.height) * 100))); };
     bar.addEventListener('pointerdown', (e) => { dragging = true; bar.setPointerCapture(e.pointerId); dragPct = fromEvent(e); paint(); });
     bar.addEventListener('pointermove', (e) => { if (dragging) { dragPct = fromEvent(e); paint(); } });
     const end = () => {
       if (!dragging) return; dragging = false;
-      st.call('light', 'turn_on', { brightness_pct: dragPct }, { entity_id: id });
+      turnOn({ brightness_pct: dragPct });
       setTimeout(() => { dragPct = null; paint(); }, 1500);
     };
     bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
-    const onState = (e) => { if (e.detail === id) paint(); };
+    onState = (e) => { if (e.detail === id) paint(); };
     st.addEventListener('state', onState);
     paint();
   }

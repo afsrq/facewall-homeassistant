@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+- Icons: tiles use each device's Home Assistant icon automatically, and you can pick any of 7,000+ Material Design Icons per tile (searchable). Icons are bundled, so no internet needed.
+- Add the same device more than once, e.g. a group as a quick on/off switch *and* as full controls.
+- Tile styles for lights: Light (tap on/off, hold for controls), Quick switch, Controls (tap opens the pop-up), Timer. Switches: Switch or Timer.
+- Custom tile names.
+- Light pop-up: brightness, colour presets plus any colour, white-temperature slider, effects (WLED/Hue/etc.), and that room's scenes.
+- New **Options** button on every tile in Edit layout: name, style, icon, size, add a copy, remove.
+- Faster loading: the server compresses files and the iPad only re-downloads what changed.
+
 ## 1.3.0
 - Works with a mouse and keyboard, so you can set it up from a computer: page arrows and clickable dots, a toolbar on the clock (Change face, Customize, Pages, Settings), right-click instead of hold, a ⋯ button on light tiles, arrows/scroll wheel in the face picker.
 - Keys: ← → switch pages, Esc closes the top panel, Enter picks a face in the picker.

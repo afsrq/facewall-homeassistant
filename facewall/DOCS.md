@@ -36,6 +36,16 @@ Open `http://homeassistant.local:8099` in any browser. With a mouse, move it to 
 
 Tile sizes are in grid columns/rows, so set the page's **Columns** and **Rows** (not *Auto*) if you want the computer and the iPad to show exactly the same layout.
 
+## Tile options: style, icon, name, copies
+
+In **Edit layout** (▦) every tile has an **Options** button (or tap a tile's size badge in ⚙︎ → Tiles):
+- **Style:** lights can be *Light* (tap on/off, hold for colour), *Quick switch* (tap on/off only), *Controls* (tap opens colour, dim, effects and scenes) or *Timer*. Switches can be *Switch* or *Timer*.
+- **Icon:** search 7,000+ Material Design Icons (the set Home Assistant uses). Without a custom icon, a tile uses the device's Home Assistant icon if it has one.
+- **Name:** your own label, or leave it empty to use Home Assistant's name.
+- **Add another copy:** put the same device on the page again, e.g. "All lights" once as a Quick switch and once as Controls.
+
+When adding tiles, tapping a device that's already on the page adds another copy; use − to remove one.
+
 ## Room pages and several iPads
 
 - **Pages:** ⚙︎ → *Pages*. Add a **blank page**, or **add a room from an area**: it starts with that Home Assistant area's lights, climate, locks, switches, covers and temperature/humidity sensors. Rename, reorder or delete pages there. Each page has its own tiles, tile sizes and grid.

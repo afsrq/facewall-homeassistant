@@ -9,9 +9,10 @@ import http from 'node:http';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -324,6 +325,8 @@ async function handleApi(req, res, route) {
   return json(res, 404, { error: 'not found' });
 }
 
+const gzCache = new Map(); // file -> { etag, buf }
+const COMPRESS = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest']);
 async function serveStatic(req, res, urlPath) {
   let rel = decodeURIComponent(urlPath).replace(/^\/+/, '') || 'index.html';
   if (rel.endsWith('/')) rel += 'index.html';
@@ -332,10 +335,18 @@ async function serveStatic(req, res, urlPath) {
   try {
     const stat = await fsp.stat(file);
     if (!stat.isFile()) throw new Error('not a file');
-    res.writeHead(200, {
-      'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream',
-      'Content-Length': stat.size, 'Cache-Control': 'no-cache',
-    });
+    // Revalidate every time (so updates show up), but answer 304 when nothing changed.
+    const etag = `"${stat.size.toString(36)}-${Math.floor(stat.mtimeMs).toString(36)}"`;
+    const headers = { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache', ETag: etag, Vary: 'Accept-Encoding' };
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
+    const gz = COMPRESS.has(path.extname(file)) && /\bgzip\b/.test(req.headers['accept-encoding'] || '') && stat.size > 1024;
+    if (gz) {
+      let hit = gzCache.get(file);
+      if (!hit || hit.etag !== etag) { hit = { etag, buf: zlib.gzipSync(await fsp.readFile(file), { level: 6 }) }; gzCache.set(file, hit); }
+      res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Content-Length': hit.buf.length });
+      return res.end(req.method === 'HEAD' ? undefined : hit.buf);
+    }
+    res.writeHead(200, { ...headers, 'Content-Length': stat.size });
     if (req.method === 'HEAD') return res.end();
     fs.createReadStream(file).pipe(res);
   } catch {

@@ -308,12 +308,12 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .sheet-head { display: flex; align-items: center; gap: 12px; padding: 18px 18px 10px 24px; }
 .sheet-title { flex: 1; font-size: 22px; font-weight: 750; }
 .sheet-body { overflow-y: auto; padding: 0 24px 24px; -webkit-overflow-scrolling: touch; }
-.light-sheet { width: min(560px, 94vw); }
+.light-sheet { width: min(680px, 94vw); }
 .ls-body { display: flex; gap: 28px; padding: 10px 0 6px; align-items: stretch; }
 .bri-bar { position: relative; width: 120px; height: min(340px, 52vh); border-radius: 34px; overflow: hidden; background: rgba(255,255,255,0.1); touch-action: none; flex: none; }
 .bri-fill { position: absolute; left: 0; right: 0; bottom: 0; transition: height 0.15s; }
 .bri-label { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; font-size: 22px; font-weight: 750; text-shadow: 0 1px 8px rgba(0,0,0,0.5); }
-.ls-side { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.ls-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; max-height: min(520px, 62vh); overflow-y: auto; padding-right: 4px; }
 .ls-label { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.55; margin-top: 10px; }
 .ls-colors { display: grid; grid-template-columns: repeat(5, 44px); gap: 12px; }
 .ls-color { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); }
@@ -417,6 +417,36 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .pk-arrow.prev { left: 2.2vw; }
 .pk-arrow.next { right: 2.2vw; }
 .mouse .pk-arrow { display: grid; }
+
+/* ------------------------------------------------------------ icons, tile options, light extras */
+.ic.mdi { width: 1.1em; height: 1.1em; }
+.eo-opts {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px; border-radius: 99px; background: rgba(255,255,255,0.92); color: #000; font-size: 13px; font-weight: 700; white-space: nowrap;
+}
+.eo-opts .ic { font-size: 15px; }
+@container (max-width: 150px) { .eo-opts span { display: none; } .eo-opts { padding: 0 10px; } }
+.icon-ctl { display: flex; align-items: center; gap: 8px; }
+.icon-prev { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 24px; background: rgba(255,255,255,0.1); }
+.icon-sheet { width: min(820px, 94vw); height: 86vh; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin-top: 10px; }
+.icon-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px 8px; border-radius: 14px; background: rgba(255,255,255,0.06); font-size: 30px; }
+.icon-cell span { font-size: 10.5px; opacity: 0.6; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
+.icon-cell:hover, .icon-cell.on { background: rgba(10,132,255,0.3); }
+.tile-sheet { width: min(700px, 94vw); }
+.sheet-actions { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; margin-top: 16px; }
+.ent-count { font-size: 12px; font-weight: 700; color: #30d158; white-space: nowrap; margin-right: 4px; }
+.ls-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ls-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 99px; background: rgba(255,255,255,0.1); font-size: 13.5px; font-weight: 600; }
+.ls-chip.on { background: #fff; color: #000; }
+.ls-chip .chip-ic { font-size: 16px; display: inline-grid; }
+.ls-chip:active { background: rgba(255,255,255,0.25); }
+.ls-custom { position: relative; overflow: hidden; background: conic-gradient(#ff453a, #ffd60a, #30d158, #64d2ff, #0a84ff, #bf5af2, #ff453a); cursor: pointer; }
+.ls-picker { position: absolute; inset: -8px; width: calc(100% + 16px); height: calc(100% + 16px); opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.ls-ct { width: 100%; height: 32px; -webkit-appearance: none; appearance: none; background: transparent; }
+.ls-ct::-webkit-slider-runnable-track { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #ffb46b, #fff4e5, #cfe0ff); }
+.ls-ct::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -8px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+.ls-ct::-moz-range-track { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #ffb46b, #fff4e5, #cfe0ff); }
 
 /* ------------------------------------------------------------ tile size adaptations (keep last) */
 /* Small tiles drop the extras that don't fit (sizes are the tile's inside, without padding). */

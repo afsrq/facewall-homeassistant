@@ -224,7 +224,11 @@ function demoStates() {
     st('lock.front_door', 'locked', { friendly_name: 'Front Door' }),
     st('light.back_lights', 'off', { friendly_name: 'Back Lights', supported_color_modes: ['color_temp'], min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500 }),
     st('light.front_lights', 'on', { friendly_name: 'Front Lights', brightness: 230, color_mode: 'color_temp', color_temp_kelvin: 2900, supported_color_modes: ['color_temp'], min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500 }),
-    st('light.bedroom_light', 'on', { friendly_name: 'Bedroom Light', brightness: 160, color_mode: 'hs', hs_color: [340, 72], rgb_color: [255, 71, 122], supported_color_modes: ['hs', 'color_temp'], min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500 }),
+    st('light.bedroom_light', 'on', { friendly_name: 'Bedroom Light', brightness: 160, color_mode: 'hs', hs_color: [340, 72], rgb_color: [255, 71, 122], supported_color_modes: ['hs', 'color_temp'], min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, effect_list: ['None', 'Candle', 'Fireplace', 'Sunrise', 'Colorloop', 'Sparkle'], effect: 'None' }),
+    st('light.all_lights', 'on', { friendly_name: 'All Lights', icon: 'mdi:lightbulb-group', brightness: 200, supported_color_modes: ['hs', 'color_temp'], color_mode: 'color_temp', color_temp_kelvin: 3000, min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, entity_id: ['light.back_lights', 'light.front_lights', 'light.bedroom_light'] }),
+    st('scene.bedroom_relax', 'unknown', { friendly_name: 'Relax', icon: 'mdi:sofa' }),
+    st('scene.bedroom_reading', 'unknown', { friendly_name: 'Reading', icon: 'mdi:book-open-variant' }),
+    st('scene.bedroom_night', 'unknown', { friendly_name: 'Nightlight', icon: 'mdi:weather-night' }),
     st('light.entrance_light', 'on', { friendly_name: 'Entrance Light', brightness: 255, color_mode: 'hs', rgb_color: [214, 240, 92], hs_color: [70, 62], supported_color_modes: ['hs'] }),
     st('light.kitchen', 'off', { friendly_name: 'Kitchen', supported_color_modes: ['brightness'] }),
     st('switch.coffee_machine', 'off', { friendly_name: 'Coffee Machine' }),
@@ -239,6 +243,7 @@ const DEMO_AREAS = {
   'climate.living_room_ac': 'Living Room', 'water_heater.bathroom': 'Bathroom', 'lock.front_door': 'Entrance',
   'light.back_lights': 'Garden', 'light.front_lights': 'Porch', 'light.bedroom_light': 'Bedroom', 'light.entrance_light': 'Entrance',
   'light.kitchen': 'Kitchen', 'switch.coffee_machine': 'Kitchen', 'cover.living_room_blinds': 'Living Room',
+  'scene.bedroom_relax': 'Bedroom', 'scene.bedroom_reading': 'Bedroom', 'scene.bedroom_night': 'Bedroom',
 };
 
 class DemoAdapter {
@@ -277,6 +282,7 @@ class DemoAdapter {
           if (data.brightness_pct != null) a.brightness = Math.round(data.brightness_pct * 2.55);
           else if (!s.attributes.brightness && d === 'light') a.brightness = 255;
           if (data.rgb_color) { a.rgb_color = data.rgb_color; a.color_mode = 'hs'; a.hs_color = undefined; a.color_temp_kelvin = undefined; }
+          if (data.effect) a.effect = data.effect;
           if (data.color_temp_kelvin) { a.color_temp_kelvin = data.color_temp_kelvin; a.color_mode = 'color_temp'; a.rgb_color = undefined; a.hs_color = undefined; }
           this.set(id, { state: 'on' }, a);
         }
