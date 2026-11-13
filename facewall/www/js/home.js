@@ -11,6 +11,7 @@ export const ALL_OFF = '_alloff';
 export const tileName = (store, id) => (id === ALL_OFF ? 'All lights off' : store.name(id));
 export const tileIcon = (id) => (id === ALL_OFF ? 'bulbOff' : domainIcon(domainOf(id)));
 export const MAX_H = 4;
+export const pageOf = (settings, pageId) => settings?.pages?.find((p) => p.id === pageId) || null;
 
 export function kindFor(item) {
   if (item.id === ALL_OFF) return 'alloff';
@@ -46,18 +47,36 @@ function greeting(d) {
 }
 
 export class HomePage {
-  constructor(root, store, app) {
-    this.root = root; this.store = store; this.app = app;
+  constructor(root, store, app, pageId) {
+    this.root = root; this.store = store; this.app = app; this.pageId = pageId;
     this.cards = [];
     this.editing = false;
-    store.addEventListener('state', (e) => this.onState(e.detail));
-    store.addEventListener('snapshot', () => this.render());
-    store.addEventListener('timers', () => this.cards.forEach((c) => c.timer && c.update()));
-    setInterval(() => this.tick(), 1000);
-    window.addEventListener('resize', () => { if (this.layout()) this.render(); });
+    this.handlers = {
+      state: (e) => this.onState(e.detail),
+      snapshot: () => this.render(),
+      timers: () => this.cards.forEach((c) => c.timer && c.update()),
+      resize: () => { if (this.layout()) this.render(); },
+    };
+    store.addEventListener('state', this.handlers.state);
+    store.addEventListener('snapshot', this.handlers.snapshot);
+    store.addEventListener('timers', this.handlers.timers);
+    window.addEventListener('resize', this.handlers.resize);
+    this.interval = setInterval(() => this.tick(), 1000);
   }
 
-  get items() { return this.store.settings?.dashboard?.entities || []; }
+  destroy() {
+    this.store.removeEventListener('state', this.handlers.state);
+    this.store.removeEventListener('snapshot', this.handlers.snapshot);
+    this.store.removeEventListener('timers', this.handlers.timers);
+    window.removeEventListener('resize', this.handlers.resize);
+    clearInterval(this.interval);
+    this.root.remove();
+  }
+
+  get page() { return pageOf(this.store.settings, this.pageId); }
+  get items() { return this.page?.entities || []; }
+  /** The first page called "Home" keeps the greeting as its title; room pages show their name. */
+  get isHome() { return !this.page || /^home$/i.test(this.page.name || ''); }
 
   render() {
     const s = this.store.settings;
@@ -74,7 +93,7 @@ export class HomePage {
         this.time,
         h('button.icon-btn.glass', { 'aria-label': 'Edit layout', html: icon('grid'), onclick: () => this.setEditing(!this.editing) }),
         h('button.icon-btn.glass', { 'aria-label': 'Clock', html: icon('clock'), onclick: () => this.app.goTo(0) }),
-        h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.app.openSettings() })));
+        h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.app.openSettings({ page: this.pageId }) })));
     this.grid = h('div.home-grid' + (this.editing ? '.editing' : ''));
     this.root.classList.toggle('editing', this.editing);
     this.root.append(h('div.home-bg'), head, this.grid);
@@ -93,7 +112,7 @@ export class HomePage {
       this.grid.append(h('div.empty', {},
         h('div.empty-title', { text: 'No tiles yet' }),
         h('div.empty-sub', { text: 'Pick the devices you want on this page.' }),
-        h('button.pill.primary', { text: 'Choose devices', onclick: () => this.app.openSettings('tiles') })));
+        h('button.pill.primary', { text: 'Choose devices', onclick: () => this.app.entityBrowser(this.pageId, () => this.render()) })));
     }
     if (this.editing) this.root.append(this.editBar());
     this.grid.scrollTop = scroll;
@@ -108,7 +127,7 @@ export class HomePage {
   /** Works out columns/rows for this screen. Returns true if the column count changed. */
   layout() {
     if (!this.grid) return false;
-    const L = this.store.settings?.layout || {};
+    const L = this.page?.layout || {};
     const W = this.root.clientWidth || innerWidth, H = this.root.clientHeight || innerHeight;
     const portrait = H > W * 1.1;
     const cols = L.cols || (W >= 1050 ? 5 : W >= 760 ? 4 : 3);
@@ -136,7 +155,7 @@ export class HomePage {
     let [w, hgt] = sizeOf(item);
     w = Math.min(w, this.cols);
     const label = h('div.eo-size', {}, h('div.eo-dims', { text: `${w} × ${hgt}` }), h('div.eo-name', { text: tileName(this.store, item.id) }));
-    const save = (fn) => { this.app.update((s) => fn(s.dashboard.entities)); this.render(); };
+    const save = (fn) => { this.app.update((s) => fn(pageOf(s, this.pageId).entities)); this.render(); };
     const last = this.items.length - 1;
     const handle = h('div.eo-handle', { html: icon('resize'), 'aria-label': 'Drag to resize' });
     const ov = h('div.edit-ov', {},
@@ -180,7 +199,7 @@ export class HomePage {
   }
 
   editBar() {
-    const setL = (k, v) => { this.app.update((s) => { s.layout = { ...(s.layout || {}), [k]: v }; }); this.render(); };
+    const setL = (k, v) => { this.app.update((s) => { const pg = pageOf(s, this.pageId); pg.layout = { ...(pg.layout || {}), [k]: v }; }); this.render(); };
     const stepper = (label, value, min, max, key) => h('div.stepper', {},
       h('span.st-label', { text: label }),
       h('button', { html: icon('minus'), 'aria-label': 'Fewer ' + label, disabled: value <= min, onclick: () => setL(key, value - 1) }),
@@ -189,15 +208,16 @@ export class HomePage {
     return h('div.edit-bar', {},
       stepper('Columns', this.cols, 2, 8, 'cols'),
       stepper('Rows', this.rows, 2, 6, 'rows'),
-      h('button.pill', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.app.entityBrowser(() => this.render()) }),
+      h('button.pill', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.app.entityBrowser(this.pageId, () => this.render()) }),
       h('button.pill.primary', { text: 'Done', onclick: () => this.setEditing(false) }));
   }
 
   tick() {
     const now = new Date();
     if (!this.greet) return;
-    this.greet.textContent = greeting(now);
-    this.date.textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    const date = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    this.greet.textContent = this.isHome ? greeting(now) : this.page.name;
+    this.date.textContent = this.isHome ? date : `${greeting(now)}  ·  ${date}`;
     const use24h = this.store.settings?.general?.use24h;
     this.time.textContent = now.toLocaleTimeString(undefined, { hour: use24h ? '2-digit' : 'numeric', minute: '2-digit', hour12: !use24h });
     for (const c of this.cards) if (c.timer && this.store.timers[c.id]) c.update();
@@ -284,7 +304,7 @@ export class HomePage {
 
   timerCard(id) {
     const st = this.store;
-    const minutes = this.store.settings.dashboard.timerMinutes || [15, 30, 45, 60];
+    const minutes = this.store.settings.dashboard?.timerMinutes || [15, 30, 45, 60];
     const C = 2 * Math.PI * 44;
     const ring = h('button.ring', { 'aria-label': 'Toggle', html:
       `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="ring-track"/><circle cx="50" cy="50" r="44" class="ring-arc" stroke-dasharray="${C}" stroke-dashoffset="${C}" transform="rotate(-90 50 50)"/></svg>` +

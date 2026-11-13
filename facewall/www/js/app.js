@@ -1,7 +1,7 @@
-// Facewall app shell: pager (clock ⇄ home), face picker, customize, gallery, settings.
+// Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf } from './home.js';
+import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf } from './home.js';
 import { icon, domainIcon } from './icons.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect } from './ui.js';
 
@@ -9,6 +9,11 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const TAP_GROUPS = [['Lights', ['light']], ['Switches', ['switch', 'input_boolean']], ['Fans', ['fan']], ['Scenes', ['scene']], ['Scripts', ['script']], ['Covers', ['cover']]];
 const INFO_GROUPS = [['Sensors', ['sensor']], ['Binary sensors', ['binary_sensor']], ['Climate', ['climate']], ['Weather', ['weather']], ['Lights', ['light']], ['Switches', ['switch']]];
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } };
+const slug = (t) => String(t || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+// What a room page made from a Home Assistant area starts with, in this order.
+const AREA_ORDER = ['climate', 'water_heater', 'lock', 'light', 'switch', 'fan', 'input_boolean', 'cover', 'sensor'];
 const TILE_DOMAINS = ['light', 'climate', 'water_heater', 'lock', 'switch', 'input_boolean', 'fan', 'cover', 'scene', 'script', 'button', 'sensor', 'binary_sensor', 'automation'];
 
 function defaultSettings(store) {
@@ -29,9 +34,11 @@ function defaultSettings(store) {
     version: 1,
     faces,
     active: faces[0].id,
-    dashboard: { entities: [...ents, ...(ents.filter((e) => domainOf(e) === 'light').length >= 2 ? [ALL_OFF] : [])].map((id) => ({ id })), timerMinutes: [15, 30, 45, 60] },
-    layout: { cols: null, rows: null },
-    general: { use24h: hc === 'h23' || hc === 'h24', idleSec: 60, startPage: 'face', dim: { on: false, from: '23:00', to: '06:30', level: 0.55 } },
+    pages: [{ id: 'home', name: 'Home', layout: { cols: null, rows: null },
+      entities: [...ents, ...(ents.filter((e) => domainOf(e) === 'light').length >= 2 ? [ALL_OFF] : [])].map((id) => ({ id })) }],
+    screens: {},
+    dashboard: { timerMinutes: [15, 30, 45, 60] },
+    general: { use24h: hc === 'h23' || hc === 'h24', idleSec: 60, dim: { on: false, from: '23:00', to: '06:30', level: 0.55 } },
   };
 }
 
@@ -44,8 +51,28 @@ function migrate(s) {
     if (d.allOff !== false && lights >= 2 && !d.entities.some((e) => e.id === ALL_OFF)) d.entities.push({ id: ALL_OFF });
     delete d.allOff; changed = true;
   }
-  if (!s.layout) { s.layout = { cols: null, rows: null }; changed = true; }
+  if (!s.layout && !s.pages) { s.layout = { cols: null, rows: null }; changed = true; }
+  // 1.2: one dashboard → several room pages.
+  if (!Array.isArray(s.pages)) {
+    s.pages = [{ id: 'home', name: 'Home', entities: d.entities || [], layout: s.layout || { cols: null, rows: null } }];
+    delete d.entities; delete s.layout; changed = true;
+  }
+  if (!s.screens) { s.screens = {}; changed = true; }
+  if (!d.timerMinutes) { d.timerMinutes = [15, 30, 45, 60]; changed = true; }
   return changed;
+}
+
+/** Entities worth a tile on a room page made from a Home Assistant area. */
+function areaEntities(store, area) {
+  const picked = store.list(AREA_ORDER).filter((st) => store.area(st.entity_id) === area).filter((st) => {
+    const d = domainOf(st.entity_id);
+    if (d === 'sensor') return ['temperature', 'humidity'].includes(st.attributes.device_class);
+    return st.state !== 'unavailable' || d !== 'switch';
+  });
+  picked.sort((a, b) => AREA_ORDER.indexOf(domainOf(a.entity_id)) - AREA_ORDER.indexOf(domainOf(b.entity_id)));
+  const ids = picked.slice(0, 16).map((st) => st.entity_id);
+  if (ids.filter((id) => domainOf(id) === 'light').length >= 2) ids.push(ALL_OFF);
+  return ids.map((id) => ({ id }));
 }
 
 class App {
@@ -64,15 +91,16 @@ class App {
     if (!this.store.settings) this.store.saveSettings(defaultSettings(this.store));
     else { const m = clone(this.store.settings); if (migrate(m)) this.store.saveSettings(m); }
     if (this.store.mode === 'demo') document.body.classList.add('demo');
+    this.screenId = this.resolveScreen();
     this.buildShell();
     this.renderFace();
-    this.home.render();
-    this.goTo(this.settings.general.startPage === 'home' ? 1 : 0, true);
+    this.renderRooms();
+    this.goTo(this.startIndex(), true);
     document.body.classList.remove('loading');
 
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
-      this.renderFace(); this.home.render();
+      this.renderFace(); this.renderRooms();
     });
     this.store.addEventListener('status', () => this.showStatus());
     this.store.addEventListener('error', (e) => toast(e.detail, 'error'));
@@ -87,6 +115,26 @@ class App {
   }
 
   get settings() { return this.store.settings; }
+
+  // ------------------------------------------------------------------ this screen (per iPad)
+  /** Which screen this is: ?screen=kitchen in the address wins, otherwise an id remembered by this browser. */
+  resolveScreen() {
+    const q = slug(new URLSearchParams(location.search).get('screen'));
+    if (q) return q;
+    let id = lsGet('facewall-screen');
+    if (!id) { id = 'screen-' + uid(); lsSet('facewall-screen', id); }
+    return id;
+  }
+  get screen() { return this.settings.screens?.[this.screenId] || {}; }
+  updateScreen(fn) {
+    this.update((s) => { s.screens ||= {}; const sc = s.screens[this.screenId] ||= {}; fn(sc); sc.seen = Date.now(); });
+  }
+  startIndex() {
+    const sp = this.screen.startPage;
+    if (!sp || sp === 'clock') return 0;
+    const i = this.settings.pages.findIndex((p) => p.id === sp);
+    return i >= 0 ? i + 1 : 0;
+  }
   update(mut) { const s = clone(this.settings); mut(s); this.store.saveSettings(s); return s; }
 
   // ------------------------------------------------------------------ shell
@@ -94,9 +142,9 @@ class App {
     const app = document.getElementById('app');
     app.innerHTML = '';
     this.facePage = h('section.page.face-page');
-    this.homePage = h('section.page.home-page');
-    this.pager = h('div.pager', {}, this.facePage, this.homePage);
-    this.dots = h('div.pager-dots', {}, h('span'), h('span'));
+    this.pager = h('div.pager', {}, this.facePage);
+    this.rooms = [];
+    this.dots = h('div.pager-dots');
     this.dim = h('div.dim');
     this.faceToast = h('div.face-toast');
     this.facePage.append(this.faceToast);
@@ -106,11 +154,35 @@ class App {
       const p = Math.round(this.pager.scrollLeft / Math.max(1, this.pager.clientWidth));
       if (p !== this.page) { this.page = p; this.onPage(); }
       this.dots.classList.add('show'); clearTimeout(this.dt);
-      this.dt = setTimeout(() => this.dots.classList.toggle('show', this.page === 1), 1200);
+      this.dt = setTimeout(() => this.dots.classList.toggle('show', this.page >= 1), 1200);
     }, { passive: true });
     press(this.facePage, { onTap: () => this.faceTap(), onLong: () => this.openPicker() });
-    this.home = new HomePage(this.homePage, this.store, this);
   }
+
+  /** (Re)build one pager page per room page, keeping the clock first. */
+  renderRooms() {
+    const pages = this.settings.pages || [];
+    const sameIds = this.rooms.length === pages.length && this.rooms.every((r, i) => r.pageId === pages[i].id);
+    if (!sameIds) {
+      const editing = this.rooms.find((r) => r.editing)?.pageId;
+      this.rooms.forEach((r) => r.destroy());
+      this.rooms = pages.map((pg) => {
+        const sec = h('section.page.home-page', { 'data-page': pg.id });
+        this.pager.append(sec);
+        const room = new HomePage(sec, this.store, this, pg.id);
+        if (pg.id === editing) room.editing = true;
+        return room;
+      });
+      this.dots.innerHTML = '';
+      for (let i = 0; i <= pages.length; i++) this.dots.append(h('span' + (i === 0 ? '.clock-dot' : '')));
+      if (this.page > pages.length) this.goTo(pages.length, true);
+    }
+    this.rooms.forEach((r) => r.render());
+    this.onPage();
+  }
+  roomFor(pageId) { return this.rooms.find((r) => r.pageId === pageId); }
+  get currentRoom() { return this.rooms[this.page - 1] || null; }
+  goToRoom(pageId) { const i = this.settings.pages.findIndex((p) => p.id === pageId); if (i >= 0) this.goTo(i + 1); }
 
   goTo(p, instant) {
     this.page = p;
@@ -119,15 +191,16 @@ class App {
   }
   onPage() {
     [...this.dots.children].forEach((d, i) => d.classList.toggle('on', i === this.page));
-    this.dots.classList.toggle('show', this.page === 1);
+    this.dots.classList.toggle('show', this.page >= 1);
     if (this.face) this.face.paused = this.page !== 0;
-    if (this.page === 0 && this.home?.editing) this.home.setEditing(false);
+    this.rooms?.forEach((r, i) => { if (r.editing && i + 1 !== this.page) r.setEditing(false); });
   }
 
   // ------------------------------------------------------------------ live face
   activeFace() {
     const s = this.settings;
-    return s.faces.find((f) => f.id === s.active) || s.faces[0];
+    const own = this.screen.faceId;
+    return s.faces.find((f) => f.id === own) || s.faces.find((f) => f.id === s.active) || s.faces[0];
   }
   renderFace() {
     this.face?.destroy();
@@ -199,7 +272,7 @@ class App {
       const add = h('div.pk-card.pk-add', {}, h('button.add-btn', { html: icon('plus'), 'aria-label': 'Add face' }), h('div.add-label', { text: 'Add face' }));
       add.addEventListener('click', () => { if (this.picker.index === faces.length) this.openGallery(); else scrollToIndex(faces.length); });
       track.append(add); dots.append(h('span.plus'));
-      const idx = Math.max(0, faces.findIndex((f) => f.id === (focusId || this.settings.active)));
+      const idx = Math.max(0, faces.findIndex((f) => f.id === (focusId || this.activeFace()?.id)));
       requestAnimationFrame(() => { scrollToIndex(idx, true); onScroll(); });
     };
     const step = () => { const c = track.children[0], c2 = track.children[1]; return c && c2 ? c2.offsetLeft - c.offsetLeft : 1; };
@@ -223,6 +296,7 @@ class App {
       const s = this.update((s) => {
         s.faces = s.faces.filter((x) => x.id !== f.id);
         if (s.active === f.id) s.active = s.faces[Math.min(this.picker.index, s.faces.length - 1)].id;
+        for (const scr of Object.values(s.screens || {})) if (scr.faceId === f.id) delete scr.faceId;
       });
       this.renderFace();
       build(s.faces[Math.min(this.picker.index, s.faces.length - 1)].id);
@@ -240,7 +314,8 @@ class App {
     setTimeout(() => { mounts.forEach((m) => m.destroy()); ov.remove(); }, 300);
   }
   chooseFace(id, card) {
-    this.update((s) => { s.active = id; });
+    // This screen remembers its own face; it also becomes the default for screens that haven't picked one.
+    this.update((s) => { s.active = id; s.screens ||= {}; const sc = s.screens[this.screenId] ||= {}; sc.faceId = id; sc.seen = Date.now(); });
     this.renderFace();
     // Zoom a copy of the chosen card up to full screen, then reveal the live face underneath.
     const r = card.getBoundingClientRect();
@@ -301,7 +376,7 @@ class App {
     back.onclick = () => { close(); if (mode === 'edit') this.picker?.build(work.id); };
     done.onclick = () => {
       if (mode === 'add') {
-        this.update((s) => { s.faces.push(clone(work)); s.active = work.id; });
+        this.update((s) => { s.faces.push(clone(work)); s.active = work.id; s.screens ||= {}; (s.screens[this.screenId] ||= {}).faceId = work.id; });
         this.renderFace();
         this.gallery?.close();
       }
@@ -339,84 +414,183 @@ class App {
   }
 
   // ------------------------------------------------------------------ settings
-  openSettings(section) {
+  openSettings(opts = {}) {
+    if (typeof opts !== 'object' || !opts) opts = {};
     const sh = sheet({ title: 'Settings', cls: 'settings-sheet' });
-    let openTile = null;
+    let openTile = null, armedDelete = null, armedT = null;
+    let editPage = opts.page || this.currentRoom?.pageId || this.settings.pages[0]?.id;
+    const refreshRoom = () => this.roomFor(editPage)?.render();
+    const section = (title, ...kids) => h('section.set-sec', {}, h('div.set-title', { text: title }), ...kids);
+    const faceLabel = (id) => FACES[(this.settings.faces.find((f) => f.id === id) || this.settings.faces.find((f) => f.id === this.settings.active) || {}).type]?.name || 'Shared';
+    const pageLabel = (id) => (!id || id === 'clock' ? 'Clock' : pageOf(this.settings, id)?.name || 'Clock');
+
     const render = () => {
       const s = this.settings;
+      if (!pageOf(s, editPage)) editPage = s.pages[0]?.id;
+      const pg = pageOf(s, editPage);
       sh.body.innerHTML = '';
-      // Tiles
+
+      // ---------------- This screen
+      const sc = this.screen;
+      const startSel = h('select.select');
+      for (const c of [{ v: 'clock', label: 'Clock' }, ...s.pages.map((p) => ({ v: p.id, label: p.name }))]) startSel.append(h('option', { value: c.v, text: c.label }));
+      startSel.value = sc.startPage && (sc.startPage === 'clock' || pageOf(s, sc.startPage)) ? sc.startPage : 'clock';
+      startSel.onchange = () => { this.updateScreen((x) => { x.startPage = startSel.value; }); };
+      const link = location.origin + location.pathname + '?screen=' + encodeURIComponent(this.screenId);
+      const others = Object.entries(s.screens || {}).filter(([id]) => id !== this.screenId);
+      const screenSec = section('This screen',
+        row('Name', h('input.text-in.wide-in', { value: sc.name || '', placeholder: 'e.g. Kitchen iPad', onchange: (e) => { this.renameScreen(e.target.value); render(); } }), 'Each iPad keeps its own start page and clock face'),
+        row('Opens on', startSel, 'Where it starts, and after a restart'),
+        row('Clock face', h('div.row-value', { text: faceLabel(sc.faceId) }), 'Hold the clock on this screen to change it'),
+        h('div.about.small', { text: 'To keep these even if Safari’s data is cleared, add this address to the iPad’s Home Screen:' }),
+        h('div.copy-row', {}, h('code.addr', { text: link }), h('button.pill.sm', { text: 'Copy', onclick: async () => {
+          try { await navigator.clipboard.writeText(link); toast('Address copied'); } catch { toast('Couldn’t copy. Select the address instead.'); }
+        } })),
+        others.length ? h('div.set-sub', { text: 'Other screens' }) : null,
+        ...others.map(([id, o]) => h('div.ent-row', {},
+          h('span.ent-ic', { html: icon('grid') }),
+          h('div.ent-text', {}, h('div.ent-name', { text: o.name || id }), h('div.ent-sub', { text: `Opens on ${pageLabel(o.startPage)}  ·  ${faceLabel(o.faceId)} face` })),
+          h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Forget this screen', onclick: () => { this.update((x) => { delete x.screens[id]; }); render(); } }))));
+
+      // ---------------- Pages
+      const pagesList = h('div.ent-list');
+      s.pages.forEach((p, i) => {
+        const mv = (dir) => { this.update((x) => { x.pages.splice(i + dir, 0, x.pages.splice(i, 1)[0]); }); this.renderRooms(); render(); };
+        const del = () => {
+          if (armedDelete !== p.id) { armedDelete = p.id; clearTimeout(armedT); armedT = setTimeout(() => { armedDelete = null; render(); }, 3000); render(); return; }
+          armedDelete = null;
+          this.update((x) => {
+            x.pages = x.pages.filter((q) => q.id !== p.id);
+            for (const scr of Object.values(x.screens || {})) if (scr.startPage === p.id) scr.startPage = 'clock';
+          });
+          this.renderRooms(); render();
+        };
+        pagesList.append(h('div.ent-row' + (p.id === editPage ? '.sel' : ''), {},
+          h('span.ent-ic', { html: icon(i === 0 ? 'home' : 'grid') }),
+          h('input.text-in.name-in', { value: p.name, 'aria-label': 'Page name', onchange: (e) => {
+            const v = e.target.value.trim(); if (!v) return;
+            this.update((x) => { pageOf(x, p.id).name = v; }); this.renderRooms(); render();
+          } }),
+          h('span.ent-sub.count', { text: `${p.entities.length} tile${p.entities.length === 1 ? '' : 's'}` }),
+          h('button.pill.sm' + (p.id === editPage ? '.primary' : ''), { text: p.id === editPage ? 'Editing' : 'Edit', onclick: () => { editPage = p.id; openTile = null; render(); } }),
+          h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move page up', disabled: i === 0, onclick: () => mv(-1) }),
+          h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move page down', disabled: i === s.pages.length - 1, onclick: () => mv(1) }),
+          armedDelete === p.id
+            ? h('button.pill.sm.danger-pill', { text: 'Delete?', onclick: del })
+            : h('button.icon-btn.sm.danger', { html: icon('trash'), 'aria-label': 'Delete page', disabled: s.pages.length <= 1, onclick: del })));
+      });
+      const areaCounts = {};
+      for (const [eid, area] of Object.entries(this.store.areas || {})) if (this.store.get(eid) && AREA_ORDER.includes(domainOf(eid))) areaCounts[area] = (areaCounts[area] || 0) + 1;
+      const areas = Object.keys(areaCounts).sort();
+      const areaSel = h('select.select');
+      areaSel.append(h('option', { value: '', text: areas.length ? 'Add a room from an area…' : 'No areas in Home Assistant yet' }));
+      for (const a of areas) areaSel.append(h('option', { value: a, text: `${a}  (${areaCounts[a]} device${areaCounts[a] === 1 ? '' : 's'})` }));
+      areaSel.disabled = !areas.length;
+      areaSel.onchange = () => {
+        const area = areaSel.value; if (!area) return;
+        const id = 'p-' + uid();
+        const ents = areaEntities(this.store, area);
+        this.update((x) => { x.pages.push({ id, name: area, entities: ents, layout: { cols: null, rows: null } }); });
+        editPage = id; this.renderRooms(); render();
+        toast(`Added ${area} with ${ents.length} tile${ents.length === 1 ? '' : 's'}`);
+      };
+      const pagesSec = section('Pages',
+        h('div.about.small', { text: 'Swipe left from the clock to move through your pages.' }),
+        pagesList,
+        h('div.add-page-row', {},
+          h('button.pill', { html: icon('plus') + '<span>Blank page</span>', onclick: () => {
+            const id = 'p-' + uid();
+            this.update((x) => { x.pages.push({ id, name: `Page ${x.pages.length + 1}`, entities: [], layout: { cols: null, rows: null } }); });
+            editPage = id; this.renderRooms(); render();
+          } }),
+          areaSel));
+
+      // ---------------- Tiles on the page being edited
       const list = h('div.ent-list');
-      const L = s.layout || {};
-      const cols = this.home.cols || 5;
-      s.dashboard.entities.forEach((item, i) => {
+      const L = pg.layout || {};
+      const cols = this.roomFor(editPage)?.cols || 5;
+      const ents = pg.entities;
+      const upd = (fn) => { this.update((x) => fn(pageOf(x, editPage).entities)); render(); refreshRoom(); };
+      ents.forEach((item, i) => {
         const id = item.id, d = domainOf(id);
         const area = id === ALL_OFF ? '' : this.store.area(id);
         const [w, hh] = sizeOf(item);
-        const mv = (dir) => { this.update((x) => { const a = x.dashboard.entities; const [it] = a.splice(i, 1); a.splice(i + dir, 0, it); }); render(); this.home.render(); };
-        const set = (fn) => { this.update((x) => fn(x.dashboard.entities[i])); render(); this.home.render(); };
         const isOpen = openTile === id;
         list.append(h('div.ent-row', {},
           h('span.ent-ic', { html: icon(tileIcon(id)) }),
           h('div.ent-text', {}, h('div.ent-name', { text: tileName(this.store, id) }), h('div.ent-sub', { text: id === ALL_OFF ? 'Turns off every light on this page' : [area, id].filter(Boolean).join('  ·  ') })),
           h('button.size-badge' + (isOpen ? '.on' : ''), { text: `${Math.min(w, cols)} × ${hh}`, 'aria-label': 'Tile size', onclick: () => { openTile = isOpen ? null : id; render(); } }),
-          h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move up', disabled: i === 0, onclick: () => mv(-1) }),
-          h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move down', disabled: i === s.dashboard.entities.length - 1, onclick: () => mv(1) }),
-          h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => { this.update((x) => { x.dashboard.entities.splice(i, 1); }); render(); this.home.render(); } })));
+          h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move up', disabled: i === 0, onclick: () => upd((a) => a.splice(i - 1, 0, a.splice(i, 1)[0])) }),
+          h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move down', disabled: i === ents.length - 1, onclick: () => upd((a) => a.splice(i + 1, 0, a.splice(i, 1)[0])) }),
+          h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => upd((a) => a.splice(i, 1)) })));
         if (isOpen) {
           const widths = Array.from({ length: Math.min(cols, 8) }, (_, k) => ({ v: k + 1, label: String(k + 1) }));
           list.append(h('div.ent-edit', {},
-            row('Width (columns)', segmented(widths, Math.min(w, cols), (v) => set((it) => { it.w = v; }))),
-            row('Height (rows)', segmented([1, 2, 3, 4].map((v) => ({ v, label: String(v) })), hh, (v) => set((it) => { it.h = v; }))),
-            TIMER_OK(id) && d !== 'water_heater' ? row('Timer buttons', toggle(item.timer, (v) => set((it) => { it.timer = v; })), 'Show 15/30/45/60-minute buttons') : null));
+            row('Width (columns)', segmented(widths, Math.min(w, cols), (v) => upd((a) => { a[i].w = v; }))),
+            row('Height (rows)', segmented([1, 2, 3, 4].map((v) => ({ v, label: String(v) })), hh, (v) => upd((a) => { a[i].h = v; }))),
+            TIMER_OK(id) && d !== 'water_heater' ? row('Timer buttons', toggle(item.timer, (v) => upd((a) => { a[i].timer = v; })), 'Show 15/30/45/60-minute buttons') : null));
         }
       });
-      if (!s.dashboard.entities.length) list.append(h('div.ent-empty', { text: 'No tiles yet.' }));
-      const hasAllOff = s.dashboard.entities.some((e) => e.id === ALL_OFF);
-      const tilesSec = h('section.set-sec', {},
-        h('div.set-title', { text: 'Home page tiles' }),
-        h('button.pill.wide.primary', { html: icon('grid') + '<span>Edit layout on screen</span>', onclick: () => { sh.close(); this.goTo(1); this.home.setEditing(true); } }),
+      if (!ents.length) list.append(h('div.ent-empty', { text: 'No tiles on this page yet.' }));
+      const hasAllOff = ents.some((e) => e.id === ALL_OFF);
+      const tilesSec = section(`Tiles on “${pg.name}”`,
+        h('button.pill.wide.primary', { html: icon('grid') + '<span>Edit layout on screen</span>', onclick: () => { sh.close(); this.goToRoom(editPage); this.roomFor(editPage)?.setEditing(true); } }),
         list,
-        h('button.pill.wide', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.entityBrowser(() => { render(); this.home.render(); }) }),
-        row('“All lights off” tile', toggle(hasAllOff, (v) => { this.update((x) => { const a = x.dashboard.entities; const k = a.findIndex((e) => e.id === ALL_OFF); if (v && k < 0) a.push({ id: ALL_OFF }); if (!v && k >= 0) a.splice(k, 1); }); render(); this.home.render(); }), 'Turns off every light on this page'),
-        row('Timer buttons (minutes)', h('input.text-in', { value: (s.dashboard.timerMinutes || []).join(', '), inputmode: 'numeric', onchange: (e) => {
-          const mins = e.target.value.split(/[,\s]+/).map(Number).filter((n) => n > 0 && n <= 1440).slice(0, 5);
-          if (mins.length) { this.update((x) => { x.dashboard.timerMinutes = mins; }); this.home.render(); }
-        } })));
-      const setL = (k, v) => { this.update((x) => { x.layout = { ...(x.layout || {}), [k]: v }; }); this.home.render(); render(); };
-      const layoutSec = h('section.set-sec', {},
-        h('div.set-title', { text: 'Grid' }),
+        h('button.pill.wide', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.entityBrowser(editPage, () => { render(); refreshRoom(); }) }),
+        row('“All lights off” tile', toggle(hasAllOff, (v) => upd((a) => { const k = a.findIndex((e) => e.id === ALL_OFF); if (v && k < 0) a.push({ id: ALL_OFF }); if (!v && k >= 0) a.splice(k, 1); })), 'Turns off every light on this page'));
+      const setL = (k, v) => { this.update((x) => { const p2 = pageOf(x, editPage); p2.layout = { ...(p2.layout || {}), [k]: v }; }); refreshRoom(); render(); };
+      const layoutSec = section(`Grid on “${pg.name}”`,
         row('Columns across', segmented([{ v: null, label: 'Auto' }, ...[3, 4, 5, 6, 7, 8].map((v) => ({ v, label: String(v) }))], L.cols ?? null, (v) => setL('cols', v)), 'More columns = smaller tiles'),
         row('Rows per screen', segmented([{ v: null, label: 'Auto' }, ...[2, 3, 4, 5, 6].map((v) => ({ v, label: String(v) }))], L.rows ?? null, (v) => setL('rows', v)), 'Taller tiles can span several rows'));
-      // Clock
+
+      // ---------------- Everywhere
       const g = s.general;
-      const clockSec = h('section.set-sec', {},
-        h('div.set-title', { text: 'Clock' }),
-        row('24-hour time', toggle(g.use24h, (v) => { this.update((x) => { x.general.use24h = v; }); this.renderFace(); this.home.tick(); })),
+      const clockSec = section('Clock (all screens)',
+        row('24-hour time', toggle(g.use24h, (v) => { this.update((x) => { x.general.use24h = v; }); this.renderFace(); this.rooms.forEach((r) => r.tick()); })),
         row('Go back to the clock after', segmented([{ v: 0, label: 'Never' }, { v: 30, label: '30s' }, { v: 60, label: '1m' }, { v: 120, label: '2m' }, { v: 300, label: '5m' }], g.idleSec, (v) => this.update((x) => { x.general.idleSec = v; })), 'when nobody touches the screen'),
-        row('Open on', segmented([{ v: 'face', label: 'Clock' }, { v: 'home', label: 'Home' }], g.startPage, (v) => this.update((x) => { x.general.startPage = v; }))));
-      // Night dim
+        row('Timer buttons (minutes)', h('input.text-in', { value: (s.dashboard?.timerMinutes || []).join(', '), inputmode: 'numeric', onchange: (e) => {
+          const mins = e.target.value.split(/[,\s]+/).map(Number).filter((n) => n > 0 && n <= 1440).slice(0, 5);
+          if (mins.length) { this.update((x) => { x.dashboard = { ...(x.dashboard || {}), timerMinutes: mins }; }); this.rooms.forEach((r) => r.render()); }
+        } })));
       const dim = g.dim || {};
-      const dimSec = h('section.set-sec', {},
-        h('div.set-title', { text: 'Night dimming' }),
+      const dimSec = section('Night dimming (all screens)',
         row('Dim the screen at night', toggle(dim.on, (v) => { this.update((x) => { x.general.dim = { ...dim, on: v }; }); this.applyDim(); render(); })),
         dim.on ? row('From', h('input.time-in', { type: 'time', value: dim.from || '23:00', onchange: (e) => { this.update((x) => { x.general.dim.from = e.target.value; }); this.applyDim(); } })) : null,
         dim.on ? row('Until', h('input.time-in', { type: 'time', value: dim.to || '06:30', onchange: (e) => { this.update((x) => { x.general.dim.to = e.target.value; }); this.applyDim(); } })) : null,
         dim.on ? row('How dark', segmented([{ v: 0.35, label: 'A little' }, { v: 0.55, label: 'Medium' }, { v: 0.75, label: 'Very' }], dim.level ?? 0.55, (v) => { this.update((x) => { x.general.dim.level = v; }); this.applyDim(); })) : null);
-      // About
       const st = this.store.status;
       const conn = this.store.mode === 'demo' ? 'Demo mode — not connected to Home Assistant'
         : st.connected ? `Connected to Home Assistant${st.haVersion ? ' ' + st.haVersion : ''}` : `Not connected${st.error ? ': ' + st.error : ''}`;
-      const aboutSec = h('section.set-sec', {}, h('div.set-title', { text: 'Connection' }), h('div.about', { text: conn }),
-        h('div.about.small', { text: 'Tip: long-press the clock to change faces. Swipe left for Home.' }));
-      sh.body.append(tilesSec, layoutSec, clockSec, dimSec, aboutSec);
+      const aboutSec = section('Connection', h('div.about', { text: conn }),
+        h('div.about.small', { text: 'Tip: hold the clock to change faces. Swipe left for your pages.' }));
+      sh.body.append(screenSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, aboutSec);
     };
     render();
-    if (section === 'tiles') this.entityBrowser(() => { render(); this.home.render(); });
   }
 
-  entityBrowser(onChange) {
-    const sh = sheet({ title: 'Add tiles', cls: 'browser-sheet' });
+  /** Name this screen. A remembered (random) screen id switches to the name, so the ?screen= address is readable. */
+  renameScreen(name) {
+    name = String(name || '').trim();
+    const fromUrl = !!new URLSearchParams(location.search).get('screen');
+    this.update((s) => {
+      s.screens ||= {};
+      const cur = s.screens[this.screenId] || {};
+      cur.name = name || undefined; cur.seen = Date.now();
+      const want = slug(name);
+      if (!fromUrl && want && want !== this.screenId) {
+        let id = want, n = 2;
+        while (s.screens[id]) id = `${want}-${n++}`;
+        delete s.screens[this.screenId];
+        s.screens[id] = cur;
+        this.screenId = id; lsSet('facewall-screen', id);
+      } else s.screens[this.screenId] = cur;
+    });
+  }
+
+  entityBrowser(pageId, onChange) {
+    const pg = pageOf(this.settings, pageId);
+    if (!pg) return;
+    const sh = sheet({ title: `Add tiles to ${pg.name}`, cls: 'browser-sheet' });
     const search = h('input.search', { type: 'search', placeholder: 'Search devices', autocomplete: 'off' });
     let filter = 'all';
     const chips = h('div.filter-chips');
@@ -430,23 +604,23 @@ class App {
     };
     const renderList = () => {
       const q = search.value.trim().toLowerCase();
-      const chosen = new Set(this.settings.dashboard.entities.map((e) => e.id));
+      const chosen = new Set((pageOf(this.settings, pageId)?.entities || []).map((e) => e.id));
       list.innerHTML = '';
-      const items = this.store.list(TILE_DOMAINS).filter((s) => {
-        const d = domainOf(s.entity_id);
+      const items = this.store.list(TILE_DOMAINS).filter((st) => {
+        const d = domainOf(st.entity_id);
         if (filter === 'other' ? MAIN.includes(d) : filter !== 'all' && d !== filter && !(filter === 'switch' && d === 'input_boolean') && !(filter === 'climate' && d === 'water_heater') && !(filter === 'sensor' && d === 'binary_sensor') && !(filter === 'scene' && d === 'script')) return false;
         if (!q) return true;
-        return (this.store.name(s.entity_id) + ' ' + s.entity_id + ' ' + this.store.area(s.entity_id)).toLowerCase().includes(q);
+        return (this.store.name(st.entity_id) + ' ' + st.entity_id + ' ' + this.store.area(st.entity_id)).toLowerCase().includes(q);
       }).slice(0, 300);
-      for (const s of items) {
-        const id = s.entity_id, on = chosen.has(id);
+      for (const st of items) {
+        const id = st.entity_id, on = chosen.has(id);
         const rowEl = h('button.ent-row.pickable' + (on ? '.on' : ''), {},
-          h('span.ent-ic', { html: icon(domainIcon(domainOf(id), isOn(s))) }),
+          h('span.ent-ic', { html: icon(domainIcon(domainOf(id), isOn(st))) }),
           h('div.ent-text', {}, h('div.ent-name', { text: this.store.name(id) }), h('div.ent-sub', { text: [this.store.area(id), id].filter(Boolean).join('  ·  ') })),
           h('span.ent-check', { html: icon(on ? 'check' : 'plus') }));
         rowEl.onclick = () => {
           this.update((x) => {
-            const a = x.dashboard.entities;
+            const a = pageOf(x, pageId).entities;
             const i = a.findIndex((e) => e.id === id);
             if (i >= 0) a.splice(i, 1); else a.push({ id });
           });
@@ -472,7 +646,7 @@ class App {
       this.gallery = null;
       this.closePicker();
     }
-    if (this.page === 1 && !anyOverlay && !this.home.editing && idle > limit) this.goTo(0);
+    if (this.page >= 1 && !anyOverlay && !this.rooms.some((r) => r.editing) && idle > limit) this.goTo(0);
   }
   applyDim() {
     const d = this.settings.general.dim || {};

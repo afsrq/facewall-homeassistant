@@ -366,6 +366,22 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .ent-edit { padding: 2px 4px 8px 40px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.03); }
 .ent-edit .row { border-bottom: 0; padding: 8px 0; }
 
+/* ------------------------------------------------------------ pages & screens */
+.pager-dots span.clock-dot { width: 7px; height: 7px; background: none; border: 1.5px solid rgba(255,255,255,0.6); }
+.pager-dots span.clock-dot.on { background: #fff; border-color: #fff; width: 7px; }
+.ent-row.sel { background: rgba(10,132,255,0.12); border-radius: 12px; }
+.name-in { flex: 1; min-width: 0; width: auto; text-align: left; font-weight: 650; }
+.wide-in { width: min(280px, 40vw); text-align: left; }
+.ent-sub.count { margin: 0 4px; white-space: nowrap; }
+.pill.sm { height: 34px; padding: 0 14px; font-size: 13.5px; }
+.pill.danger-pill { background: #ff453a; color: #fff; }
+.add-page-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0 4px; }
+.add-page-row .select { flex: 1; max-width: none; min-width: 220px; }
+.copy-row { display: flex; gap: 10px; align-items: center; margin: 4px 0 8px; }
+.addr { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; background: rgba(255,255,255,0.07); font-family: ui-monospace, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; -webkit-user-select: all; user-select: all; }
+.set-sub { font-size: 12.5px; font-weight: 700; opacity: 0.5; margin: 14px 0 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.row-value { font-weight: 650; opacity: 0.85; }
+
 /* ------------------------------------------------------------ tile size adaptations (keep last) */
 /* Small tiles drop the extras that don't fit (sizes are the tile's inside, without padding). */
 @container (max-height: 200px) { .cl-modes { display: none; } }

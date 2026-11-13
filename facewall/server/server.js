@@ -11,7 +11,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -193,7 +193,9 @@ function slim(s) {
 function watchedEntities() {
   const s = store.settings;
   if (!s) return null;
-  const set = new Set(s.dashboard?.entities?.map((e) => (typeof e === 'string' ? e : e.id)) || []);
+  const set = new Set();
+  const lists = [...(s.pages || []).map((p) => p.entities || []), s.dashboard?.entities || []];
+  for (const list of lists) for (const e of list) set.add(typeof e === 'string' ? e : e.id);
   for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr']) if (f[k]) set.add(f[k]);
   for (const id of Object.keys(timers)) set.add(id);
   return set;
