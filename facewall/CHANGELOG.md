@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.11.0
+- **Page header**: choose what the line under the title shows and in what order: greeting (with your name, or your own words), date format, weather now, today's high and low, feels like, chance of rain, wind, humidity, next sunrise/sunset, weather warnings, sensors and your own text. Hold the title on any page to change it.
+- **Weather warnings**: orange tags for thunderstorms, hail, heavy rain, extreme weather and very strong wind, plus any alert sensor (NWS Alerts, Meteoalarm, Met Office…) while it has an active warning.
+- Fonts, size, weight and colour (solid or gradient) for the line; font, size and weight for the title; header height. The header grows when its text needs more room.
+- The header's weather gets its forecast even when no page has a weather tile.
+
 ## 1.10.0
 - **More icons**: Phosphor (MIT, 6 styles incl. duotone), Material Symbols (Apache 2.0; rounded, standard and sharp, filled or outline) and Tabler (MIT, outline and filled) are now built in, each with its own tab and style buttons. Sets load only when a tile or the picker uses them.
 - **Search online**: search 200,000+ open-source icons from Iconify. The icon you pick is saved in Facewall, so the iPads don't need the internet afterwards. Icons from the built-in sets are used directly.

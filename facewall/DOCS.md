@@ -5,7 +5,7 @@ Turns a wall-mounted iPad into a watch-face clock with Home Assistant controls o
 ## Getting the iPad set up
 
 1. Start the app, then on the iPad open **Safari** and go to `http://homeassistant.local:8099`
-   (or `http://<your-HA-IP>:8099`).
+   (or `http://<your-HA-IP>:8099`). 8099 is the default; if you changed the port under the app's **Network** settings (e.g. to 3333), use that number instead.
 2. Tap **Share → Add to Home Screen**, then open Facewall from the new icon. It runs full screen with no browser bars.
 3. On the iPad: **Settings → Display & Brightness → Auto-Lock → Never** (keep it on a charger).
    For a locked-down wall panel, turn on **Guided Access** (Settings → Accessibility).
@@ -86,6 +86,17 @@ Light colours on light tiles, the weather tile's sky and the AC's mode colours s
 If you open Facewall from Home Assistant's sidebar (or the Home Assistant app), turn on ⚙︎ → *This screen* → **Hide Home Assistant's sidebar and top bar**. It's per iPad, so your computer keeps the normal Home Assistant layout. While it's hidden, *Home Assistant menu → Open* shows the sidebar over Facewall.
 
 For a wall iPad you can also skip Home Assistant's page completely: open `http://homeassistant.local:8099/` in Safari and add it to the Home Screen (see *Port 8099* below).
+
+## Page header
+
+Everything under a page's title is yours to choose: ⚙︎ → *Appearance* → *Page header* → **Change…**, or just **hold the title** on any page (right-click on a computer).
+
+- **The line under the title**: turn pieces on or off and put them in order. Choose from: greeting (automatic *Good morning…*, with your name if you like, or your own words), date (several formats), weather now, today's high and low, feels like, chance of rain (always, or only when it's likely), wind (always, or only when it's windy), humidity, next sunrise/sunset, **weather warnings**, any sensor (e.g. *Inside 21°*), and your own text. Tap a piece for its options. Add as many sensors and texts as you like.
+- **Weather warnings** appear as orange tags only while something is happening: thunderstorms, hail, heavy rain or extreme weather, very strong wind, and any **alert sensor** you add. For hurricane, storm or flood warnings, add your weather service's alert sensor from Home Assistant (for example the *NWS Alerts*, *Meteoalarm* or *Met Office* integrations).
+- **Look**: font (13 fonts that come with the iPad: System, Rounded, New York, Avenir Next, Futura, Gill Sans, Optima, Didot, Baskerville, Mono, Typewriter, Script…), size, weight and colour, including a gradient, for the line; font, size and weight for the title; and whether the Home page shows the greeting or its name.
+- **Header height**: how much of the screen the header gets. If the text needs more room, the header grows and the tiles make room.
+
+These settings apply to every page and every screen. The preview at the top of the editor shows the result as you go.
 
 ## Faces
 

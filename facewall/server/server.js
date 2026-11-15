@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -222,6 +222,15 @@ function watchedEntities() {
   for (const list of lists) for (const e of list) set.add(typeof e === 'string' ? e : e.id);
   for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr']) if (f[k]) set.add(f[k]);
   for (const id of Object.keys(timers)) set.add(id);
+  // The page header: its weather entity, the sun, sensors and alert sensors.
+  const WEATHER_PARTS = new Set(['now', 'highlow', 'feels', 'rain', 'wind', 'humidity', 'alerts']);
+  const on = (s.header?.parts || [{ k: 'greeting', on: true }, { k: 'date', on: true }]).filter((p) => p && p.on);
+  if (on.some((p) => WEATHER_PARTS.has(p.k))) {
+    const w = s.header?.weather && ha.states.has(s.header.weather) ? s.header.weather : [...ha.states.keys()].find((id) => id.startsWith('weather.'));
+    if (w) set.add(w);
+  }
+  if (on.some((p) => p.k === 'sun')) set.add('sun.sun');
+  for (const p of on) { if (p.k === 'sensor' && p.id) set.add(p.id); if (p.k === 'alerts') for (const e of p.entities || []) set.add(e); }
   return set;
 }
 

@@ -6,6 +6,7 @@ import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme }
 import { loadIcons, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { inHaPanel, setHaKiosk, openHaMenu } from './hapanel.js';
+import { FONTS, WEIGHTS, SEPARATORS, PARTS, DATE_FORMATS, fmtDate, defaultHeader, headerOf, headerSegments, headerContent, headerVars, weatherEntity } from './header.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -530,7 +531,8 @@ class App {
       const appearanceSec = section('Appearance',
         row('Theme', h('div.icon-ctl', {}, this.themeSwatch(th, { small: true }), h('div.row-value', { text: th.name }),
           h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.openThemePicker(render) })),
-        this.screen.theme ? 'Only on this iPad (the other screens use ' + themeById(s.general?.theme || DEFAULT_THEME).name + ')' : 'Used on every screen'));
+        this.screen.theme ? 'Only on this iPad (the other screens use ' + themeById(s.general?.theme || DEFAULT_THEME).name + ')' : 'Used on every screen'),
+        row('Page header', h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.headerEditor(render) }), 'Title font and size, and what the line under the title shows: greeting, date, weather, warnings… Tip: hold the title on a page.'));
 
       // ---------------- This screen
       const sc = this.screen;
@@ -910,6 +912,134 @@ class App {
     await loadIcons();
     render();
     if (document.body.classList.contains('mouse')) setTimeout(() => search.focus(), 60);
+  }
+
+  // ------------------------------------------------------------------ page header
+  /** Edit the title and the line under it (all pages). */
+  headerEditor(after) {
+    const sh = sheet({ title: 'Page header', cls: 'header-sheet', onClose: () => after?.() });
+    const page = this.rooms[Math.max(0, this.page - 1)]?.page || this.settings.pages?.[0];
+    let open = null;
+    const save = (fn) => {
+      this.update((x) => { const hd = headerOf(x); fn(hd); x.header = hd; });
+      this.rooms.forEach((r) => r.render());
+      render();
+    };
+    const preview = h('div.hd-preview.home-page');
+    const drawPreview = () => {
+      const hd = headerOf(this.settings);
+      for (const [k, v] of Object.entries(themeVars(themeById(this.themeId())))) preview.style.setProperty(k, v);
+      const { title, html } = headerContent(this.store, hd, new Date(), { isHome: /^home$/i.test(page?.name || ''), pageName: page?.name });
+      const line = h('div.date', { html });
+      if (!html) line.style.display = 'none';
+      const head = h('header.home-head', {}, h('div.head-titles', {}, h('div.greet', { text: title }), line));
+      const { vars, grad } = headerVars(hd);
+      for (const [k, v] of Object.entries(vars)) if (v != null && k !== '--hd-h') head.style.setProperty(k, v);
+      line.classList.toggle('grad', grad);
+      preview.innerHTML = '';
+      preview.append(h('div.home-bg'), head);
+    };
+    const fontPicker = (cur, pick) => h('div.font-grid', {}, FONTS.map((f) => h('button.font-chip' + ((cur || 'system') === f.v ? '.on' : ''), { style: { fontFamily: f.css }, onclick: () => pick(f.v) },
+      h('span.fc-aa', { text: 'Aa' }), h('span.fc-name', { text: f.label }))));
+    const sizeCtl = (value, min, max, step, apply, unit = '%') => {
+      const val = h('span.range-val', { text: `${value}${unit}` });
+      const slider = h('input.range', { type: 'range', min, max, step, value });
+      slider.addEventListener('input', () => { val.textContent = `${slider.value}${unit}`; });
+      slider.addEventListener('change', () => apply(Number(slider.value)));
+      return h('div.range-ctl', {}, slider, val);
+    };
+    const textIn = (value, placeholder, apply) => h('input.text-in.wide-in', { value: value || '', placeholder, onchange: (e) => apply(e.target.value.trim()) });
+    const partNow = (hd, p) => headerSegments(this.store, { ...hd, parts: [{ ...p, on: true }] }, new Date()).map((x) => x.html.replace(/<[^>]+>/g, '')).join(', ');
+
+    const partOptions = (hd, p, i) => {
+      const upd = (fn) => save((x) => fn(x.parts[i]));
+      switch (p.k) {
+        case 'greeting': return [
+          row('Words', segmented([{ v: 'auto', label: 'Good morning…' }, { v: 'custom', label: 'My own' }], p.mode || 'auto', (v) => upd((q) => { q.mode = v; }))),
+          p.mode === 'custom'
+            ? row('Text', textIn(p.text, 'e.g. Welcome home', (v) => upd((q) => { q.text = v; })))
+            : row('Add a name', textIn(p.name, 'e.g. Alex', (v) => upd((q) => { if (v) q.name = v; else delete q.name; })), '“Good evening, Alex”'),
+        ];
+        case 'date': {
+          const sel = h('select.select');
+          for (const f of DATE_FORMATS) sel.append(h('option', { value: f.v, text: fmtDate(new Date(), f.v) }));
+          sel.value = p.fmt || 'long';
+          sel.onchange = () => upd((q) => { q.fmt = sel.value; });
+          return [row('Format', sel)];
+        }
+        case 'now': return [
+          row('Show', segmented([{ v: 'both', label: 'Both' }, { v: 'temp', label: 'Temperature' }, { v: 'cond', label: 'Conditions' }], p.show || 'both', (v) => upd((q) => { q.show = v; }))),
+          row('Weather icon', toggle(p.icon !== false, (v) => upd((q) => { q.icon = v; }))),
+        ];
+        case 'rain': return [row('Show', segmented([{ v: 'always', label: 'Always' }, { v: 'likely', label: 'When rain is likely' }], p.when || 'likely', (v) => upd((q) => { q.when = v; })), 'Likely = 30% or more today')];
+        case 'wind': return [row('Show', segmented([{ v: 'always', label: 'Always' }, { v: 'strong', label: 'Only when windy' }], p.when || 'always', (v) => upd((q) => { q.when = v; })), 'Windy = about 25 mph / 40 km/h or more')];
+        case 'alerts': return [
+          row('Storms', toggle(p.storms !== false, (v) => upd((q) => { q.storms = v; })), 'Thunderstorms, hail, heavy rain or extreme weather from the weather entity'),
+          row('Very strong wind', toggle(p.wind !== false, (v) => upd((q) => { q.wind = v; })), 'About 40 mph / 60 km/h or more, or big gusts'),
+          ...(p.entities || []).map((id, j) => row(this.store.name(id) || id, h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => upd((q) => { q.entities.splice(j, 1); }) }), 'Shown while it has an active alert')),
+          row('Add an alert sensor', entitySelect(this.store, null, [['Sensors', ['sensor']], ['Binary sensors', ['binary_sensor']]], (v) => { if (v) upd((q) => { (q.entities ||= []).includes(v) || q.entities.push(v); }); }, 'Choose…'),
+            'For hurricane, storm or flood warnings, add your weather service’s alert sensor (e.g. NWS Alerts, Meteoalarm, Met Office). It shows its warning only while one is active.'),
+        ];
+        case 'sensor': return [
+          row('Sensor', entitySelect(this.store, p.id, INFO_GROUPS, (v) => upd((q) => { q.id = v; }), 'Choose…')),
+          row('Label', textIn(p.label, p.id ? this.store.name(p.id) : 'e.g. Inside', (v) => upd((q) => { if (v) q.label = v; else delete q.label; })), 'Leave empty to use its name; a single space shows just the value'),
+        ];
+        case 'text': return [row('Text', textIn(p.text, 'e.g. Trash day', (v) => upd((q) => { q.text = v; })))];
+        default: return [];
+      }
+    };
+
+    const render = () => {
+      const hd = headerOf(this.settings);
+      drawPreview();
+      sh.body.innerHTML = '';
+      const sec = (title, ...kids) => h('section.set-sec', {}, h('div.set-title', { text: title }), ...kids);
+      // ---- the line's pieces
+      const list = h('div.hd-parts');
+      hd.parts.forEach((p, i) => {
+        const def = PARTS[p.k] || { label: p.k };
+        const nowText = p.on ? partNow(hd, p) : '';
+        const label = p.k === 'sensor' && p.id ? (p.label || this.store.name(p.id)) : p.k === 'text' && p.text ? `“${p.text}”` : def.label;
+        const move = (d) => save((x) => { const a = x.parts; a.splice(i + d, 0, a.splice(i, 1)[0]); if (open === i) open = i + d; });
+        const rowEl = h('div.hd-part' + (p.on ? '.on' : ''), {},
+          toggle(!!p.on, (v) => save((x) => { x.parts[i].on = v; if (v && PARTS[p.k]?.weather && !x.weather) { const w = weatherEntity(this.store, x); if (w) x.weather = w; } })),
+          h('button.hd-part-main', { onclick: () => { open = open === i ? null : i; render(); } },
+            h('div.hd-part-name', { text: label }),
+            h('div.hd-part-sub', { text: p.on ? (nowText || 'Nothing to show right now') : def.sub || '' })),
+          h('div.hd-part-btns', {},
+            h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move earlier', disabled: i === 0, onclick: () => move(-1) }),
+            h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move later', disabled: i === hd.parts.length - 1, onclick: () => move(1) }),
+            def.multi ? h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => save((x) => { x.parts.splice(i, 1); open = null; }) }) : null));
+        list.append(rowEl);
+        if (open === i) {
+          const opts = partOptions(hd, p, i);
+          if (opts.length) list.append(h('div.ent-edit.hd-part-opts', {}, ...opts));
+        }
+      });
+      const lineSec = sec('Line under the title',
+        h('div.about.small', { text: 'Turn on the pieces you want and put them in order. Tap one for its options.' }),
+        list,
+        h('div.icon-ctl.hd-add', {},
+          h('button.pill.sm', { html: icon('plus') + '<span>Add a sensor</span>', onclick: () => save((x) => { x.parts.push({ k: 'sensor', on: true }); open = x.parts.length - 1; }) }),
+          h('button.pill.sm', { html: icon('plus') + '<span>Add your own text</span>', onclick: () => save((x) => { x.parts.push({ k: 'text', on: true, text: '' }); open = x.parts.length - 1; }) })),
+        row('Weather from', entitySelect(this.store, weatherEntity(this.store, hd), [['Weather', ['weather']]], (v) => save((x) => { if (v) x.weather = v; else delete x.weather; }), 'None'), 'Used by the weather pieces'),
+        row('Between pieces', segmented(SEPARATORS, hd.sep ?? ' · ', (v) => save((x) => { x.sep = v; }))));
+      const lineLook = sec('Line: font and size',
+        fontPicker(hd.subFont, (v) => save((x) => { x.subFont = v; })),
+        row('Size', sizeCtl(hd.subSize || 100, 60, 250, 5, (v) => save((x) => { x.subSize = v; }))),
+        row('Weight', segmented(WEIGHTS, hd.subWeight || 600, (v) => save((x) => { x.subWeight = v; }))),
+        row('Colour', this.colorCtl(hd.subColor, hd.subColor2, 'Theme', (c, c2) => save((x) => { if (c) x.subColor = c; else delete x.subColor; if (c && c2) x.subColor2 = c2; else delete x.subColor2; }))));
+      const titleSec = sec('Title',
+        fontPicker(hd.titleFont, (v) => save((x) => { x.titleFont = v; })),
+        row('Size', sizeCtl(hd.titleSize || 100, 60, 200, 5, (v) => save((x) => { x.titleSize = v; }))),
+        row('Weight', segmented(WEIGHTS, hd.titleWeight || 750, (v) => save((x) => { x.titleWeight = v; }))),
+        row('On the Home page', segmented([{ v: 'greeting', label: 'Greeting' }, { v: 'name', label: 'Page name' }], hd.homeTitle || 'greeting', (v) => save((x) => { x.homeTitle = v; })), 'Room pages always show the room’s name'));
+      const sizeSec = sec('Header height',
+        row('Space for the header', sizeCtl(hd.height || 13, 8, 30, 1, (v) => save((x) => { x.height = v; }), '%'), 'Share of the screen’s height; the tiles make room'),
+        h('div.sheet-actions', {}, h('button.pill', { text: 'Reset the header', onclick: () => save((x) => { const d = defaultHeader(); for (const k of Object.keys(x)) delete x[k]; Object.assign(x, d); open = null; }) })));
+      sh.body.append(h('div.hd-preview-wrap', {}, preview), lineSec, lineLook, titleSec, sizeSec);
+    };
+    render();
   }
 
   // ------------------------------------------------------------------ themes

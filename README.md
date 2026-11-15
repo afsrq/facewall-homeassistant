@@ -11,6 +11,7 @@ Watch faces for a wall-mounted iPad, with your Home Assistant devices one swipe 
 - **Icons & styles**: Home Assistant/Material Design icons (7,000+), Phosphor, Material Symbols, Tabler and Font Awesome Free, bundled (35,000+ in all), plus an online search of 200,000+ open-source icons that saves what you pick; add your own Font Awesome Pro icons as SVGs; custom names, and per-tile styles: a light can be a quick switch, full colour/dim/effects/scenes controls, or a timer. Add the same device as many times as you like.
 - **Tile colours**: a solid colour or gradient per tile, for on and off; works on the thermostat and weather tiles too.
 - **Full screen in Home Assistant**: hide Home Assistant's sidebar and top bar on the iPads you choose.
+- **Page header**: pick what shows under each page's title (greeting, date, weather, high/low, wind, rain, sunrise/sunset, storm and hurricane warnings, sensors, your own text), with your choice of font, size and colour.
 - **Themes**: 18 themes (dark, pastel and electric) with a live preview picker; use one for the whole house or a different one per iPad.
 - **Your layout**: give each tile its own width and height in grid columns/rows (drag to resize in Edit layout mode), and choose how many columns and rows fit on the screen.
 - Live updates, settings shared across every screen, night dimming, return-to-clock after idle.
@@ -36,7 +37,7 @@ Home Assistant calls add-ons **Apps** (since 2026.2). Pick **one** of these:
 The first build takes a minute or two while it downloads Node.
 
 ### Then, on the iPad
-Open `http://homeassistant.local:8099` in Safari, then **Share → Add to Home Screen**, and launch it from the icon.
+Open `http://homeassistant.local:8099` in Safari (or the port you set in the app's Network settings), then **Share → Add to Home Screen**, and launch it from the icon.
 Set **Auto-Lock → Never** and keep it on a charger. See `facewall/DOCS.md` for tips.
 
 ---

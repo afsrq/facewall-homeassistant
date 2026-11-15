@@ -2,6 +2,7 @@
 import { icon, domainIcon } from './icons.js';
 import { domainOf, isOn, lightRGB, formatState, cap } from './data.js';
 import { h, press, sheet, toast } from './ui.js';
+import { headerOf, headerContent, headerVars } from './header.js';
 import { iconSvg } from './iconlib.js';
 
 const TOGGLES = ['switch', 'input_boolean', 'fan', 'automation', 'siren', 'humidifier'];
@@ -120,13 +121,6 @@ function fmtLeft(ms) {
   const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
   return hh ? `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${mm}:${String(ss).padStart(2, '0')}`;
 }
-function greeting(d) {
-  const hr = d.getHours();
-  if (hr >= 5 && hr < 12) return 'Good morning';
-  if (hr >= 12 && hr < 17) return 'Good afternoon';
-  if (hr >= 17 && hr < 22) return 'Good evening';
-  return 'Good night';
-}
 
 export class HomePage {
   constructor(root, store, app, pageId) {
@@ -175,12 +169,16 @@ export class HomePage {
     this.date = h('div.date');
     this.time = h('div.home-time');
     const head = h('header.home-head', {},
-      h('div', {}, this.greet, this.date),
+      h('div.head-titles', {}, this.greet, this.date),
       h('div.head-right', {},
         this.time,
         h('button.icon-btn.glass', { 'aria-label': 'Edit layout', html: icon('grid'), onclick: () => this.setEditing(!this.editing) }),
         h('button.icon-btn.glass', { 'aria-label': 'Clock', html: icon('clock'), onclick: () => this.app.goTo(0) }),
         h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.app.openSettings({ page: this.pageId }) })));
+    this.head = head;
+    this.applyHeaderStyle(head);
+    // Hold (or right-click) the title to change the header.
+    press(head.querySelector('.head-titles'), { onLong: () => this.app.headerEditor?.() });
     this.grid = h('div.home-grid' + (this.editing ? '.editing' : ''));
     this.root.classList.toggle('editing', this.editing);
     this.root.append(h('div.home-bg'), head, this.grid);
@@ -218,6 +216,16 @@ export class HomePage {
   }
 
   /** Works out columns/rows for this screen. Returns true if the column count changed. */
+  /** Fonts, sizes, colour and height of the title and the line under it. */
+  applyHeaderStyle(head) {
+    const hd = this.hd = headerOf(this.store.settings);
+    this.lastLine = null;
+    const { vars, grad } = headerVars(hd);
+    for (const [k, v] of Object.entries(vars)) { if (v == null) head.style.removeProperty(k); else head.style.setProperty(k, v); }
+    this.date.classList.toggle('grad', grad);
+    this.hdFor = this.store.settings;
+  }
+
   layout() {
     if (!this.grid) return false;
     const L = this.page?.layout || {};
@@ -227,7 +235,13 @@ export class HomePage {
     const rows = L.rows || (portrait ? 3 : 2);
     const gap = Math.round(Math.min(W, H) * (cols > 6 || rows > 3 ? 0.015 : 0.02));
     const pad = Math.min(30, Math.max(16, W * 0.022));
-    const headH = Math.round(H * 0.13) + 8;
+    // The header is the height you chose, or taller when its text needs it (the tiles make room).
+    const base = Math.round(H * (headerOf(this.store.settings).height || 13) / 100);
+    const titles = this.root.querySelector('.head-titles');
+    const headPx = Math.max(base, titles ? Math.ceil(titles.scrollHeight) + 14 : 0);
+    const head = this.root.querySelector('.home-head');
+    if (head) head.style.height = `calc(${headPx}px + env(safe-area-inset-top))`;
+    const headH = headPx + 8;
     const reserve = this.editing ? 84 : 0; // room for the edit bar
     // One row = the screen height shared by `rows` (each tile keeps half a gap of margin all round).
     const unitH = Math.max(90, (H - headH - reserve - (pad - gap / 2)) / rows);
@@ -313,9 +327,11 @@ export class HomePage {
   tick() {
     const now = new Date();
     if (!this.greet) return;
-    const date = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-    this.greet.textContent = this.isHome ? greeting(now) : this.page.name;
-    this.date.textContent = this.isHome ? date : `${greeting(now)}  ·  ${date}`;
+    if (this.hdFor !== this.store.settings && this.head) this.applyHeaderStyle(this.head);
+    const hd = this.hd || headerOf(this.store.settings);
+    const { title, html } = headerContent(this.store, hd, now, { isHome: this.isHome, pageName: this.page?.name });
+    if (this.greet.textContent !== title) this.greet.textContent = title;
+    if (html !== this.lastLine) { this.date.innerHTML = html; this.lastLine = html; this.date.style.display = html ? '' : 'none'; this.layout(); }
     const use24h = this.store.settings?.general?.use24h;
     this.time.textContent = now.toLocaleTimeString(undefined, { hour: use24h ? '2-digit' : 'numeric', minute: '2-digit', hour12: !use24h });
     for (const c of this.cards) if (c.timer && this.store.timers[c.id]) c.update();
