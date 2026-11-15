@@ -701,8 +701,173 @@ const wordclock = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'digital', 'modular', 'wordclock', 'flip', 'lamp'];
+// ============================================================ Mid-century faces (original designs in the spirit of the era)
+const MCM_DIALS = [
+  { v: 'walnut', label: 'Walnut', color: '#2a1d14', c2: '#3b2a1d', ink: '#f6ead8', metal: '#d9a441' },
+  { v: 'teal', label: 'Teal', color: '#1f5f5b', c2: '#2a7671', ink: '#f6ead8', metal: '#e8b13a' },
+  { v: 'cream', label: 'Cream', color: '#efe6d2', c2: '#f7f1e3', ink: '#2d2418', metal: '#b8862b' },
+  { v: 'mustard', label: 'Mustard', color: '#d9a441', c2: '#e6b85a', ink: '#2a1d14', metal: '#2a1d14' },
+  { v: 'charcoal', label: 'Charcoal', color: '#1c1c1e', c2: '#2a2a2d', ink: '#f2ede2', metal: '#d9a441' },
+];
+const MCM_PAL = ['#e8b13a', '#2f7f7a', '#d9822b', '#e0567f', '#4fb3a9', '#c2541f'];
+/** A tapered, rounded hand drawn pointing up (rotated by the ticker). */
+function taperHand(svg, L, wBase, fill, tail = 0) {
+  const g = el('g', {}, svg);
+  el('path', { d: `M${-wBase / 2} ${tail} L${-wBase * 0.18} ${-L} Q0 ${-L - wBase * 0.4} ${wBase * 0.18} ${-L} L${wBase / 2} ${tail} Z`, fill }, g);
+  return g;
+}
+const dialBg = (svg, w, h, d) => {
+  const id = 'mg' + ++uid;
+  const g = el('radialGradient', { id, cx: '50%', cy: '45%', r: '70%' }, el('defs', {}, svg));
+  el('stop', { offset: '0', 'stop-color': d.c2 }, g); el('stop', { offset: '1', 'stop-color': d.color }, g);
+  el('rect', { width: w, height: h, fill: `url(#${id})` }, svg);
+};
+
+const starburst = {
+  name: 'Starburst', blurb: 'Brass rays bursting from the centre, like a 1950s living-room clock.', category: 'Mid-century',
+  options: [
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS },
+    { key: 'rays', label: 'Rays', type: 'choice', choices: [{ v: 'long', label: 'Long & short' }, { v: 'even', label: 'Even' }, { v: 'dots', label: 'With dots' }] },
+    { key: 'seconds', label: 'Seconds hand', type: 'bool' },
+  ],
+  defaults: { dial: 'walnut', rays: 'long', seconds: true },
+  ink: (o) => pick(MCM_DIALS, o.dial).ink,
+  create(root, o, { w, h }) {
+    const d = pick(MCM_DIALS, o.dial);
+    const svg = makeSvg(root, w, h);
+    dialBg(svg, w, h, d);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.47;
+    const rays = el('g', { fill: d.metal }, svg);
+    for (let i = 0; i < 48; i++) {
+      const hour = i % 4 === 0;
+      const inner = R * 0.3, outer = o.rays === 'even' ? R * 0.92 : hour ? R : i % 2 ? R * 0.72 : R * 0.84;
+      const wid = hour ? R * 0.022 : R * 0.012;
+      const a = i * 7.5;
+      const [x1, y1] = polar(cx, cy, inner, a - 0.6), [x2, y2] = polar(cx, cy, inner, a + 0.6);
+      const [tx, ty] = polar(cx, cy, outer, a);
+      const [lx, ly] = polar(cx, cy, outer - wid * 2, a - (wid / outer) * 57), [rx2, ry2] = polar(cx, cy, outer - wid * 2, a + (wid / outer) * 57);
+      el('path', { d: `M${x1} ${y1} L${lx} ${ly} L${tx} ${ty} L${rx2} ${ry2} L${x2} ${y2} Z`, opacity: hour ? 1 : 0.7 }, rays);
+      if (o.rays === 'dots' && hour) { const [dx, dy] = polar(cx, cy, R * 0.97 + R * 0.04, a); el('circle', { cx: dx, cy: dy, r: R * 0.03 }, rays); }
+    }
+    el('circle', { cx, cy, r: R * 0.3, fill: d.color }, svg);
+    el('circle', { cx, cy, r: R * 0.3, fill: 'none', stroke: d.metal, 'stroke-width': R * 0.012, opacity: 0.8 }, svg);
+    const hourH = taperHand(svg, R * 0.5, R * 0.07, d.ink, R * 0.05);
+    const minH = taperHand(svg, R * 0.78, R * 0.05, d.ink, R * 0.05);
+    let secH = null;
+    if (o.seconds) {
+      secH = el('g', {}, svg);
+      el('line', { x1: 0, y1: R * 0.12, x2: 0, y2: -R * 0.88, stroke: d.metal, 'stroke-width': R * 0.01, 'stroke-linecap': 'round' }, secH);
+      el('circle', { cx: 0, cy: -R * 0.88, r: R * 0.025, fill: d.metal }, secH);
+    }
+    el('circle', { cx, cy, r: R * 0.035, fill: d.metal }, svg);
+    return { update(now, smooth) { const a = angles(now); rot(hourH, cx, cy, a.h); rot(minH, cx, cy, a.m); if (secH) rot(secH, cx, cy, smooth ? a.s : a.sTick); } };
+  },
+};
+
+function atomStar(g, x, y, r, fill) {
+  for (let i = 0; i < 4; i++) {
+    const a = i * 45;
+    const [x1, y1] = polar(x, y, r, a), [x2, y2] = polar(x, y, r, a + 180);
+    el('line', { x1, y1, x2, y2, stroke: fill, 'stroke-width': r * (i % 2 ? 0.08 : 0.14), 'stroke-linecap': 'round' }, g);
+  }
+  el('circle', { cx: x, cy: y, r: r * 0.2, fill }, g);
+}
+function boomerangPath(x, y, s, rotDeg, fill, parent, opacity = 1) {
+  return el('path', { transform: `translate(${x} ${y}) rotate(${rotDeg}) scale(${s})`, d: 'M-20 6 C-12 -10 10 -14 22 -4 C10 -8 -2 -2 -6 10 C-10 16 -18 14 -20 6 Z', fill, opacity }, parent);
+}
+const atomic = {
+  name: 'Atomic', blurb: 'Atomic stars for hours, orbiting dots and a boomerang second hand.', category: 'Mid-century',
+  options: [
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS },
+    { key: 'accent', label: 'Accent', type: 'swatch', choices: MCM_PAL.map((c, i) => ({ v: String(i), label: ['Mustard', 'Teal', 'Orange', 'Coral', 'Aqua', 'Rust'][i], color: c })) },
+    { key: 'scatter', label: 'Boomerangs in the background', type: 'bool' },
+  ],
+  defaults: { dial: 'cream', accent: '2', scatter: true },
+  ink: (o) => pick(MCM_DIALS, o.dial).ink,
+  create(root, o, { w, h }) {
+    const d = pick(MCM_DIALS, o.dial), acc = MCM_PAL[Number(o.accent) || 0];
+    const svg = makeSvg(root, w, h);
+    dialBg(svg, w, h, d);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.45;
+    if (o.scatter) {
+      const bg = el('g', {}, svg);
+      let seed = 7; const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      for (let i = 0; i < 26; i++) {
+        const x = rnd() * w, y = rnd() * h;
+        if (Math.hypot(x - cx, y - cy) < R * 1.08) continue;
+        if (i % 3) boomerangPath(x, y, (0.6 + rnd() * 0.8) * Math.min(w, h) / 500, rnd() * 360, MCM_PAL[i % MCM_PAL.length], bg, 0.35);
+        else el('circle', { cx: x, cy: y, r: Math.min(w, h) * (0.006 + rnd() * 0.008), fill: d.ink, opacity: 0.25 }, bg);
+      }
+    }
+    // Orbit ring with dots for the minutes.
+    el('circle', { cx, cy, r: R * 0.93, fill: 'none', stroke: d.ink, 'stroke-width': R * 0.004, opacity: 0.25 }, svg);
+    for (let i = 0; i < 60; i++) if (i % 5) { const [x, y] = polar(cx, cy, R * 0.93, i * 6); el('circle', { cx: x, cy: y, r: R * 0.008, fill: d.ink, opacity: 0.45 }, svg); }
+    const stars = el('g', {}, svg);
+    for (let i = 0; i < 12; i++) {
+      const [x, y] = polar(cx, cy, R * 0.93, i * 30);
+      atomStar(stars, x, y, i % 3 === 0 ? R * 0.085 : R * 0.05, i % 3 === 0 ? acc : d.ink);
+    }
+    // Hands: a slim hour lozenge, a long minute needle with a disc, and a boomerang seconds hand.
+    const hourH = taperHand(svg, R * 0.5, R * 0.06, d.ink, R * 0.06);
+    const minH = el('g', {}, svg);
+    el('path', { d: `M${-R * 0.018} ${R * 0.08} L${-R * 0.008} ${-R * 0.8} L${R * 0.008} ${-R * 0.8} L${R * 0.018} ${R * 0.08} Z`, fill: d.ink }, minH);
+    el('circle', { cx: 0, cy: -R * 0.62, r: R * 0.045, fill: 'none', stroke: d.ink, 'stroke-width': R * 0.014 }, minH);
+    const secH = el('g', {}, svg);
+    el('line', { x1: 0, y1: R * 0.1, x2: 0, y2: -R * 0.72, stroke: acc, 'stroke-width': R * 0.008, 'stroke-linecap': 'round' }, secH);
+    boomerangPath(0, -R * 0.76, R / 260, -90, acc, secH);
+    el('circle', { cx, cy, r: R * 0.04, fill: acc }, svg);
+    el('circle', { cx, cy, r: R * 0.015, fill: d.color }, svg);
+    return { update(now, smooth) { const a = angles(now); rot(hourH, cx, cy, a.h); rot(minH, cx, cy, a.m); rot(secH, cx, cy, smooth ? a.s : a.sTick); } };
+  },
+};
+
+const CONFETTI_SHAPES = ['circle', 'square', 'tri', 'lozenge', 'half', 'ring'];
+function shapeAt(g, kind, x, y, r, fill, rotDeg) {
+  const t = `translate(${x} ${y}) rotate(${rotDeg})`;
+  if (kind === 'circle') return el('circle', { cx: x, cy: y, r, fill }, g);
+  if (kind === 'ring') return el('circle', { cx: x, cy: y, r: r * 0.8, fill: 'none', stroke: fill, 'stroke-width': r * 0.42 }, g);
+  if (kind === 'square') return el('rect', { x: -r * 0.85, y: -r * 0.85, width: r * 1.7, height: r * 1.7, rx: r * 0.25, fill, transform: t }, g);
+  if (kind === 'tri') return el('path', { d: `M0 ${-r * 1.1} L${r} ${r * 0.75} L${-r} ${r * 0.75} Z`, fill, transform: t }, g);
+  if (kind === 'lozenge') return el('rect', { x: -r * 0.45, y: -r * 1.2, width: r * 0.9, height: r * 2.4, rx: r * 0.45, fill, transform: t }, g);
+  return el('path', { d: `M${-r} 0 A${r} ${r} 0 0 1 ${r} 0 Z`, fill, transform: t }, g);
+}
+const confetti = {
+  name: 'Confetti', blurb: 'A different playful shape for every hour, in mustard, teal, orange and coral.', category: 'Mid-century',
+  options: [
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS },
+    { key: 'size', label: 'Shapes', type: 'choice', choices: [{ v: 'small', label: 'Small' }, { v: 'big', label: 'Big' }] },
+    { key: 'seconds', label: 'Seconds hand', type: 'bool' },
+  ],
+  defaults: { dial: 'cream', size: 'big', seconds: true },
+  ink: (o) => pick(MCM_DIALS, o.dial).ink,
+  create(root, o, { w, h }) {
+    const d = pick(MCM_DIALS, o.dial);
+    const svg = makeSvg(root, w, h);
+    dialBg(svg, w, h, d);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.46;
+    const g = el('g', {}, svg);
+    const r = o.size === 'small' ? R * 0.055 : R * 0.085;
+    for (let i = 0; i < 12; i++) {
+      const [x, y] = polar(cx, cy, R * 0.86, i * 30);
+      shapeAt(g, CONFETTI_SHAPES[i % CONFETTI_SHAPES.length], x, y, i % 3 === 0 ? r * 1.25 : r, MCM_PAL[i % MCM_PAL.length], i * 30);
+    }
+    const hourH = el('g', {}, svg);
+    el('rect', { x: -R * 0.035, y: -R * 0.5, width: R * 0.07, height: R * 0.58, rx: R * 0.035, fill: d.ink }, hourH);
+    const minH = el('g', {}, svg);
+    el('rect', { x: -R * 0.022, y: -R * 0.76, width: R * 0.044, height: R * 0.84, rx: R * 0.022, fill: d.ink }, minH);
+    el('circle', { cx: 0, cy: -R * 0.76, r: R * 0.035, fill: MCM_PAL[0] }, minH);
+    let secH = null;
+    if (o.seconds) {
+      secH = el('g', {}, svg);
+      el('line', { x1: 0, y1: R * 0.14, x2: 0, y2: -R * 0.8, stroke: MCM_PAL[3], 'stroke-width': R * 0.009, 'stroke-linecap': 'round' }, secH);
+    }
+    el('circle', { cx, cy, r: R * 0.045, fill: MCM_PAL[1] }, svg);
+    return { update(now, smooth) { const a = angles(now); rot(hourH, cx, cy, a.h); rot(minH, cx, cy, a.m); if (secH) rot(secH, cx, cy, smooth ? a.s : a.sTick); } };
+  },
+};
+
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, starburst, atomic, confetti };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };

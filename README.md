@@ -2,7 +2,7 @@
 
 Watch faces for a wall-mounted iPad, with your Home Assistant devices one swipe away.
 
-- **9 faces**: Classic, Numerals, Hourglow, Roman, Digital, Modular, Word clock, Flip and Lamp, with live Home Assistant info in all four corners. Each one can be customized. Hold the clock to switch faces.
+- **12 faces**: Classic, Numerals, Hourglow, Roman, Starburst, Atomic, Confetti, Digital, Modular, Word clock, Flip and Lamp, with live Home Assistant info in all four corners. Each one can be customized. Hold the clock to switch faces.
 - **Tap the face** to toggle a light, switch or scene. Show a sensor (e.g. outside temperature) in a corner.
 - **Home page**: AC/heating with modes and temperature, water heater with 15/30/45/60-minute timers, door lock (tap twice to unlock), light tiles in each light's real colour, "All lights off", switches, covers, scenes and sensors.
 - **Room pages**: swipe Clock → Home → Living Room → Kitchen…, each page with its own tiles and grid. Make a room page from a Home Assistant area in one tap.

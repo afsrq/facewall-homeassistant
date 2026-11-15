@@ -149,7 +149,7 @@ Tip: for a wall iPad, turn off Auto-Lock (Settings → Display & Brightness) and
 Every face can show live Home Assistant info in its four corners (hold the clock → Customize → *Top-left / Top-right / Bottom-left / Bottom-right info*): weather (temperature and conditions), a calendar (its next event), a sensor, a media player (the song) and more.
 
 
-Classic, Numerals, Hourglow, Roman, Digital, **Modular** (big time with four live panels), **Word clock** (the time spelled out), Flip, and **Lamp**, a pendant bulb that glows in the real colour and brightness of a light you choose. Tap it to switch the light.
+Classic, Numerals, Hourglow, Roman, **Starburst**, **Atomic** and **Confetti** (mid-century), Digital, **Modular** (big time with four live panels), **Word clock** (the time spelled out), Flip, and **Lamp**, a pendant bulb that glows in the real colour and brightness of a light you choose. Tap it to switch the light.
 
 ## Port 8099 and security
 

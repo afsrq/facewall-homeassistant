@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.22.0
+- **Three mid-century faces** (original designs in the spirit of the era), each with walnut, teal, cream, mustard or charcoal dials:
+  - **Starburst**: brass rays of alternating lengths radiating from the dial (long & short, even, or with dots).
+  - **Atomic**: atomic stars for the hours, an orbit of minute dots, a boomerang seconds hand and boomerangs drifting in the background.
+  - **Confetti**: a different shape for every hour (circles, squares, triangles, lozenges, rings) in mustard, teal, orange and coral.
+
 ## 1.21.0
 - **Modular face**: a big time with four live panels for your Home Assistant info: weather, the next calendar event, a sensor, what's playing…
 - **Word clock face**: "It is a quarter to three", lit on a grid of letters, with minute dots; choose the colour, a black, walnut, slate or paper background, and the font.
