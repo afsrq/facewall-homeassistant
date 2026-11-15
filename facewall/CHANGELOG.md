@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.12.0
+- **Architectural themes**, matched to the style of the house, each with its own colours, a subtle background pattern and a title font: **Mid-century** (cream, mustard and teal), **Walnut** (dark wood), **Atomic** (mint and orange) with atomic starbursts and boomerangs in Futura; **Palm Springs** (blush, flamingo and turquoise), **Desert Pool** (turquoise and sunny yellow) and **Desert Dusk** (plum and pink) with a breeze-block pattern in Avenir Next. A title font you choose in the page header still wins.
+
 ## 1.11.0
 - **Page header**: choose what the line under the title shows and in what order: greeting (with your name, or your own words), date format, weather now, today's high and low, feels like, chance of rain, wind, humidity, next sunrise/sunset, weather warnings, sensors and your own text. Hold the title on any page to change it.
 - **Weather warnings**: orange tags for thunderstorms, hail, heavy rain, extreme weather and very strong wind, plus any alert sensor (NWS Alerts, Meteoalarm, Met Office…) while it has an active warning.

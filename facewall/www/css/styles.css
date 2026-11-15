@@ -86,7 +86,7 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .ft-sub { font-size: clamp(15px, 2.4vh, 22px); font-weight: 600; opacity: 0.85; margin-top: 4px; text-shadow: 0 2px 14px rgba(0,0,0,0.6); }
 
 /* ------------------------------------------------------------ home */
-.home-page { background: var(--t-bg); color: var(--t-text); transition: background 0.4s, color 0.4s; }
+.home-page { background: var(--t-pattern, none) top left / auto repeat, var(--t-bg); color: var(--t-text); transition: background 0.4s, color 0.4s; }
 .home-bg {
   position: absolute; inset: -10%; pointer-events: none;
   background:
@@ -100,7 +100,7 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
   height: calc(var(--hd-h, 13vh) + env(safe-area-inset-top)); padding: env(safe-area-inset-top) var(--pad) 0;
 }
 .head-titles { min-width: 0; flex: 1; margin-right: 16px; -webkit-user-select: none; user-select: none; }
-.greet { font-family: var(--hd-title-font, inherit); font-size: calc(clamp(26px, 3.6vw, 42px) * var(--hd-title-scale, 1)); font-weight: var(--hd-title-weight, 750); letter-spacing: -0.01em; line-height: 1.12; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.greet { font-family: var(--hd-title-font, var(--t-title-font, inherit)); font-size: calc(clamp(26px, 3.6vw, 42px) * var(--hd-title-scale, 1)); font-weight: var(--hd-title-weight, 750); letter-spacing: -0.01em; line-height: 1.12; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .date { font-family: var(--hd-sub-font, inherit); font-size: calc(clamp(13px, 1.4vw, 17px) * var(--hd-sub-scale, 1)); font-weight: var(--hd-sub-weight, 600); color: var(--hd-sub-color, var(--t-date)); margin-top: 2px; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .date.grad { background: var(--hd-sub-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .date.grad .hd-ic { color: var(--hd-sub-c1); }

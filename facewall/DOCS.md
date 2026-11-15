@@ -87,6 +87,10 @@ If you open Facewall from Home Assistant's sidebar (or the Home Assistant app), 
 
 For a wall iPad you can also skip Home Assistant's page completely: open `http://homeassistant.local:8099/` in Safari and add it to the Home Screen (see *Port 8099* below).
 
+## Architectural themes
+
+⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura), and Palm Springs, Desert Pool and Desert Dusk (breeze-block pattern, Avenir Next). Each brings its own background pattern and title font; more styles will follow.
+
 ## Page header
 
 Everything under a page's title is yours to choose: ⚙︎ → *Appearance* → *Page header* → **Change…**, or just **hold the title** on any page (right-click on a computer).

@@ -1045,7 +1045,7 @@ class App {
   // ------------------------------------------------------------------ themes
   /** A small picture of a theme: background, a card with the accent, and an "on" tile. */
   themeSwatch(t, { small } = {}) {
-    return h('div.th-mini' + (small ? '.sm' : ''), { style: { background: t.bg } },
+    return h('div.th-mini' + (small ? '.sm' : ''), { style: { background: t.pattern ? `${t.pattern} center / 120px repeat, ${t.bg}` : t.bg } },
       h('div.th-mini-card', { style: { background: t.card } },
         h('span.th-dot', { style: { background: t.dark ? t.date || t.accent : t.accent } }),
         h('span.th-ticks', { style: { color: t.dark ? t.date || t.accent : t.accent } }, h('i'), h('i'), h('i'), h('i'))),
