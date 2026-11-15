@@ -1,8 +1,8 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS } from './home.js';
-import { loadMdi, mdiSvg, mdiNames, mdiHas, SUGGESTED } from './mdi.js';
+import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS } from './home.js';
+import { loadIcons, iconSvg, searchIcons, LIBRARIES, uploadIcons, deleteIcon, onIconsChanged } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
@@ -15,11 +15,11 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage
 const slug = (t) => String(t || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 // What a room page made from a Home Assistant area starts with, in this order.
 const AREA_ORDER = ['climate', 'water_heater', 'lock', 'light', 'switch', 'fan', 'input_boolean', 'cover', 'sensor'];
-const TILE_DOMAINS = ['light', 'climate', 'water_heater', 'lock', 'switch', 'input_boolean', 'fan', 'cover', 'scene', 'script', 'button', 'sensor', 'binary_sensor', 'automation'];
+const TILE_DOMAINS = ['weather', 'light', 'climate', 'water_heater', 'lock', 'switch', 'input_boolean', 'fan', 'cover', 'scene', 'script', 'button', 'sensor', 'binary_sensor', 'automation'];
 
 function defaultSettings(store) {
   const ids = (d, n) => store.list([d]).slice(0, n).map((s) => s.entity_id);
-  const ents = [...ids('climate', 1), ...ids('water_heater', 1), ...ids('lock', 1), ...ids('light', 5)];
+  const ents = [...ids('weather', 1), ...ids('climate', 1), ...ids('water_heater', 1), ...ids('lock', 1), ...ids('light', 5)];
   if (ents.length < 4) ents.push(...ids('switch', 4 - ents.length));
   const firstLight = store.list(['light'])[0]?.entity_id || null;
   const temp = store.list(['sensor']).find((s) => s.attributes.device_class === 'temperature')?.entity_id || null;
@@ -99,7 +99,8 @@ class App {
     this.goTo(this.startIndex(), true);
     document.body.classList.remove('loading');
     // Icons load in the background; tiles switch to their Home Assistant / custom icons when ready.
-    loadMdi().then(() => this.rooms.forEach((r) => r.render()));
+    onIconsChanged(() => this.rooms.forEach((r) => r.render()));
+    loadIcons();
 
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
@@ -264,7 +265,18 @@ class App {
     this.facePage.prepend(this.face.host);
     this.face.paused = this.page !== 0;
   }
+  /** What tapping the clock does on this screen: 'face' (the face's own tap action) or a page id to open. */
+  clockTapTarget() {
+    const sc = this.screen, pages = this.settings.pages || [];
+    if (sc.clockTap === 'face') return 'face';
+    if (sc.clockTap && pages.some((p) => p.id === sc.clockTap)) return sc.clockTap;
+    if (this.activeFace()?.tap) return 'face'; // e.g. the Lamp face switches its light
+    if (sc.startPage && pages.some((p) => p.id === sc.startPage)) return sc.startPage;
+    return pages[0]?.id || 'face';
+  }
   faceTap() {
+    const target = this.clockTapTarget();
+    if (target !== 'face') { this.goToRoom(target); return; }
     const f = this.activeFace();
     if (!f?.tap) {
       if (!this.hinted) {
@@ -512,6 +524,14 @@ class App {
         row('Name', h('input.text-in.wide-in', { value: sc.name || '', placeholder: 'e.g. Kitchen iPad', onchange: (e) => { this.renameScreen(e.target.value); render(); } }), 'Each iPad keeps its own start page and clock face'),
         row('Opens on', startSel, 'Where it starts, and after a restart'),
         row('Clock face', h('div.row-value', { text: faceLabel(sc.faceId) }), 'Hold the clock on this screen to change it'),
+        row('Tap the clock to', (() => {
+          const sel = h('select.select');
+          for (const p of s.pages) sel.append(h('option', { value: p.id, text: `Open ${p.name}` }));
+          sel.append(h('option', { value: 'face', text: 'Use the face’s tap action' }));
+          sel.value = this.clockTapTarget();
+          sel.onchange = () => this.updateScreen((x) => { x.clockTap = sel.value; });
+          return sel;
+        })(), 'A quick way to this iPad’s room without swiping'),
         h('div.about.small', { text: 'To keep these even if Safari’s data is cleared, add this address to the iPad’s Home Screen:' }),
         h('div.copy-row', {}, h('code.addr', { text: link }), h('button.pill.sm', { text: 'Copy', onclick: async () => {
           try { await navigator.clipboard.writeText(link); toast('Address copied'); } catch { toast('Couldn’t copy. Select the address instead.'); }
@@ -655,6 +675,7 @@ class App {
     item.icon || (haIcon ? `${haIcon} (from Home Assistant)` : 'Built-in icon')));
     if (ICON_MOVABLE.includes(kindFor(item))) {
       rows.push(row('Icon position', segmented(ICON_POSITIONS, item.iconPos || 'tl', (v) => set((it) => { if (v === 'tl') delete it.iconPos; else it.iconPos = v; }))));
+      rows.push(row('Name position', segmented(NAME_POSITIONS, item.namePos || 'bottom', (v) => set((it) => { if (v === 'bottom') delete it.namePos; else it.namePos = v; })), 'Under or above the icon follows the icon’s position'));
     }
     // Icon size: 50%–300% of normal. The label follows the slider; the tile updates when you let go.
     const scale = item.iconScale || 1;
@@ -691,32 +712,46 @@ class App {
     render();
   }
 
-  /** Searchable picker over Material Design Icons. onPick('mdi:name'). */
+  /** Icon picker: Home Assistant (MDI), Font Awesome Free and your own icons (e.g. Font Awesome Pro SVGs). */
   async iconPicker(current, onPick) {
     const sh = sheet({ title: 'Choose an icon', cls: 'icon-sheet' });
-    const search = h('input.search', { type: 'search', placeholder: 'Search 7,000+ icons: lamp, sofa, tv, fan…', autocomplete: 'off', autocapitalize: 'off' });
+    let lib = 'all';
+    const search = h('input.search', { type: 'search', placeholder: 'Search icons: lamp, sofa, tv… (or fas:couch, fapro:…)', autocomplete: 'off', autocapitalize: 'off' });
+    const chips = h('div.filter-chips');
     const grid = h('div.icon-grid', {}, h('div.ent-empty', { text: 'Loading icons…' }));
-    sh.body.append(search, h('div.about.small', { text: 'Material Design Icons, the same set Home Assistant uses. You can paste a name like mdi:ceiling-light.' }), grid);
-    await loadMdi();
+    const files = h('input', { type: 'file', accept: '.svg,image/svg+xml', multiple: true, style: { display: 'none' } });
+    const proBar = h('div.pro-bar', {},
+      h('div.about.small', { html: 'Add your <b>Font Awesome Pro</b> (or any) icons: download the SVGs from fontawesome.com and upload them here, or put them in Home Assistant’s <code>custom_icons</code> folder. They’re used as <code>fapro:name</code>.' }),
+      h('button.pill.sm.primary', { html: icon('plus') + '<span>Upload SVG</span>', onclick: () => files.click() }));
+    files.addEventListener('change', async () => {
+      const added = await uploadIcons([...files.files]);
+      files.value = '';
+      toast(added.length ? `Added ${added.length} icon${added.length === 1 ? '' : 's'}` : 'No usable SVG icons in those files', added.length ? '' : 'error');
+      lib = 'pro'; renderChips(); render();
+    });
+    sh.body.append(search, chips, proBar, files, grid);
+    const renderChips = () => {
+      chips.innerHTML = '';
+      for (const l of LIBRARIES) chips.append(h('button.fchip' + (lib === l.v ? '.on' : ''), { text: l.label, onclick: () => { lib = l.v; renderChips(); render(); } }));
+      proBar.style.display = lib === 'pro' || lib === 'all' ? '' : 'none';
+    };
     const render = () => {
-      const q = search.value.trim().toLowerCase().replace(/^mdi:/, '');
-      let names;
-      if (!q) names = SUGGESTED.filter(mdiHas);
-      else {
-        const words = q.split(/[\s-]+/).filter(Boolean);
-        names = mdiNames().filter((n) => words.every((w) => n.includes(w)));
-        names.sort((a, b) => (a === q ? -1 : b === q ? 1 : 0) || (a.startsWith(q) ? 0 : 1) - (b.startsWith(q) ? 0 : 1) || a.length - b.length);
-        names = names.slice(0, 180);
-      }
+      const items = searchIcons(lib, search.value);
       grid.innerHTML = '';
-      for (const n of names) {
-        const b = h('button.icon-cell' + (current === 'mdi:' + n ? '.on' : ''), { title: 'mdi:' + n, onclick: () => { onPick('mdi:' + n); sh.close(); } });
-        b.innerHTML = mdiSvg(n) + `<span>${n}</span>`;
-        grid.append(b);
+      for (const it of items) {
+        const svg = iconSvg(it.name);
+        if (!svg) continue;
+        const cell = h('button.icon-cell' + (current === it.name ? '.on' : ''), { title: `${it.name}  ·  ${it.lib}`, onclick: () => { onPick(it.name); sh.close(); } });
+        cell.innerHTML = svg;
+        cell.append(h('span', { text: it.label }));
+        if (it.deletable) cell.append(h('span.icon-del', { html: icon('close'), title: 'Delete this uploaded icon', onclick: async (e) => { e.stopPropagation(); await deleteIcon(it.label); render(); } }));
+        grid.append(cell);
       }
-      if (!names.length) grid.append(h('div.ent-empty', { text: 'No icons match.' }));
+      if (!grid.children.length) grid.append(h('div.ent-empty', { text: lib === 'pro' ? 'No icons of your own yet. Upload SVGs above.' : 'No icons match.' }));
     };
     search.addEventListener('input', render);
+    renderChips();
+    await loadIcons();
     render();
     if (document.body.classList.contains('mouse')) setTimeout(() => search.focus(), 60);
   }
@@ -749,8 +784,8 @@ class App {
     const chips = h('div.filter-chips');
     const list = h('div.ent-list');
     sh.body.append(search, chips, list);
-    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['scene', 'Scenes'], ['other', 'Other']];
-    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene'];
+    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['scene', 'Scenes'], ['other', 'Other']];
+    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather'];
     const renderChips = () => {
       chips.innerHTML = '';
       for (const [v, l] of groups) chips.append(h('button.fchip' + (filter === v ? '.on' : ''), { text: l, onclick: () => { filter = v; renderChips(); renderList(); } }));

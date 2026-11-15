@@ -2,7 +2,7 @@
 import { icon, domainIcon } from './icons.js';
 import { domainOf, isOn, lightRGB, formatState, cap } from './data.js';
 import { h, press, sheet, toast } from './ui.js';
-import { mdiSvg } from './mdi.js';
+import { iconSvg } from './iconlib.js';
 
 const TOGGLES = ['switch', 'input_boolean', 'fan', 'automation', 'siren', 'humidifier'];
 const ACTIONS = ['scene', 'script', 'button', 'input_button'];
@@ -17,18 +17,20 @@ export const tileName = (store, x) => {
 /** Icon markup for a tile: the tile's own icon, else the entity's Home Assistant icon, else the built-in one. */
 export function iconHtml(store, item, fallback) {
   const name = item?.icon || (item?.id ? store.get(item.id)?.attributes?.icon : null);
-  return (name && mdiSvg(name)) || icon(fallback);
+  return (name && iconSvg(name)) || icon(fallback);
 }
 /** Tile styles a given entity can use (first = default). */
 export function stylesFor(id) {
   const d = domainOf(id);
   if (d === 'light') return [{ v: 'light', label: 'Light', sub: 'Tap on/off · hold for colour' }, { v: 'switch', label: 'Quick switch', sub: 'Tap on/off only' }, { v: 'controls', label: 'Controls', sub: 'Tap opens colour, dim & scenes' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
   if (['switch', 'input_boolean', 'fan'].includes(d)) return [{ v: 'toggle', label: 'Switch', sub: 'Tap on/off' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
+  if (d === 'weather') return [{ v: 'daily', label: 'Daily', sub: 'Next days · tap for hourly too' }, { v: 'hourly', label: 'Hourly', sub: 'Next hours · tap for daily too' }];
   return [];
 }
 /** Tile kinds whose icon sits in the corner and can be moved (top left / top right / middle). */
 export const ICON_MOVABLE = ['light', 'toggle', 'action', 'cover', 'sensor', 'alloff'];
 export const ICON_POSITIONS = [{ v: 'tl', label: 'Top left' }, { v: 'tr', label: 'Top right' }, { v: 'center', label: 'Middle' }];
+export const NAME_POSITIONS = [{ v: 'bottom', label: 'Bottom' }, { v: 'below', label: 'Under icon' }, { v: 'above', label: 'Above icon' }];
 export const styleOf = (item) => item.style || (item.timer ? 'timer' : stylesFor(item.id)[0]?.v || null);
 export const tileIcon = (id) => (id === ALL_OFF ? 'bulbOff' : domainIcon(domainOf(id)));
 export const MAX_H = 4;
@@ -38,6 +40,7 @@ export function kindFor(item) {
   if (item.id === ALL_OFF) return 'alloff';
   const d = domainOf(item.id);
   if (d === 'climate') return 'climate';
+  if (d === 'weather') return 'weather';
   const style = styleOf(item);
   if (d === 'water_heater' || (style === 'timer' && TIMER_OK(item.id))) return 'timer';
   if (d === 'lock') return 'lock';
@@ -49,8 +52,28 @@ export function kindFor(item) {
 }
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
-  const def = kindFor(item) === 'climate' ? [2, 1] : [1, 1];
+  const def = ['climate', 'weather'].includes(kindFor(item)) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
+}
+
+// ------------------------------------------------------------------ weather helpers
+const WX = {
+  'clear-night': ['weather-night', 'Clear', 'night'], cloudy: ['weather-cloudy', 'Cloudy', 'cloudy'], exceptional: ['alert-circle-outline', 'Severe weather', 'storm'],
+  fog: ['weather-fog', 'Fog', 'cloudy'], hail: ['weather-hail', 'Hail', 'storm'], lightning: ['weather-lightning', 'Thunder', 'storm'],
+  'lightning-rainy': ['weather-lightning-rainy', 'Thunderstorms', 'storm'], partlycloudy: ['weather-partly-cloudy', 'Partly cloudy', 'partly'],
+  pouring: ['weather-pouring', 'Heavy rain', 'rain'], rainy: ['weather-rainy', 'Rain', 'rain'], snowy: ['weather-snowy', 'Snow', 'snow'],
+  'snowy-rainy': ['weather-snowy-rainy', 'Sleet', 'snow'], sunny: ['weather-sunny', 'Sunny', 'sunny'], windy: ['weather-windy', 'Windy', 'cloudy'],
+  'windy-variant': ['weather-windy-variant', 'Windy', 'cloudy'],
+};
+const wxIcon = (c, night) => 'mdi:' + (night && c === 'sunny' ? 'weather-night' : night && c === 'partlycloudy' ? 'weather-night-partly-cloudy' : WX[c]?.[0] || 'weather-partly-cloudy');
+const wxLabel = (c) => WX[c]?.[1] || cap(String(c || '').replace(/[-_]/g, ' '));
+const wxGroup = (c) => WX[c]?.[2] || 'cloudy';
+const fmtNum = (n) => (typeof n === 'number' ? (Math.abs(n) >= 10 || Number.isInteger(n) ? Math.round(n) : Math.round(n * 10) / 10) : n);
+const isNightHour = (iso) => { const hr = new Date(iso).getHours(); return hr < 6 || hr >= 20; };
+function wxWhen(iso, mode, i, use24h) {
+  const d = new Date(iso);
+  if (mode === 'hourly') return i === 0 ? 'Now' : d.toLocaleTimeString(undefined, { hour: 'numeric', hour12: !use24h });
+  return i === 0 && d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short' });
 }
 
 const lum = ([r, g, b]) => (0.299 * r + 0.587 * g + 0.114 * b) / 255;
@@ -77,11 +100,13 @@ export class HomePage {
       state: (e) => this.onState(e.detail),
       snapshot: () => this.render(),
       timers: () => this.cards.forEach((c) => c.timer && c.update()),
+      forecast: (e) => this.cards.forEach((c) => c.id === e.detail && c.update()),
       resize: () => { if (this.layout()) this.render(); },
     };
     store.addEventListener('state', this.handlers.state);
     store.addEventListener('snapshot', this.handlers.snapshot);
     store.addEventListener('timers', this.handlers.timers);
+    store.addEventListener('forecast', this.handlers.forecast);
     window.addEventListener('resize', this.handlers.resize);
     this.interval = setInterval(() => this.tick(), 1000);
   }
@@ -90,6 +115,8 @@ export class HomePage {
     this.store.removeEventListener('state', this.handlers.state);
     this.store.removeEventListener('snapshot', this.handlers.snapshot);
     this.store.removeEventListener('timers', this.handlers.timers);
+    this.store.removeEventListener('forecast', this.handlers.forecast);
+    this.cards.forEach((c) => c.destroy?.());
     window.removeEventListener('resize', this.handlers.resize);
     clearInterval(this.interval);
     this.root.remove();
@@ -104,6 +131,7 @@ export class HomePage {
     const s = this.store.settings;
     if (!s) return;
     const scroll = this.grid?.scrollTop || 0;
+    this.cards.forEach((c) => c.destroy?.());
     this.root.innerHTML = '';
     this.cards = [];
     this.greet = h('div.greet');
@@ -128,7 +156,8 @@ export class HomePage {
       const [w, hgt] = sizeOf(item);
       this.applySize(card.el, w, hgt);
       // Per-tile icon position and size.
-      card.el.classList.add('icon-' + (ICON_MOVABLE.includes(kindFor(item)) ? item.iconPos || 'tl' : 'tl'));
+      const movable = ICON_MOVABLE.includes(kindFor(item));
+      card.el.classList.add('icon-' + (movable ? item.iconPos || 'tl' : 'tl'), 'name-' + (movable ? item.namePos || 'bottom' : 'bottom'));
       if (item.iconScale && item.iconScale !== 1) card.el.style.setProperty('--icon-scale', String(item.iconScale));
       if (this.editing) this.attachEditor(card.el, item, index);
       this.cards.push(card); this.grid.append(card.el); card.update();
@@ -258,7 +287,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -482,6 +511,108 @@ export class HomePage {
       h('div.tile-bottom', {}, val, h('div.tile-name', { text: tileName(st, item) })));
     const update = () => { val.textContent = formatState(st, id); };
     return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ weather
+  weatherCard(id, item = { id }) {
+    const st = this.store;
+    const mode = styleOf(item) === 'hourly' ? 'hourly' : 'daily';
+    const nowIc = h('span.wx-ic');
+    const temp = h('div.wx-temp');
+    const cond = h('div.wx-cond');
+    const hl = h('div.wx-hl');
+    const name = h('div.wx-name', { text: tileName(st, item) });
+    const fc = h('div.wx-fc');
+    const el = h('div.card.weather', {}, h('div.wx-now', {}, nowIc, h('div.wx-main', {}, temp, cond), h('div.wx-side', {}, name, hl)), fc);
+    press(el, { onTap: () => this.weatherSheet(id, item) });
+    let lastKey = '';
+    const draw = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const f = st.forecasts?.[id] || {};
+      const list = (mode === 'hourly' ? f.hourly : f.daily) || f.daily || f.hourly || [];
+      const today = (f.daily || [])[0];
+      nowIc.innerHTML = iconHtml(st, { ...item, icon: item.icon || wxIcon(s?.state) }, 'sun');
+      temp.textContent = a.temperature != null ? `${fmtNum(a.temperature)}°` : '--';
+      cond.textContent = s ? wxLabel(s.state) : 'Missing';
+      hl.textContent = today?.temperature != null ? `H ${fmtNum(today.temperature)}°  L ${fmtNum(today.templow ?? '--')}°` : (a.humidity != null ? `Humidity ${a.humidity}%` : '');
+      for (const c of [...el.classList]) if (c.startsWith('wx-') ) el.classList.remove(c);
+      el.classList.add('wx-' + wxGroup(s?.state));
+      // How much forecast fits depends on the tile's size and shape.
+      const r = el.getBoundingClientRect();
+      const cw = r.width - 36, chh = r.height - 36;
+      const vertical = chh > 280 && cw < chh * 1.5;
+      const room = vertical ? chh - 110 : cw;
+      const n = Math.max(0, Math.min(list.length, vertical ? Math.floor(room / 44) : Math.floor(room / 66), mode === 'hourly' ? 12 : 8));
+      const key = [vertical, n, JSON.stringify(list.slice(0, n)), st.settings?.general?.use24h].join('|');
+      if (key === lastKey) return; lastKey = key;
+      fc.className = 'wx-fc ' + (vertical ? 'wx-list' : 'wx-strip') + (mode === 'hourly' ? ' wx-hourly' : '');
+      fc.innerHTML = '';
+      const items = list.slice(0, n);
+      const lo = Math.min(...items.map((x) => x.templow ?? x.temperature)), hi = Math.max(...items.map((x) => x.temperature));
+      items.forEach((x, i) => {
+        const when = wxWhen(x.datetime, mode, i, st.settings?.general?.use24h);
+        const pop = x.precipitation_probability >= 20 ? h('div.wx-pop', { text: `${Math.round(x.precipitation_probability)}%` }) : h('div.wx-pop');
+        const ic = h('span.wx-sic', { html: iconHtml(st, { icon: wxIcon(x.condition, x.is_daytime === false || (mode === 'hourly' && isNightHour(x.datetime))) }, 'sun') });
+        if (vertical) {
+          const low = x.templow ?? x.temperature;
+          const bar = h('div.wx-bar', {}, h('span', { style: { left: `${((low - lo) / Math.max(1, hi - lo)) * 100}%`, right: `${100 - ((x.temperature - lo) / Math.max(1, hi - lo)) * 100}%` } }));
+          fc.append(h('div.wx-row', {}, h('div.wx-when', { text: when }), ic, pop, h('div.wx-lo', { text: x.templow != null ? `${fmtNum(x.templow)}°` : '' }), bar, h('div.wx-hi', { text: `${fmtNum(x.temperature)}°` })));
+        } else {
+          fc.append(h('div.wx-col', {}, h('div.wx-when', { text: when }), ic, h('div.wx-t', {}, `${fmtNum(x.temperature)}°`, x.templow != null && mode === 'daily' ? h('span.wx-lo', { text: ` ${fmtNum(x.templow)}°` }) : null), pop));
+        }
+      });
+      if (!items.length && !vertical) fc.append(h('div.wx-empty', { text: s ? 'Waiting for forecast…' : '' }));
+    };
+    const ro = new ResizeObserver(() => draw());
+    ro.observe(el);
+    return { id, el, update: () => { lastKey = ''; draw(); }, destroy: () => ro.disconnect() };
+  }
+
+  weatherSheet(id, item = { id }) {
+    const st = this.store;
+    let onEv = () => {};
+    const sh = sheet({ title: tileName(st, item), cls: 'weather-sheet', onClose: () => { st.removeEventListener('state', onEv); st.removeEventListener('forecast', onEv); } });
+    const render = () => {
+      const s = st.get(id), a = s?.attributes || {}, f = st.forecasts?.[id] || {};
+      const use24h = st.settings?.general?.use24h;
+      sh.body.innerHTML = '';
+      const unit = a.wind_speed_unit || '';
+      const details = [
+        a.apparent_temperature != null ? ['Feels like', `${fmtNum(a.apparent_temperature)}°`] : null,
+        a.humidity != null ? ['Humidity', `${Math.round(a.humidity)}%`] : null,
+        a.wind_speed != null ? ['Wind', `${fmtNum(a.wind_speed)} ${unit}`] : null,
+        a.pressure != null ? ['Pressure', `${fmtNum(a.pressure)} ${a.pressure_unit || ''}`] : null,
+        a.uv_index != null ? ['UV index', fmtNum(a.uv_index)] : null,
+      ].filter(Boolean);
+      sh.body.append(h('div.ws-now', {},
+        h('span.ws-ic', { html: iconHtml(st, { icon: wxIcon(s?.state) }, 'sun') }),
+        h('div', {}, h('div.ws-temp', { text: a.temperature != null ? `${fmtNum(a.temperature)}°` : '--' }), h('div.ws-cond', { text: s ? wxLabel(s.state) : '' })),
+        h('div.ws-details', {}, details.map(([k, v]) => h('div.ws-d', {}, h('div.ws-k', { text: k }), h('div.ws-v', { text: v }))))));
+      if (f.hourly?.length) {
+        sh.body.append(h('div.ls-label', { text: 'Next hours' }), h('div.ws-hours', {}, f.hourly.slice(0, 24).map((x, i) => h('div.wx-col', {},
+          h('div.wx-when', { text: wxWhen(x.datetime, 'hourly', i, use24h) }),
+          h('span.wx-sic', { html: iconHtml(st, { icon: wxIcon(x.condition, isNightHour(x.datetime)) }, 'sun') }),
+          h('div.wx-t', { text: `${fmtNum(x.temperature)}°` }),
+          h('div.wx-pop', { text: x.precipitation_probability >= 20 ? `${Math.round(x.precipitation_probability)}%` : '' })))));
+      }
+      if (f.daily?.length) {
+        const days = f.daily.slice(0, 10);
+        const lo = Math.min(...days.map((x) => x.templow ?? x.temperature)), hi = Math.max(...days.map((x) => x.temperature));
+        sh.body.append(h('div.ls-label', { text: 'Next days' }), h('div.wx-fc.wx-list.ws-days', {}, days.map((x, i) => {
+          const low = x.templow ?? x.temperature;
+          return h('div.wx-row', {}, h('div.wx-when', { text: wxWhen(x.datetime, 'daily', i) }),
+            h('span.wx-sic', { html: iconHtml(st, { icon: wxIcon(x.condition) }, 'sun') }),
+            h('div.wx-pop', { text: x.precipitation_probability >= 20 ? `${Math.round(x.precipitation_probability)}%` : '' }),
+            h('div.wx-lo', { text: x.templow != null ? `${fmtNum(x.templow)}°` : '' }),
+            h('div.wx-bar', {}, h('span', { style: { left: `${((low - lo) / Math.max(1, hi - lo)) * 100}%`, right: `${100 - ((x.temperature - lo) / Math.max(1, hi - lo)) * 100}%` } })),
+            h('div.wx-hi', { text: `${fmtNum(x.temperature)}°` }));
+        })));
+      }
+      if (!f.hourly?.length && !f.daily?.length) sh.body.append(h('div.about.small', { text: 'No forecast yet. It appears as soon as Home Assistant sends one.' }));
+    };
+    onEv = (e) => { if (e.detail === id) render(); };
+    st.addEventListener('state', onEv); st.addEventListener('forecast', onEv);
+    render();
   }
 
   // ------------------------------------------------------------------ light controls pop-up

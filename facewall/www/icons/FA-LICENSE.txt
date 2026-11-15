@@ -1,0 +1,4 @@
+Font Awesome Free 7.3.1 by Fonticons, Inc. (https://fontawesome.com)
+Icons: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) - icon path data is unmodified.
+Code: MIT. Font Awesome Pro icons are NOT included; add your own licensed Pro icons
+through Facewall's icon picker (Upload SVG) or Home Assistant's custom_icons folder.

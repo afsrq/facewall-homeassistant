@@ -40,17 +40,24 @@ Tile sizes are in grid columns/rows, so set the page's **Columns** and **Rows** 
 
 In **Edit layout** (▦) every tile has an **Options** button (or tap a tile's size badge in ⚙︎ → Tiles):
 - **Style:** lights can be *Light* (tap on/off, hold for colour), *Quick switch* (tap on/off only), *Controls* (tap opens colour, dim, effects and scenes) or *Timer*. Switches can be *Switch* or *Timer*.
-- **Icon:** search 7,000+ Material Design Icons (the set Home Assistant uses). Without a custom icon, a tile uses the device's Home Assistant icon if it has one.
+- **Icon:** search Home Assistant's icons (Material Design, 7,000+) and Font Awesome Free (2,100+). Without a custom icon, a tile uses the device's Home Assistant icon if it has one.
+- **Font Awesome Pro / your own icons:** in the icon picker choose *Your icons / Pro* → **Upload SVG** (download SVGs from fontawesome.com with your Pro account), or put SVG files in Home Assistant's `custom_icons` folder. They're named `fapro:<file name>`. Pro icons are licensed to you, so they're never included in this repo.
 - **Icon position:** top left, top right or the middle of the tile. **Icon size:** 50%–300%.
+- **Name position:** bottom, under the icon, or above the icon.
 - **Name:** your own label, or leave it empty to use Home Assistant's name.
 - **Add another copy:** put the same device on the page again, e.g. "All lights" once as a Quick switch and once as Controls.
 
 When adding tiles, tapping a device that's already on the page adds another copy; use − to remove one.
 
+## Weather
+
+Add your weather entity (Add tiles → *Weather*). Make the tile wider for more days, or taller for a day list with temperature bars. Its **Style** chooses a *Daily* or *Hourly* forecast; tap the tile for both.
+
 ## Room pages and several iPads
 
 - **Pages:** ⚙︎ → *Pages*. Add a **blank page**, or **add a room from an area**: it starts with that Home Assistant area's lights, climate, locks, switches, covers and temperature/humidity sensors. Rename, reorder or delete pages there. Each page has its own tiles, tile sizes and grid.
 - **Each iPad has its own settings:** ⚙︎ → *This screen*. Name the iPad (e.g. *Kitchen iPad*) and pick which page it **opens on**. Hold the clock on that iPad to give it **its own clock face**.
+- **Tap the clock to** jump straight to that iPad's page (or keep the face's own tap action).
 - To make those per-iPad settings permanent even if Safari's data is cleared, add the address shown under *This screen* (it ends in `?screen=your-name`) to the iPad's Home Screen.
 
 ## Faces

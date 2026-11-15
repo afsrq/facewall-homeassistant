@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -20,6 +20,10 @@ const DATA_DIR = process.env.DATA_DIR || (fs.existsSync('/data') ? '/data' : pat
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const TIMERS_FILE = path.join(DATA_DIR, 'timers.json');
+const ICONS_DIR = path.join(DATA_DIR, 'icons'); // icons uploaded from Facewall
+fs.mkdirSync(ICONS_DIR, { recursive: true });
+// Home Assistant's custom_icons folder (the one hass-fontawesome uses for "fapro:" icons), read-only.
+const FOLDER_ICON_DIRS = [process.env.CUSTOM_ICONS_DIR, '/homeassistant/custom_icons', '/config/custom_icons'].filter(Boolean);
 
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 const HA_URL = (process.env.HA_URL || '').replace(/\/+$/, '');
@@ -59,6 +63,9 @@ const ha = {
   version: null,
   nextId: 1,
   pending: new Map(),
+  subs: new Map(),      // subscription id -> handler(event)
+  fcSubs: new Map(),    // "weather.x|daily" -> subscription id
+  forecasts: {},        // weather entity -> { daily: [...], hourly: [...] }
   states: new Map(),
   areas: {},        // entity_id -> area name
   backoff: 1000,
@@ -78,6 +85,17 @@ function haRequest(msg, timeoutMs = 15000) {
   });
 }
 
+/** Subscribe to something that streams events (state changes, forecasts). Resolves with the subscription id. */
+function haSubscribe(msg, onEvent, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const id = ha.nextId++;
+    ha.subs.set(id, onEvent);
+    const timer = setTimeout(() => { ha.pending.delete(id); ha.subs.delete(id); reject(new Error('Home Assistant timed out')); }, timeoutMs);
+    ha.pending.set(id, { resolve: () => resolve(id), reject: (e) => { ha.subs.delete(id); reject(e); }, timer });
+    try { haSend({ ...msg, id }); } catch (e) { clearTimeout(timer); ha.pending.delete(id); ha.subs.delete(id); reject(e); }
+  });
+}
+
 function haConnect() {
   if (!WS_URL) { log(ha.lastError); return; }
   if (ha.backoff <= 2000) log('Connecting to Home Assistant at', WS_URL);
@@ -94,6 +112,7 @@ function haConnect() {
     ha.connected = false;
     for (const p of ha.pending.values()) { clearTimeout(p.timer); p.reject(new Error('Connection lost')); }
     ha.pending.clear();
+    ha.subs.clear(); ha.fcSubs.clear();
     if (was) { log('Disconnected from Home Assistant' + (why ? ` (${why})` : '')); broadcast('status', status()); }
     else if (why && why !== ha.lastError) { ha.lastError = why; log(why + ' — retrying'); }
     scheduleReconnect();
@@ -146,19 +165,23 @@ function handleMessage(m) {
       m.success ? p.resolve(m.result) : p.reject(new Error(m.error?.message || 'Home Assistant error'));
       break;
     }
-    case 'event':
-      if (m.event?.event_type === 'state_changed') onStateChanged(m.event.data);
+    case 'event': {
+      const handler = ha.subs.get(m.id);
+      if (handler) handler(m.event);
+      break;
+    }
       break;
   }
 }
 
 async function onReady() {
-  await haRequest({ type: 'subscribe_events', event_type: 'state_changed' });
+  await haSubscribe({ type: 'subscribe_events', event_type: 'state_changed' }, (ev) => { if (ev?.event_type === 'state_changed') onStateChanged(ev.data); });
   const states = await haRequest({ type: 'get_states' });
   ha.states = new Map(states.map((s) => [s.entity_id, slim(s)]));
   ha.connected = true; ha.backoff = 1000; ha.lastError = null;
   log(`Connected to Home Assistant ${ha.version || ''} — ${ha.states.size} entities`);
   await loadAreas();
+  syncForecasts();
   for (const res of clients) send(res, 'snapshot', snapshot());
   checkTimers();
 }
@@ -217,7 +240,96 @@ function status() {
   return { connected: ha.connected, haVersion: ha.version, error: ha.lastError, standalone: !SUPERVISOR_TOKEN };
 }
 function snapshot() {
-  return { status: status(), states: [...ha.states.values()], areas: ha.areas, timers, rev: store.rev };
+  return { status: status(), states: [...ha.states.values()], areas: ha.areas, timers, forecasts: ha.forecasts, rev: store.rev };
+}
+
+// ---------------------------------------------------------------- your own icons (e.g. Font Awesome Pro SVGs)
+// Only plain shapes survive: no scripts, styles, links or event handlers.
+const SVG_TAGS = 'path|circle|rect|ellipse|line|polyline|polygon|g';
+const SVG_ATTRS = ['d', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'points', 'opacity', 'fill-opacity', 'fill-rule', 'clip-rule', 'transform'];
+const SAFE_VALUE = /^[\w\s.,\-#%()]*$/;
+function attrOf(tag, name) {
+  const m = tag.match(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'));
+  return m ? (m[1] ?? m[2]) : null;
+}
+function sanitizeSvg(text) {
+  const open = String(text).match(/<svg\b[^>]*>/i);
+  if (!open) return null;
+  let vb = attrOf(open[0], 'viewBox');
+  if (!vb || !/^[\d.\s,-]+$/.test(vb)) vb = `0 0 ${parseFloat(attrOf(open[0], 'width')) || 24} ${parseFloat(attrOf(open[0], 'height')) || 24}`;
+  const inner = String(text).slice(open.index + open[0].length)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(style|script|defs|title|desc|metadata|foreignObject|a|image|use)\b[\s\S]*?<\/\1>/gi, '');
+  let out = '', depth = 0;
+  for (const m of inner.matchAll(new RegExp(`<(\\/?)(${SVG_TAGS})\\b([^>]*?)(\\/?)>`, 'gi'))) {
+    const [, close, rawTag, attrs, selfClose] = m;
+    const tag = rawTag.toLowerCase();
+    if (close) { if (tag === 'g' && depth > 0) { out += '</g>'; depth--; } continue; }
+    let a = '';
+    for (const name of SVG_ATTRS) { const v = attrOf(' ' + attrs, name); if (v != null && SAFE_VALUE.test(v)) a += ` ${name}="${v}"`; }
+    if (/fa-secondary/.test(attrOf(' ' + attrs, 'class') || '') && !/ opacity=/.test(a)) a += ' opacity=".4"';
+    if (attrOf(' ' + attrs, 'fill') === 'none') a += ' fill="none"';
+    if (tag === 'g') { if (selfClose) continue; out += `<g${a}>`; depth++; } else out += `<${tag}${a}/>`;
+  }
+  out += '</g>'.repeat(depth);
+  return out ? { vb, body: out } : null;
+}
+const iconCache = new Map(); // file -> { mtime, icon }
+async function readIconDir(dir, source) {
+  const icons = {};
+  let names = [];
+  try { names = (await fsp.readdir(dir)).filter((n) => n.toLowerCase().endsWith('.svg')); } catch { return icons; }
+  for (const n of names.slice(0, 2000)) {
+    const file = path.join(dir, n);
+    try {
+      const st = await fsp.stat(file);
+      if (st.size > 300000) continue;
+      let hit = iconCache.get(file);
+      if (!hit || hit.mtime !== st.mtimeMs) { hit = { mtime: st.mtimeMs, icon: sanitizeSvg(await fsp.readFile(file, 'utf8')) }; iconCache.set(file, hit); }
+      const name = n.slice(0, -4).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      if (hit.icon && name) icons[name] = { ...hit.icon, source };
+    } catch { /* skip unreadable file */ }
+  }
+  return icons;
+}
+async function customIcons() {
+  const all = {};
+  for (const dir of FOLDER_ICON_DIRS) Object.assign(all, await readIconDir(dir, 'folder'));
+  Object.assign(all, await readIconDir(ICONS_DIR, 'upload')); // uploads win on a name clash
+  return all;
+}
+
+// ---------------------------------------------------------------- weather forecasts
+// Home Assistant streams forecasts per weather entity; we follow the ones shown on a page.
+const FC_DAILY = 1, FC_HOURLY = 2, FC_TWICE_DAILY = 4;
+function syncForecasts() {
+  if (!ha.connected) return;
+  const want = new Set([...(watchedEntities() || [])].filter((id) => id.startsWith('weather.') && ha.states.has(id)));
+  for (const id of want) {
+    const sf = Number(ha.states.get(id).attributes.supported_features || 0);
+    const types = [];
+    if (sf & FC_DAILY) types.push('daily'); else if (sf & FC_TWICE_DAILY) types.push('twice_daily');
+    if (sf & FC_HOURLY) types.push('hourly');
+    for (const t of types) {
+      const key = `${id}|${t}`;
+      if (ha.fcSubs.has(key)) continue;
+      ha.fcSubs.set(key, 'pending');
+      const kind = t === 'hourly' ? 'hourly' : 'daily';
+      haSubscribe({ type: 'weather/subscribe_forecast', entity_id: id, forecast_type: t }, (ev) => {
+        let list = Array.isArray(ev?.forecast) ? ev.forecast : [];
+        if (t === 'twice_daily') list = list.filter((f) => f.is_daytime !== false);
+        (ha.forecasts[id] ||= {})[kind] = list.slice(0, kind === 'hourly' ? 48 : 14);
+        broadcast('forecast', { id, ...ha.forecasts[id] });
+      }).then((subId) => { if (ha.fcSubs.get(key) === 'pending') ha.fcSubs.set(key, subId); })
+        .catch((e) => { ha.fcSubs.delete(key); log(`Forecast (${t}) not available for ${id}: ${e.message}`); });
+    }
+  }
+  for (const [key, subId] of ha.fcSubs) {
+    const id = key.split('|')[0];
+    if (want.has(id) || typeof subId !== 'number') continue;
+    ha.fcSubs.delete(key); ha.subs.delete(subId); delete ha.forecasts[id];
+    haRequest({ type: 'unsubscribe_events', subscription: subId }).catch(() => {});
+  }
 }
 
 // ---------------------------------------------------------------- timers ("on for 30 min")
@@ -291,6 +403,7 @@ async function handleApi(req, res, route) {
       store = { rev: store.rev + 1, settings: body.settings };
       await writeJSON(SETTINGS_FILE, store);
       broadcast('settings', { rev: store.rev, settings: store.settings, origin: body.origin || null });
+      syncForecasts();
       // Push fresh states for anything newly shown.
       const watched = watchedEntities();
       if (watched) for (const id of watched) if (ha.states.has(id)) broadcast('state', { id, s: ha.states.get(id) });
@@ -303,6 +416,21 @@ async function handleApi(req, res, route) {
     if (!NAME.test(domain || '') || !NAME.test(service || '')) return json(res, 400, { error: 'bad service' });
     try { await callService(domain, service, data || {}, target); return json(res, 200, { ok: true }); }
     catch (e) { return json(res, 502, { error: e.message }); }
+  }
+
+  if (route === 'icons/custom' && req.method === 'GET') return json(res, 200, { icons: await customIcons() });
+  if (route === 'icons/custom' && req.method === 'POST') {
+    const { name, svg } = await readBody(req, 400000);
+    const slug = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+    const icon = slug && sanitizeSvg(svg || '');
+    if (!icon) return json(res, 400, { error: 'Not a usable SVG icon' });
+    await fsp.writeFile(path.join(ICONS_DIR, slug + '.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${icon.vb}">${icon.body}</svg>`);
+    return json(res, 200, { name: slug });
+  }
+  if (route.startsWith('icons/custom/') && req.method === 'DELETE') {
+    const slug = decodeURIComponent(route.slice('icons/custom/'.length)).replace(/[^a-z0-9-]/g, '');
+    await fsp.unlink(path.join(ICONS_DIR, slug + '.svg')).catch(() => {});
+    return json(res, 200, { ok: true });
   }
 
   if (route === 'timer' && req.method === 'POST') {

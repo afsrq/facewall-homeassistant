@@ -10,6 +10,7 @@ export class Store extends EventTarget {
     this.states = new Map();
     this.areas = {};
     this.timers = {};
+    this.forecasts = {};   // weather entity -> { daily: [...], hourly: [...] }
     this.settings = null;
     this.rev = 0;
     this.status = { connected: false };
@@ -42,10 +43,11 @@ export class Store extends EventTarget {
   }
 
   // ---- internal (used by adapters)
-  _setSnapshot({ states, areas, timers, status }) {
+  _setSnapshot({ states, areas, timers, status, forecasts }) {
     this.states = new Map(states.map((s) => [s.entity_id, s]));
     this.areas = areas || {};
     this.timers = timers || {};
+    if (forecasts) this.forecasts = forecasts;
     if (status) this.status = status;
     this.dispatchEvent(new Event('snapshot'));
     this.dispatchEvent(new Event('status'));
@@ -53,6 +55,10 @@ export class Store extends EventTarget {
   _setState(id, s) {
     if (s) this.states.set(id, s); else this.states.delete(id);
     this.dispatchEvent(new CustomEvent('state', { detail: id }));
+  }
+  _setForecast(id, f) {
+    this.forecasts = { ...this.forecasts, [id]: f };
+    this.dispatchEvent(new CustomEvent('forecast', { detail: id }));
   }
   _setTimers(t) { this.timers = t || {}; this.dispatchEvent(new Event('timers')); }
   _setStatus(st) { this.status = st; this.dispatchEvent(new Event('status')); }
@@ -163,6 +169,7 @@ class ServerAdapter {
     });
     es.addEventListener('state', (e) => { const { id, s } = JSON.parse(e.data); this.store._setState(id, s); });
     es.addEventListener('timers', (e) => this.store._setTimers(JSON.parse(e.data)));
+    es.addEventListener('forecast', (e) => { const { id, ...f } = JSON.parse(e.data); this.store._setForecast(id, f); });
     es.addEventListener('status', (e) => this.store._setStatus(JSON.parse(e.data)));
     es.addEventListener('settings', (e) => {
       const { rev, settings, origin } = JSON.parse(e.data);
@@ -234,6 +241,7 @@ function demoStates() {
     st('switch.coffee_machine', 'off', { friendly_name: 'Coffee Machine' }),
     st('cover.living_room_blinds', 'open', { friendly_name: 'Blinds', current_position: 100 }),
     st('scene.movie_night', 'unknown', { friendly_name: 'Movie Night' }),
+    st('weather.home', 'partlycloudy', { friendly_name: 'Forecast Home', temperature: 14.5, apparent_temperature: 12.9, temperature_unit: '°C', humidity: 58, wind_speed: 12, wind_speed_unit: 'km/h', supported_features: 3 }),
     st('sensor.outdoor_temperature', '14.5', { friendly_name: 'Outside', unit_of_measurement: '°C', device_class: 'temperature' }),
     st('sensor.indoor_humidity', '46', { friendly_name: 'Humidity', unit_of_measurement: '%', device_class: 'humidity' }),
     st('binary_sensor.back_door', 'off', { friendly_name: 'Back Door', device_class: 'door' }),
@@ -246,11 +254,24 @@ const DEMO_AREAS = {
   'scene.bedroom_relax': 'Bedroom', 'scene.bedroom_reading': 'Bedroom', 'scene.bedroom_night': 'Bedroom',
 };
 
+function demoForecast() {
+  const now = new Date(); now.setMinutes(0, 0, 0);
+  const days = ['partlycloudy', 'sunny', 'rainy', 'pouring', 'cloudy', 'sunny', 'snowy'];
+  const daily = days.map((c, i) => ({ datetime: new Date(now.getTime() + i * 864e5).toISOString(), condition: c, temperature: [16, 19, 13, 11, 12, 17, 4][i], templow: [7, 9, 8, 6, 5, 8, -2][i], precipitation_probability: [10, 0, 70, 90, 30, 5, 60][i] }));
+  const hourly = Array.from({ length: 24 }, (_, i) => {
+    const t = new Date(now.getTime() + i * 36e5), hr = t.getHours();
+    const night = hr < 7 || hr >= 19;
+    const c = i < 5 ? (night ? 'clear-night' : 'partlycloudy') : i < 10 ? 'cloudy' : i < 15 ? 'rainy' : night ? 'clear-night' : 'sunny';
+    return { datetime: t.toISOString(), condition: c, temperature: Math.round(10 + 5 * Math.sin(((hr - 9) / 24) * 2 * Math.PI)), precipitation_probability: i >= 10 && i < 15 ? 60 + i : 5 };
+  });
+  return { daily, hourly };
+}
+
 class DemoAdapter {
   constructor(store) { this.store = store; this.lastMode = {}; }
 
   async start() {
-    this.store._setSnapshot({ states: demoStates(), areas: DEMO_AREAS, timers: {}, status: { connected: true, demo: true } });
+    this.store._setSnapshot({ states: demoStates(), areas: DEMO_AREAS, timers: {}, status: { connected: true, demo: true }, forecasts: { 'weather.home': demoForecast() } });
     let saved = null;
     try { saved = JSON.parse(lsGet(DEMO_KEY) || 'null'); } catch { saved = null; }
     this.store._setSettings(saved, 1, true);

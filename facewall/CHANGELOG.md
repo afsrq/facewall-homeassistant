@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.0
+- **Weather tile** with live forecasts from your Home Assistant weather entity. It adapts to its size: current conditions, a daily or hourly forecast strip, or a day list with temperature bars on tall tiles. Tap it for the next 24 hours, the next days, and details (feels like, humidity, wind…).
+- **Name position** per tile: bottom, under the icon, or above the icon. Works with the icon top left, top right or in the middle.
+- **Tap the clock** to jump to this iPad's page (⚙︎ → This screen → *Tap the clock to*). Faces with their own tap action (like Lamp) keep it unless you choose otherwise.
+- **Font Awesome**: the Free set (2,100+ icons: solid, regular, brands) is bundled. Add your own **Font Awesome Pro** (or any) icons by uploading SVGs in the icon picker, or by putting them in Home Assistant's `custom_icons` folder; use them as `fapro:name` (same naming as hass-fontawesome).
+- The app now has read-only access to your Home Assistant config folder, only to read `custom_icons`.
+
 ## 1.5.0
 - Icon position per tile: top left, top right, or in the middle.
 - Icon size per tile: 50%–300%. Icons never grow so big that they push the tile's name out of view.
