@@ -12,7 +12,7 @@ import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect,
 const uid = () => Math.random().toString(36).slice(2, 9);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const TAP_GROUPS = [['Lights', ['light']], ['Switches', ['switch', 'input_boolean']], ['Fans', ['fan']], ['Scenes', ['scene']], ['Scripts', ['script']], ['Covers', ['cover']]];
-const INFO_GROUPS = [['Sensors', ['sensor']], ['Binary sensors', ['binary_sensor']], ['Climate', ['climate']], ['Weather', ['weather']], ['Lights', ['light']], ['Switches', ['switch']]];
+const INFO_GROUPS = [['Weather', ['weather']], ['Calendars', ['calendar']], ['Sensors', ['sensor']], ['Binary sensors', ['binary_sensor']], ['Climate', ['climate']], ['Media', ['media_player']], ['Lights', ['light']], ['Switches', ['switch']]];
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } };
 const slug = (t) => String(t || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
@@ -476,6 +476,8 @@ class App {
       def.needsTap ? 'The bulb glows when it’s on' : 'Toggle a light, switch or scene'));
     opts.append(row('Top-left info', entitySelect(this.store, work.tl, INFO_GROUPS, (v) => change(() => { work.tl = v; }))));
     opts.append(row('Top-right info', entitySelect(this.store, work.tr, INFO_GROUPS, (v) => change(() => { work.tr = v; }))));
+    opts.append(row('Bottom-left info', entitySelect(this.store, work.bl, INFO_GROUPS, (v) => change(() => { work.bl = v; }))));
+    opts.append(row('Bottom-right info', entitySelect(this.store, work.br, INFO_GROUPS, (v) => change(() => { work.br = v; }))));
 
     const done = h('button.pill.primary', { text: mode === 'add' ? 'Add' : 'Done' });
     const back = h('button.icon-btn.glass', { 'aria-label': 'Back', html: icon('back') });

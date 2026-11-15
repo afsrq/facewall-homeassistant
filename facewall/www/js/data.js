@@ -265,7 +265,8 @@ function demoStates() {
     st('binary_sensor.doorbell', 'off', { friendly_name: 'Doorbell', device_class: 'occupancy' }),
     st('media_player.living_room_speaker', 'playing', { friendly_name: 'Living Room Speaker', ...DEMO_TRACKS[0], media_position: 74, media_position_updated_at: new Date().toISOString(),
       volume_level: 0.35, is_volume_muted: false, source: 'Spotify', source_list: ['Spotify', 'AirPlay', 'TV'], app_name: 'Spotify', supported_features: 152511 }),
-    st('calendar.family', 'off', { friendly_name: 'Family' }),
+    (() => { const t = new Date(); t.setHours(t.getHours() + 2, 30, 0, 0); const p = (n) => String(n).padStart(2, '0');
+      return st('calendar.family', 'off', { friendly_name: 'Family', message: 'Dentist', all_day: false, location: 'Main St Dental', start_time: `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}:00` }); })(),
     st('calendar.work', 'off', { friendly_name: 'Work' }),
     st('sensor.home_power', '1430', { friendly_name: 'Home Power', unit_of_measurement: 'W', device_class: 'power', state_class: 'measurement' }),
     st('sensor.home_energy', '8421.6', { friendly_name: 'Energy Used', unit_of_measurement: 'kWh', device_class: 'energy', state_class: 'total_increasing' }),

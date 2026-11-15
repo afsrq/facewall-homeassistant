@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.21.0
+- **Modular face**: a big time with four live panels for your Home Assistant info: weather, the next calendar event, a sensor, what's playing…
+- **Word clock face**: "It is a quarter to three", lit on a grid of letters, with minute dots; choose the colour, a black, walnut, slate or paper background, and the font.
+- **Complications in all four corners** of every face (Customize → Top-left / Top-right / Bottom-left / Bottom-right info), and smarter values: weather shows temperature and conditions, a calendar shows its next event, a media player shows the song.
+
 ## 1.20.0
 - **Calendar tile**: your Home Assistant calendars as an agenda for today, 3 days or 7 days, with times, places, all-day events and a "Now" tag; past events fade. Add more calendars to the same tile (each gets its own colour). Tap it for the next two weeks.
 

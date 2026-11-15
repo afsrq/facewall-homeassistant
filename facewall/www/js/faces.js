@@ -596,8 +596,130 @@ const gradient = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'digital', 'flip', 'lamp'];
+// ============================================================ Modular
+const modular = {
+  name: 'Modular', blurb: 'Big time with four live panels: pick what they show in Customize (weather, calendar, sensors, music…).', category: 'Digital',
+  options: [
+    { key: 'color', label: 'Colour', type: 'swatch', choices: DIGI },
+    { key: 'font', label: 'Font', type: 'choice', choices: [{ v: 'rounded', label: 'Rounded' }, { v: 'bold', label: 'Bold' }, { v: 'thin', label: 'Thin' }, { v: 'condensed', label: 'Narrow' }] },
+    { key: 'seconds', label: 'Seconds', type: 'bool' },
+  ],
+  defaults: { color: 'white', font: 'rounded', seconds: false },
+  ink: () => '#fff',
+  modular: true,
+  create(root, o, { w, h, use24h }) {
+    const col = pick(DIGI, o.color).color;
+    root.parentElement.style.setProperty('--mod', col);
+    const svg = makeSvg(root, w, h);
+    el('rect', { width: w, height: h, fill: '#000' }, svg);
+    const [family, weight] = DIGI_FONTS[o.font] || DIGI_FONTS.rounded;
+    const size = Math.min(w * 0.24, h * 0.34);
+    const time = el('text', { x: w / 2, y: h / 2 + size * 0.34, 'text-anchor': 'middle', 'font-family': family, 'font-weight': weight, 'font-size': size, fill: col, style: 'font-variant-numeric: tabular-nums' }, svg);
+    const date = el('text', { x: w / 2, y: h / 2 - size * 0.62, 'text-anchor': 'middle', 'font-family': FONT.sans, 'font-weight': 600, 'font-size': size * 0.13, fill: 'rgba(255,255,255,0.7)', 'letter-spacing': '0.12em' }, svg);
+    const small = el('text', { x: w / 2, y: h / 2 + size * 0.68, 'text-anchor': 'middle', 'font-family': family, 'font-weight': weight, 'font-size': size * 0.15, fill: 'rgba(255,255,255,0.55)', style: 'font-variant-numeric: tabular-nums' }, svg);
+    let last = '';
+    return {
+      update(now) {
+        const t = hhmm(now, use24h), key = t.hh + t.mm + t.ss + now.getDate();
+        if (key === last) return; last = key;
+        time.textContent = `${t.hh}:${t.mm}`;
+        date.textContent = `${dayName(now, 'long')} ${now.getDate()} ${monthName(now, 'long')}`.toUpperCase();
+        small.textContent = [o.seconds ? t.ss : '', use24h ? '' : t.ampm].filter(Boolean).join('  ');
+      },
+    };
+  },
+};
+
+// ============================================================ Word clock
+const WORD_ROWS = ['ITLISASAMPM', 'ACQUARTERDC', 'TWENTYFIVEX', 'HALFSTENFTO', 'PASTERUNINE', 'ONESIXTHREE', 'FOURFIVETWO', 'EIGHTELEVEN', 'SEVENTWELVE', 'TENSEOCLOCK'];
+const WORDS = {
+  IT: [0, 0, 2], IS: [0, 3, 2], A: [1, 0, 1], QUARTER: [1, 2, 7], TWENTY: [2, 0, 6], FIVE_M: [2, 6, 4], HALF: [3, 0, 4], TEN_M: [3, 5, 3], TO: [3, 9, 2], PAST: [4, 0, 4],
+  9: [4, 7, 4], 1: [5, 0, 3], 6: [5, 3, 3], 3: [5, 6, 5], 4: [6, 0, 4], 5: [6, 4, 4], 2: [6, 8, 3], 8: [7, 0, 5], 11: [7, 5, 6], 7: [8, 0, 5], 12: [8, 5, 6], 10: [9, 0, 3], OCLOCK: [9, 5, 6],
+};
+function wordsFor(now) {
+  const m = Math.floor(now.getMinutes() / 5) * 5;
+  let hr = now.getHours() % 12 || 12;
+  const w = ['IT', 'IS'];
+  const next = () => (hr % 12) + 1;
+  const ms = { 5: ['FIVE_M', 'PAST'], 10: ['TEN_M', 'PAST'], 15: ['A', 'QUARTER', 'PAST'], 20: ['TWENTY', 'PAST'], 25: ['TWENTY', 'FIVE_M', 'PAST'], 30: ['HALF', 'PAST'],
+    35: ['TWENTY', 'FIVE_M', 'TO'], 40: ['TWENTY', 'TO'], 45: ['A', 'QUARTER', 'TO'], 50: ['TEN_M', 'TO'], 55: ['FIVE_M', 'TO'] };
+  if (m === 0) w.push(String(hr), 'OCLOCK');
+  else { w.push(...ms[m]); if (m > 30) hr = next(); w.push(String(hr)); }
+  return w;
+}
+const WORD_BG = [
+  { v: 'black', label: 'Black', color: '#000000', dim: 'rgba(255,255,255,0.10)' },
+  { v: 'walnut', label: 'Walnut', color: '#2a1d14', dim: 'rgba(255,236,210,0.12)' },
+  { v: 'slate', label: 'Slate', color: '#1c2430', dim: 'rgba(255,255,255,0.11)' },
+  { v: 'paper', label: 'Paper', color: '#efe6d2', dim: 'rgba(45,36,24,0.14)', light: true },
+];
+const wordclock = {
+  name: 'Word clock', blurb: 'The time in words: “It is half past ten.”', category: 'Words',
+  options: [
+    { key: 'color', label: 'Lit letters', type: 'swatch', choices: [...DIGI, { v: 'ink', label: 'Ink', color: '#2d2418' }] },
+    { key: 'bg', label: 'Background', type: 'swatch', choices: WORD_BG },
+    { key: 'font', label: 'Font', type: 'choice', choices: [{ v: 'sans', label: 'Sans' }, { v: 'serif', label: 'Serif' }, { v: 'mono', label: 'Mono' }, { v: 'condensed', label: 'Narrow' }] },
+    { key: 'dots', label: 'Minute dots', type: 'bool' },
+  ],
+  defaults: { color: 'white', bg: 'black', font: 'sans', dots: true },
+  ink: (o) => (pick(WORD_BG, o.bg).light ? '#2d2418' : '#fff'),
+  create(root, o, { w, h }) {
+    const bg = pick(WORD_BG, o.bg);
+    const lit = o.color === 'ink' ? '#2d2418' : pick(DIGI, o.color).color;
+    const svg = makeSvg(root, w, h);
+    el('rect', { width: w, height: h, fill: bg.color }, svg);
+    const id = 'wg' + ++uid;
+    const f = el('filter', { id, x: '-50%', y: '-50%', width: '200%', height: '200%' }, el('defs', {}, svg));
+    el('feGaussianBlur', { stdDeviation: Math.min(w, h) * 0.006, result: 'b' }, f);
+    const mg = el('feMerge', {}, f); el('feMergeNode', { in: 'b' }, mg); el('feMergeNode', { in: 'SourceGraphic' }, mg);
+    const cols = 11, rows = WORD_ROWS.length;
+    const cell = Math.min((w * 0.84) / cols, (h * 0.84) / rows);
+    const x0 = (w - cell * cols) / 2 + cell / 2, y0 = (h - cell * rows) / 2 + cell / 2;
+    const family = FONT[o.font] || FONT.sans;
+    const letters = WORD_ROWS.map((r, ri) => [...r].map((ch, ci) => el('text', { x: x0 + ci * cell, y: y0 + ri * cell + cell * 0.32, 'text-anchor': 'middle', 'font-family': family, 'font-weight': 600, 'font-size': cell * 0.58, fill: bg.dim }, svg, ch)));
+    const dots = [];
+    if (o.dots) {
+      const r = cell * 0.09, inset = cell * 0.55;
+      for (const [dx, dy] of [[inset, inset], [w - inset, inset], [w - inset, h - inset], [inset, h - inset]]) dots.push(el('circle', { cx: dx, cy: dy, r, fill: bg.dim }, svg));
+    }
+    let last = '';
+    return {
+      update(now) {
+        const key = `${now.getHours()}:${now.getMinutes()}`;
+        if (key === last) return; last = key;
+        const on = new Set();
+        for (const wd of wordsFor(now)) { const [r, c, n] = WORDS[wd]; for (let i = 0; i < n; i++) on.add(`${r},${c + i}`); }
+        letters.forEach((row, ri) => row.forEach((t, ci) => {
+          const yes = on.has(`${ri},${ci}`);
+          t.setAttribute('fill', yes ? lit : bg.dim);
+          if (yes && !bg.light) t.setAttribute('filter', `url(#${id})`); else t.removeAttribute('filter');
+        }));
+        const extra = now.getMinutes() % 5;
+        dots.forEach((d, i) => d.setAttribute('fill', i < extra ? lit : bg.dim));
+      },
+    };
+  },
+};
+
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'digital', 'modular', 'wordclock', 'flip', 'lamp'];
+
+/** What a complication shows for an entity: smarter for weather, calendars and media. */
+const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };
+function compValue(store, id) {
+  const s = store.get(id);
+  if (!s) return '—';
+  const a = s.attributes || {}, d = id.split('.')[0];
+  if (d === 'weather') return [a.temperature != null ? `${Math.round(a.temperature)}°` : '', WX_TEXT[s.state] || ''].filter(Boolean).join(' ');
+  if (d === 'calendar') {
+    if (!a.message) return 'Nothing planned';
+    const t = a.start_time ? new Date(String(a.start_time).replace(' ', 'T')) : null;
+    const when = a.all_day || !t || Number.isNaN(t) ? '' : t.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return [when, a.message].filter(Boolean).join(' ');
+  }
+  if (d === 'media_player') return s.state === 'playing' ? [a.media_title, a.media_artist].filter(Boolean).join(' · ') || 'Playing' : s.state === 'paused' ? 'Paused' : 'Off';
+  return formatState(store, id);
+}
 
 // ============================================================ host + ticker
 const live = new Set();
@@ -628,7 +750,7 @@ export function mountFace(container, face, ctx) {
   layer.className = 'face-layer';
   host.appendChild(layer);
   const comps = document.createElement('div');
-  comps.className = 'face-comps';
+  comps.className = 'face-comps' + (def.modular ? ' modular' : '');
   comps.style.color = def.ink(opts);
   host.appendChild(comps);
   container.appendChild(host);
@@ -636,12 +758,12 @@ export function mountFace(container, face, ctx) {
   const inst = def.create(layer, opts, { ...ctx, face });
   const renderComps = () => {
     comps.innerHTML = '';
-    for (const slot of ['tl', 'tr']) {
+    for (const slot of ['tl', 'tr', 'bl', 'br']) {
       const id = face[slot];
       if (!id || !ctx.store) continue;
       const c = document.createElement('div');
       c.className = 'comp comp-' + slot;
-      const v = formatState(ctx.store, id);
+      const v = compValue(ctx.store, id);
       c.innerHTML = `<div class="comp-label"></div><div class="comp-value"></div>`;
       c.firstChild.textContent = ctx.store.name(id);
       c.lastChild.textContent = v;
@@ -651,7 +773,7 @@ export function mountFace(container, face, ctx) {
   renderComps();
   const onState = (e) => {
     const id = e.type === 'snapshot' ? '*' : e.detail;
-    if (id === '*' || id === face.tl || id === face.tr) renderComps();
+    if (id === '*' || [face.tl, face.tr, face.bl, face.br].includes(id)) renderComps();
     inst.onState?.(id);
   };
   ctx.store?.addEventListener('state', onState);
