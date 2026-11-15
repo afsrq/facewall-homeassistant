@@ -60,6 +60,16 @@ Add your weather entity (Add tiles → *Weather*). Make the tile wider for more 
 - **Tap the clock to** jump straight to that iPad's page (or keep the face's own tap action).
 - To make those per-iPad settings permanent even if Safari's data is cleared, add the address shown under *This screen* (it ends in `?screen=your-name`) to the iPad's Home Screen.
 
+## Themes
+
+⚙︎ → *Appearance* → *Change…*. Pick a theme on the left and the preview on the right shows how the background, cards and switched-on buttons will look. Turn on *Try it on this whole screen* to see it on the real page. Then:
+
+- **Only this iPad**: just this screen uses it (handy for a darker bedroom iPad).
+- **Apply to all screens**: the house theme; every iPad without its own choice switches right away.
+- **Discard** (or close) keeps what you had.
+
+Light colours on light tiles, the weather tile's sky and the AC's mode colours stay as they are in every theme.
+
 ## Faces
 
 Classic, Numerals, Hourglow, Roman, Digital, Flip, and **Lamp**, a pendant bulb that glows in the real colour and brightness of a light you choose. Tap it to switch the light.

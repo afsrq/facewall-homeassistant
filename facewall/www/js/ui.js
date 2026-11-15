@@ -10,7 +10,7 @@ export function h(tag, attrs = {}, ...kids) {
     if (k === 'html') e.innerHTML = v;
     else if (k === 'text') e.textContent = v;
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else if (k === 'style' && typeof v === 'object') for (const [p, x] of Object.entries(v)) { if (p.startsWith('--')) e.style.setProperty(p, x); else e.style[p] = x; }
     else e.setAttribute(k, v === true ? '' : v);
   }
   // Mouse users get a tooltip from the accessible label.

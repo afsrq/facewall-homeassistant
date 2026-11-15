@@ -2,6 +2,7 @@
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
 import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize } from './home.js';
+import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
 import { loadIcons, iconSvg, searchIcons, LIBRARIES, uploadIcons, deleteIcon, onIconsChanged } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
@@ -93,6 +94,7 @@ class App {
     else { const m = clone(this.store.settings); if (migrate(m)) this.store.saveSettings(m); }
     if (this.store.mode === 'demo') document.body.classList.add('demo');
     this.screenId = this.resolveScreen();
+    applyTheme(this.themeId());
     this.buildShell();
     this.renderFace();
     this.renderRooms();
@@ -104,6 +106,7 @@ class App {
 
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
+      if (!this.themePreviewing) applyTheme(this.themeId());
       this.renderFace(); this.renderRooms();
     });
     this.store.addEventListener('status', () => this.showStatus());
@@ -138,6 +141,8 @@ class App {
     return id;
   }
   get screen() { return this.settings.screens?.[this.screenId] || {}; }
+  /** This screen's theme: its own choice, else the house theme. */
+  themeId() { return this.screen.theme || this.settings.general?.theme || DEFAULT_THEME; }
   updateScreen(fn) {
     this.update((s) => { s.screens ||= {}; const sc = s.screens[this.screenId] ||= {}; fn(sc); sc.seen = Date.now(); });
   }
@@ -147,7 +152,11 @@ class App {
     const i = this.settings.pages.findIndex((p) => p.id === sp);
     return i >= 0 ? i + 1 : 0;
   }
-  update(mut) { const s = clone(this.settings); mut(s); this.store.saveSettings(s); return s; }
+  update(mut) {
+    const s = clone(this.settings); mut(s); this.store.saveSettings(s);
+    if (!this.themePreviewing) applyTheme(this.themeId());
+    return s;
+  }
 
   // ------------------------------------------------------------------ shell
   buildShell() {
@@ -512,6 +521,13 @@ class App {
       const pg = pageOf(s, editPage);
       sh.body.innerHTML = '';
 
+      // ---------------- Appearance
+      const th = themeById(this.themeId());
+      const appearanceSec = section('Appearance',
+        row('Theme', h('div.icon-ctl', {}, this.themeSwatch(th, { small: true }), h('div.row-value', { text: th.name }),
+          h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.openThemePicker(render) })),
+        this.screen.theme ? 'Only on this iPad (the other screens use ' + themeById(s.general?.theme || DEFAULT_THEME).name + ')' : 'Used on every screen'));
+
       // ---------------- This screen
       const sc = this.screen;
       const startSel = h('select.select');
@@ -650,7 +666,7 @@ class App {
         : st.connected ? `Connected to Home Assistant${st.haVersion ? ' ' + st.haVersion : ''}` : `Not connected${st.error ? ': ' + st.error : ''}`;
       const aboutSec = section('Connection', h('div.about', { text: conn }),
         h('div.about.small', { text: 'Tip: hold the clock to change faces and swipe for your pages. With a mouse: right-click the clock, use the ‹ › arrows or ← → keys, and Esc to close panels.' }));
-      sh.body.append(screenSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, aboutSec);
+      sh.body.append(appearanceSec, screenSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, aboutSec);
     };
     render();
   }
@@ -773,6 +789,88 @@ class App {
     await loadIcons();
     render();
     if (document.body.classList.contains('mouse')) setTimeout(() => search.focus(), 60);
+  }
+
+  // ------------------------------------------------------------------ themes
+  /** A small picture of a theme: background, a card with the accent, and an "on" tile. */
+  themeSwatch(t, { small } = {}) {
+    return h('div.th-mini' + (small ? '.sm' : ''), { style: { background: t.bg } },
+      h('div.th-mini-card', { style: { background: t.card } },
+        h('span.th-dot', { style: { background: t.dark ? t.date || t.accent : t.accent } }),
+        h('span.th-ticks', { style: { color: t.dark ? t.date || t.accent : t.accent } }, h('i'), h('i'), h('i'), h('i'))),
+      h('div.th-mini-on', { style: { background: t.on } }));
+  }
+
+  /** A mock page in a theme, made of real tiles so it looks exactly like the result. */
+  themePreview(el, t) {
+    el.innerHTML = '';
+    for (const [k, v] of Object.entries(themeVars(t))) el.style.setProperty(k, v);
+    const tile = (cls, ic, name, state, style) => h(`div.card.tile.${cls}`, { style }, h('div.tile-top', {}, h('span.tile-ic', { html: icon(ic) })), h('div.tile-bottom', {}, h('div.tile-name', { text: name }), h('div.tile-state', { text: state })));
+    const now = new Date();
+    el.append(
+      h('div.home-bg'),
+      h('div.th-head', {}, h('div.greet', { text: 'Good evening' }), h('div.date', { text: now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) })),
+      h('div.th-grid', {},
+        tile('light.on.dark-text', 'bulb', 'Living room', 'On · 70%', { '--lc': '255,196,120', '--la': '0.87' }),
+        tile('toggle.on', 'toggle', 'Coffee', 'On'),
+        tile('toggle', 'fan', 'Kitchen fan', 'Off'),
+        h('div.card.climate.th-wide', {},
+          h('div.card-head-row', {}, h('div.card-head', {}, h('span.card-ic', { html: icon('sun') }), h('div.card-titles', {}, h('div.card-title', { text: 'Bedroom' }), h('div.card-sub', { text: 'Heating off' }))), h('button.round-btn', { html: icon('power') })),
+          h('div.cl-main', {}, h('div', {}, h('div.cl-temp', { html: '21.5<span>°</span>' }), h('div.cl-inside', { text: 'Inside 20.8°' })), h('div.cl-arrows', {}, h('button.round-btn', { html: icon('up') }), h('button.round-btn', { html: icon('down') }))),
+          h('div.cl-modes', {}, ['sun', 'snow', 'auto'].map((m, i) => h('button.mode', { html: icon(m) + `<span>${['Heat', 'Cool', 'Auto'][i]}</span>` })))),
+        tile('light', 'bulb', 'Hall', 'Off'),
+        tile('lock', 'lock', 'Front door', 'Locked')));
+  }
+
+  openThemePicker(after) {
+    const current = this.themeId();
+    let selected = current, tryOn = false, done = false;
+    this.themePreviewing = false;
+    const restore = () => { this.themePreviewing = false; applyTheme(this.themeId()); };
+    const sh = sheet({ title: 'Theme', cls: 'theme-sheet', onClose: () => { if (!done) restore(); } });
+    const preview = h('div.th-preview.home-page');
+    const grid = h('div.th-groups');
+    const fromTo = h('div.th-fromto');
+    const onlyBtn = h('button.pill', { text: 'Only this iPad' });
+    const allBtn = h('button.pill.primary', { text: 'Apply to all screens' });
+    const discard = h('button.pill', { text: 'Discard', onclick: () => sh.close() });
+    const tryToggle = toggle(false, (v) => { tryOn = v; this.themePreviewing = v; applyTheme(v ? selected : this.themeId()); });
+    const renderGrid = () => {
+      grid.innerHTML = '';
+      for (const g of THEME_GROUPS) {
+        grid.append(h('div.th-group', { text: g }));
+        const wrap = h('div.th-grid-sw');
+        for (const t of THEMES.filter((x) => x.group === g)) {
+          wrap.append(h('button.th-sw' + (t.id === selected ? '.sel' : ''), { 'aria-label': `${t.name} theme`, onclick: () => { selected = t.id; update(); } },
+            this.themeSwatch(t),
+            h('div.th-name', {}, h('span', { text: t.name }), t.id === current ? h('span.th-check', { html: icon('check'), title: 'Current theme' }) : null)));
+        }
+        grid.append(wrap);
+      }
+    };
+    const update = () => {
+      renderGrid();
+      const t = themeById(selected);
+      this.themePreview(preview, t);
+      fromTo.textContent = selected === current ? `${t.name} (current)` : `${themeById(current).name} → ${t.name}`;
+      onlyBtn.disabled = selected === this.screen.theme;
+      allBtn.disabled = selected === (this.settings.general?.theme || DEFAULT_THEME) && !this.screen.theme;
+      if (tryOn) applyTheme(selected);
+    };
+    onlyBtn.onclick = () => { done = true; this.updateScreen((x) => { x.theme = selected; }); this.themePreviewing = false; applyTheme(this.themeId()); toast(`${themeById(selected).name} on this iPad`); sh.close(); after?.(); };
+    allBtn.onclick = () => {
+      done = true;
+      this.update((s) => { s.general.theme = selected; const sc = s.screens?.[this.screenId]; if (sc) delete sc.theme; });
+      this.themePreviewing = false; applyTheme(this.themeId()); toast(`${themeById(selected).name} on every screen`); sh.close(); after?.();
+    };
+    sh.body.append(h('div.th-layout', {},
+      h('div.th-left', {}, grid),
+      h('div.th-right', {},
+        h('div.th-label', { text: 'Preview' }),
+        preview,
+        row('Try it on this whole screen', tryToggle, 'Until you apply or leave'))));
+    sh.el.append(h('div.th-bar', {}, fromTo, discard, onlyBtn, allBtn));
+    update();
   }
 
   /** Name this screen. A remembered (random) screen id switches to the name, so the ?screen= address is readable. */

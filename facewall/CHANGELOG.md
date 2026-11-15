@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.0
+- **Themes**: 18 themes for the pages, in three groups: Dark (Glass, Midnight, Carbon, Forest, Plum), Pastel (Linen, Sage, Fog, Rose clay, Lagoon, Lilac, Apricot) and Electric (Coral, Bubblegum, Ultraviolet, Lime, Mint, Ink). ⚙︎ → *Appearance* → *Change…* opens a picker with a live preview of real tiles. You can try a theme on the whole screen, then apply it to **only this iPad** or to **all screens**. The clock faces keep their own look.
+- Edit layout controls stay readable on light themes.
+
 ## 1.7.0
 - Free tile sizes: width and height in steps of 0.1 (e.g. 1.5 × 0.5), from 0.2 up to the page's columns / 6 rows. Sliders with − / + in Options; dragging the corner handle snaps to 0.1 (whole and half sizes are a little sticky).
 - Tile Options can move a tile earlier/later; very small tiles get compact edit controls.
