@@ -27,6 +27,8 @@ export function stylesFor(id) {
   if (d === 'light') return [{ v: 'light', label: 'Light', sub: 'Tap on/off · hold for colour' }, { v: 'switch', label: 'Quick switch', sub: 'Tap on/off only' }, { v: 'controls', label: 'Controls', sub: 'Tap opens colour, dim & scenes' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
   if (['switch', 'input_boolean', 'fan'].includes(d)) return [{ v: 'toggle', label: 'Switch', sub: 'Tap on/off' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
   if (d === 'weather') return [{ v: 'daily', label: 'Daily', sub: 'Next days · tap for hourly too' }, { v: 'hourly', label: 'Hourly', sub: 'Next hours · tap for daily too' }];
+  if (d === 'climate') return [{ v: 'buttons', label: 'Buttons', sub: 'Up/down buttons and modes' }, { v: 'dial', label: 'Dial', sub: 'Drag around the ring to set the temperature' }];
+  if (d === 'cover') return [{ v: 'button', label: 'Button', sub: 'Tap to open or close' }, { v: 'garage', label: 'Garage door', sub: 'An animated door (tap twice to move it)' }];
   if (d === 'sensor') return [{ v: 'value', label: 'Value', sub: 'The current reading' }, { v: 'graph', label: 'Graph', sub: 'The reading over time (choose how long below)' }];
   return [];
 }
@@ -48,7 +50,8 @@ export function kindFor(item) {
   if (item.id === ALL_OFF) return 'alloff';
   if (item.id === SCENES) return 'scenes';
   const d = domainOf(item.id);
-  if (d === 'climate') return 'climate';
+  if (d === 'climate') return styleOf(item) === 'dial' ? 'thermostat' : 'climate';
+  if (d === 'person' || d === 'device_tracker') return 'person';
   if (d === 'weather') return 'weather';
   const style = styleOf(item);
   if (d === 'water_heater' || (style === 'timer' && TIMER_OK(item.id))) return 'timer';
@@ -58,7 +61,7 @@ export function kindFor(item) {
   if (d === 'media_player') return 'media';
   if (d === 'camera') return 'camera';
   if (d === 'calendar') return 'calendar';
-  if (d === 'cover') return 'cover';
+  if (d === 'cover') return style === 'garage' ? 'garage' : 'cover';
   if (ACTIONS.includes(d)) return 'action';
   if (d === 'sensor' && style === 'graph') return 'graph';
   return 'sensor';
@@ -66,7 +69,7 @@ export function kindFor(item) {
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
   const k = kindFor(item);
-  const def = k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
+  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -503,7 +506,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -569,6 +572,119 @@ export class HomePage {
         const b = h('button.mode' + (s?.state === m ? '.on' : ''), { html: icon(MODES[m][0]) + `<span>${MODES[m][1]}</span>` });
         b.onclick = () => st.call('climate', 'set_hvac_mode', { hvac_mode: m }, { entity_id: id });
         modes.append(b);
+      }
+    };
+    return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ thermostat dial
+  thermostatCard(id, item = { id }) {
+    const st = this.store;
+    const MODE_COLOR = { cool: '#3a8dff', heat: '#ff8a3d', heat_cool: '#30d158', auto: '#30d158', dry: '#ffd60a', fan_only: '#64d2ff', off: '#8e8e93' };
+    const MODE_LABEL = { cool: 'Cooling', heat: 'Heating', heat_cool: 'Auto', auto: 'Auto', dry: 'Drying', fan_only: 'Fan', off: 'Off' };
+    const NS = 'http://www.w3.org/2000/svg', S = 200, C = S / 2, R = 82, A0 = 135, SWEEP = 270;
+    const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent?.appendChild(e); return e; };
+    const svg = mk('svg', { viewBox: `0 0 ${S} ${S}`, class: 'th-svg' });
+    const pt = (deg, r = R) => [C + r * Math.cos((deg * Math.PI) / 180), C + r * Math.sin((deg * Math.PI) / 180)];
+    const arc = (a1, a2, r = R) => { const [x1, y1] = pt(a1, r), [x2, y2] = pt(a2, r); return `M${x1} ${y1} A${r} ${r} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${x2} ${y2}`; };
+    mk('path', { d: arc(A0, A0 + SWEEP), class: 'th-track' }, svg);
+    for (let i = 0; i <= 54; i++) { const a = A0 + (SWEEP * i) / 54; const [x1, y1] = pt(a, R - 13), [x2, y2] = pt(a, R - (i % 6 ? 16 : 19)); mk('line', { x1, y1, x2, y2, class: 'th-tick' }, svg); }
+    const fill = mk('path', { class: 'th-fill' }, svg);
+    const cur = mk('circle', { r: 4, class: 'th-cur' }, svg);
+    const knob = mk('circle', { r: 10, class: 'th-knob' }, svg);
+    const big = h('div.th-temp'), sub = h('div.th-sub');
+    const modeBtn = h('button.th-mode'), pwr = h('button.round-btn.th-pwr', { html: icon('power'), 'aria-label': 'Power' });
+    const el = h('div.card.thermo', {}, h('div.card-head-row', {}, this.headEl(id, 'snow', item), pwr),
+      h('div.th-wrap', {}, svg, h('div.th-center', {}, big, sub, modeBtn)));
+    let pending = null, sendT = null, clearT = null, lastMode = null, dragging = false;
+    const s0 = () => st.get(id);
+    const lim = () => { const a = s0()?.attributes || {}; const f = a.temperature_unit === '°F' || a.unit_of_measurement === '°F'; return { min: a.min_temp ?? (f ? 50 : 10), max: a.max_temp ?? (f ? 90 : 32), step: a.target_temp_step || (f ? 1 : 0.5) }; };
+    const target = () => pending ?? s0()?.attributes?.temperature ?? null;
+    const angleOf = (v) => { const { min, max } = lim(); return A0 + SWEEP * Math.min(1, Math.max(0, (v - min) / (max - min))); };
+    const send = () => { clearTimeout(sendT); clearTimeout(clearT); sendT = setTimeout(() => { st.call('climate', 'set_temperature', { temperature: pending }, { entity_id: id }); clearT = setTimeout(() => { pending = null; update(); }, 4000); }, 500); };
+    const fromPointer = (e) => {
+      const r = svg.getBoundingClientRect();
+      let a = (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
+      if (a < 0) a += 360;
+      let rel = a - A0; if (rel < 0) rel += 360;
+      if (rel > SWEEP) rel = rel > SWEEP + (360 - SWEEP) / 2 ? 0 : SWEEP;
+      const { min, max, step } = lim();
+      pending = Math.round((min + (rel / SWEEP) * (max - min)) / step) * step;
+      update();
+    };
+    svg.addEventListener('pointerdown', (e) => { if (this.editing || s0()?.state === 'off') return; dragging = true; svg.setPointerCapture(e.pointerId); fromPointer(e); e.stopPropagation(); });
+    svg.addEventListener('pointermove', (e) => { if (dragging) fromPointer(e); });
+    const end = () => { if (dragging) { dragging = false; send(); } };
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+    modeBtn.onclick = () => {
+      const s = s0(); if (!s) return;
+      const list = (s.attributes.hvac_modes || []).filter((m) => MODE_COLOR[m]);
+      const next = list[(list.indexOf(s.state) + 1) % list.length];
+      if (next) st.call('climate', 'set_hvac_mode', { hvac_mode: next }, { entity_id: id });
+    };
+    pwr.onclick = () => {
+      const s = s0(); if (!s) return;
+      if (s.state !== 'off') { lastMode = s.state; st.call('climate', 'set_hvac_mode', { hvac_mode: 'off' }, { entity_id: id }); }
+      else { const m = (s.attributes.hvac_modes || []).filter((x) => x !== 'off'); st.call('climate', 'set_hvac_mode', { hvac_mode: lastMode && m.includes(lastMode) ? lastMode : m[0] }, { entity_id: id }); }
+    };
+    const update = () => {
+      const s = s0(), a = s?.attributes || {}, t = target(), mode = s?.state || 'off';
+      const col = MODE_COLOR[mode] || MODE_COLOR.auto;
+      el.style.setProperty('--th', col);
+      el.classList.toggle('off', mode === 'off');
+      if (mode !== 'off') lastMode = mode;
+      big.innerHTML = t == null ? '--' : `${fmtTemp(t)}<span>°</span>`;
+      sub.textContent = [a.current_temperature != null ? `Inside ${fmtTemp(a.current_temperature)}°` : '', a.hvac_action ? cap(a.hvac_action.replace(/_/g, ' ')) : ''].filter(Boolean).join(' · ');
+      modeBtn.textContent = MODE_LABEL[mode] || cap(mode);
+      if (t != null) { const ang = angleOf(t); fill.setAttribute('d', arc(A0, Math.max(A0 + 0.01, ang))); const [kx, ky] = pt(ang); knob.setAttribute('cx', kx); knob.setAttribute('cy', ky); }
+      if (a.current_temperature != null) { const [cx2, cy2] = pt(angleOf(a.current_temperature), R - 24); cur.setAttribute('cx', cx2); cur.setAttribute('cy', cy2); cur.style.display = ''; } else cur.style.display = 'none';
+    };
+    return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ garage door
+  garageCard(id, item = { id }) {
+    const st = this.store;
+    const panels = h('div.gd-panels', {}, ...[0, 1, 2, 3].map(() => h('i')));
+    const door = h('div.gd-door', {}, h('div.gd-opening', {}, h('div.gd-car')), panels);
+    const label = h('div.tile-state'), hint = h('div.tile-hint');
+    const el = h('div.card.garage', {}, h('div.gd-house', {}, h('div.gd-roof'), door), h('div.tile-bottom', {}, h('div.tile-name', { text: tileName(st, item) }), label, hint));
+    let armed = null;
+    press(el, { onTap: () => {
+      const s = st.get(id); if (!s) return;
+      const open = ['open', 'opening'].includes(s.state);
+      if (!armed) { hint.textContent = open ? 'Tap again to close' : 'Tap again to open'; armed = setTimeout(() => { armed = null; hint.textContent = ''; }, 3000); return; }
+      clearTimeout(armed); armed = null; hint.textContent = '';
+      st.call('cover', open ? 'close_cover' : 'open_cover', {}, { entity_id: id });
+    } });
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const pos = a.current_position ?? (s?.state === 'open' ? 100 : s?.state === 'opening' ? 60 : s?.state === 'closing' ? 40 : 0);
+      el.style.setProperty('--gd', `${100 - pos}%`);
+      el.classList.toggle('on', !!s && s.state !== 'closed');
+      el.classList.toggle('moving', ['opening', 'closing'].includes(s?.state));
+      label.textContent = !s ? 'Missing' : cap(s.state) + (a.current_position != null && !['open', 'closed'].includes(s.state) ? ` · ${a.current_position}%` : '');
+    };
+    return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ person
+  personCard(id, item = { id }) {
+    const st = this.store;
+    const pic = h('div.ps-pic'), where = h('div.tile-state');
+    const el = h('div.card.person', {}, h('div.ps-wrap', {}, pic), h('div.tile-bottom', {}, h('div.tile-name', { text: tileName(st, item) }), where));
+    let last;
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const home = s?.state === 'home';
+      el.classList.toggle('home', home);
+      el.classList.toggle('away', !!s && !home);
+      where.textContent = !s ? 'Missing' : home ? 'Home' : s.state === 'not_home' ? 'Away' : s.state === 'unknown' ? 'Unknown' : cap(String(s.state).replace(/_/g, ' '));
+      const url = a.entity_picture ? (st.mode === 'demo' || /^data:/.test(a.entity_picture) ? a.entity_picture : `api/art?id=${encodeURIComponent(id)}&v=${encodeURIComponent(a.entity_picture.slice(-30))}`) : null;
+      if (url !== last) {
+        last = url;
+        pic.style.backgroundImage = url ? `url("${url}")` : '';
+        pic.textContent = url ? '' : (tileName(st, item) || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
       }
     };
     return { id, el, update };

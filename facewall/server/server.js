@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.22.0';
+const VERSION = '1.23.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -473,7 +473,7 @@ async function handleApi(req, res, route) {
   // Album art for media players: Home Assistant's picture URLs need its login, so fetch them here.
   if (route === 'art' && req.method === 'GET') {
     const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
-    const pic = id.startsWith('media_player.') ? ha.states.get(id)?.attributes?.entity_picture : null;
+    const pic = /^(media_player|person)\./.test(id) ? ha.states.get(id)?.attributes?.entity_picture : null;
     if (!pic) return json(res, 404, { error: 'no picture' });
     const external = /^https?:\/\//i.test(pic);
     const base = SUPERVISOR_TOKEN ? 'http://supervisor/core' : HA_URL;

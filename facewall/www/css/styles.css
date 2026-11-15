@@ -701,6 +701,46 @@ body:not(.mouse) .icon-del { display: grid; }
 .cv-unlock { font-size: 17px; padding: 12px 20px; }
 .cv-unlock.armed { background: #ff9f0a; color: #241300; }
 
+/* ------------------------------------------------------------ thermostat dial */
+.thermo { --th: #3a8dff; display: flex; flex-direction: column; }
+.th-wrap { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; }
+.th-svg { width: min(100%, 100cqh - 60px); height: auto; max-height: 100%; aspect-ratio: 1; touch-action: none; overflow: visible; }
+.th-track { fill: none; stroke: var(--t-soft-2); stroke-width: 12; stroke-linecap: round; }
+.th-tick { stroke: currentColor; stroke-width: 1.2; opacity: 0.22; }
+.th-fill { fill: none; stroke: var(--th); stroke-width: 12; stroke-linecap: round; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--th) 60%, transparent)); transition: stroke 0.4s; }
+.th-knob { fill: #fff; stroke: var(--th); stroke-width: 4; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35)); cursor: grab; }
+.th-cur { fill: currentColor; opacity: 0.75; }
+.thermo.off .th-fill { stroke: #8e8e93; filter: none; }
+.th-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.th-temp { font-size: clamp(28px, 22cqmin, 72px); font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; }
+.th-temp span { font-size: 0.6em; vertical-align: top; }
+.th-sub { font-size: clamp(11px, 5cqmin, 15px); opacity: 0.7; margin-top: 4px; text-align: center; }
+.th-mode { pointer-events: auto; margin-top: 8px; padding: 5px 14px; border-radius: 99px; font-size: clamp(11px, 5cqmin, 14px); font-weight: 700; background: color-mix(in srgb, var(--th) 22%, transparent); color: inherit; }
+.thermo.off .th-mode { background: var(--t-soft); }
+@container (max-height: 200px) { .th-sub { display: none; } }
+
+/* ------------------------------------------------------------ garage door */
+.garage { --gd: 100%; display: flex; flex-direction: column; }
+.gd-house { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 6px; }
+.gd-roof { width: 78%; max-width: 220px; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 10px solid var(--t-soft-2); box-sizing: content-box; }
+.gd-door { position: relative; width: 70%; max-width: 200px; aspect-ratio: 1.45; max-height: 100%; border-radius: 4px 4px 2px 2px; overflow: hidden; background: rgba(0,0,0,0.35); box-shadow: inset 0 0 0 3px var(--t-soft-2); }
+.gd-opening { position: absolute; inset: 3px; background: linear-gradient(180deg, #12161c, #1d2530); display: grid; place-items: end center; }
+.gd-car { width: 58%; height: 26%; margin-bottom: 8%; border-radius: 30% 30% 12% 12% / 60% 60% 20% 20%; background: rgba(255,255,255,0.12); }
+.gd-panels { position: absolute; left: 3px; right: 3px; top: 3px; height: calc(var(--gd) - 0px); max-height: calc(100% - 6px); display: flex; flex-direction: column; transition: height 0.6s ease; }
+.gd-panels i { flex: 1; border-bottom: 2px solid rgba(0,0,0,0.25); background: linear-gradient(180deg, #d9d4ca, #bdb6aa); }
+body.theme-light .gd-panels i { background: linear-gradient(180deg, #f2eee6, #d8d1c4); }
+.garage.on .tile-state { color: #ff9f0a; font-weight: 700; opacity: 1; }
+.garage.moving .gd-door { box-shadow: inset 0 0 0 3px #ff9f0a; }
+
+/* ------------------------------------------------------------ person */
+.person { display: flex; flex-direction: column; }
+.ps-wrap { flex: 1; min-height: 0; display: grid; place-items: center; }
+.ps-pic { width: min(64cqmin, 100%); aspect-ratio: 1; max-height: 100%; border-radius: 50%; background: var(--t-soft) center / cover no-repeat; display: grid; place-items: center; font-weight: 750; font-size: clamp(18px, 20cqmin, 48px); letter-spacing: 0.02em;
+  box-shadow: 0 0 0 4px var(--t-card, transparent), 0 0 0 7px var(--t-soft-2); transition: box-shadow 0.4s; }
+.person.home .ps-pic { box-shadow: 0 0 0 4px var(--t-card, transparent), 0 0 0 7px #30d158; }
+.person.away .ps-pic { filter: saturate(0.6); opacity: 0.85; }
+.person.home .tile-state { color: #30d158; font-weight: 700; opacity: 1; }
+
 /* ------------------------------------------------------------ show-when and badges */
 .home-grid:not(.editing) > .card.cond-hidden { display: none; }
 .home-grid.editing > .card.cond-hidden { opacity: 0.45; }

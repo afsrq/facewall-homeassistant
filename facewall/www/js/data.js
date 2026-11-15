@@ -260,6 +260,10 @@ function demoStates() {
     st('weather.home', 'partlycloudy', { friendly_name: 'Forecast Home', temperature: 14.5, apparent_temperature: 12.9, temperature_unit: '°C', humidity: 58, wind_speed: 12, wind_speed_unit: 'km/h', supported_features: 3 }),
     (() => { const d = new Date(), rise = new Date(d), set = new Date(d); rise.setHours(6, 52, 0, 0); set.setHours(16, 58, 0, 0); if (rise < d) rise.setDate(rise.getDate() + 1); if (set < d) set.setDate(set.getDate() + 1);
       return st('sun.sun', set < rise ? 'above_horizon' : 'below_horizon', { friendly_name: 'Sun', next_rising: rise.toISOString(), next_setting: set.toISOString() }); })(),
+    st('cover.garage_door', 'closed', { friendly_name: 'Garage Door', device_class: 'garage', current_position: 0 }),
+    st('person.alex', 'home', { friendly_name: 'Alex' }),
+    st('person.sam', 'not_home', { friendly_name: 'Sam' }),
+    st('person.jo', 'Work', { friendly_name: 'Jo Rivera' }),
     st('camera.front_door', 'idle', { friendly_name: 'Front Door Camera' }),
     st('binary_sensor.living_room_motion', 'off', { friendly_name: 'Living Room Motion', device_class: 'motion' }),
     st('binary_sensor.doorbell', 'off', { friendly_name: 'Doorbell', device_class: 'occupancy' }),
@@ -344,6 +348,15 @@ class DemoAdapter {
       else if (service === 'unlock') this.set(id, { state: 'unlocked' });
       else if (service === 'set_temperature') this.set(id, {}, { temperature: data.temperature });
       else if (service === 'set_hvac_mode') { if (data.hvac_mode !== 'off') this.lastMode[id] = data.hvac_mode; else if (s.state !== 'off') this.lastMode[id] = s.state; this.set(id, { state: data.hvac_mode }); }
+      else if ((service === 'open_cover' || service === 'close_cover') && s.attributes.device_class === 'garage') {
+        const opening = service === 'open_cover';
+        clearInterval(this.garageT?.[id]); (this.garageT ||= {})[id] = setInterval(() => {
+          const p = Math.max(0, Math.min(100, (this.store.get(id).attributes.current_position ?? 0) + (opening ? 20 : -20)));
+          const done = opening ? p >= 100 : p <= 0;
+          this.set(id, { state: done ? (opening ? 'open' : 'closed') : opening ? 'opening' : 'closing' }, { current_position: p });
+          if (done) clearInterval(this.garageT[id]);
+        }, 500);
+      }
       else if (service === 'open_cover') this.set(id, { state: 'open' }, { current_position: 100 });
       else if (service === 'close_cover') this.set(id, { state: 'closed' }, { current_position: 0 });
     }

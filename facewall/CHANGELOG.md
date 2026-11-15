@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.23.0
+- **Thermostat dial** (climate tile → Style → Dial): drag around the ring to set the temperature; the ring takes the mode's colour (blue cooling, orange heating, green auto), a dot shows the room temperature, and tapping the mode cycles through modes.
+- **Garage door** (cover tile → Style → Garage door): an animated door that rolls up as it opens and shows the position while moving. Tap twice to open or close.
+- **Person tile** (Add tiles → People): their photo from Home Assistant (or initials) with a green ring when they're home, otherwise Away or the zone they're in.
+
 ## 1.22.0
 - **Three mid-century faces** (original designs in the spirit of the era), each with walnut, teal, cream, mustard or charcoal dials:
   - **Starburst**: brass rays of alternating lengths radiating from the dial (long & short, even, or with dots).

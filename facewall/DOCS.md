@@ -60,6 +60,12 @@ In a tile's **Options** (Edit layout → *Options*, or ⚙︎ → Tiles on page)
 
 Text and icons turn dark or light to stay readable. *Use on all … tiles* copies the colours to the other tiles of the same kind on that page (e.g. every light).
 
+## Thermostat dial, garage door, people
+
+- **Thermostat dial**: a climate tile's Options → *Style* → **Dial**. Drag the knob around the ring to set the temperature; tap the mode label to switch mode.
+- **Garage door**: a cover's Options → *Style* → **Garage door**. Tap twice to open or close it.
+- **People**: Add tiles → *People*. Shows each person's photo with a green ring when home.
+
 ## Media players
 
 Add a speaker, TV or other media player (Add tiles → *Media*). The tile shows the album art with title, artist, play controls and volume; make it smaller for just the art and a play button. Tap it for the full player with progress, mute, source and power.
