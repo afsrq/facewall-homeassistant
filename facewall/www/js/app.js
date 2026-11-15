@@ -564,6 +564,9 @@ class App {
           h('input.time-in', { type: 'time', value: this.screen.night.from || '20:00', onchange: (e) => { this.updateScreen((x) => { x.night.from = e.target.value; }); this.syncTheme(); } }),
           h('span', { text: 'to' }),
           h('input.time-in', { type: 'time', value: this.screen.night.to || '07:00', onchange: (e) => { this.updateScreen((x) => { x.night.to = e.target.value; }); this.syncTheme(); } }))) : null,
+        row('Weather in the background', toggle(s.general?.fx?.weather !== false, (v) => { this.update((x) => { x.general.fx = { ...(x.general.fx || {}), weather: v }; }); this.rooms.forEach((r) => r.tick()); }), 'Gentle rain, snow, clouds, fog or stars behind the tiles, matching outside'),
+        row('Seasonal touches', toggle(s.general?.fx?.season !== false, (v) => { this.update((x) => { x.general.fx = { ...(x.general.fx || {}), season: v }; }); this.rooms.forEach((r) => r.tick()); }), 'Blossoms in spring, falling leaves in autumn, light snow in December and January, when the weather is calm'),
+        row('How much', segmented([{ v: 'some', label: 'A little' }, { v: 'more', label: 'More' }], s.general?.fx?.amount || 'some', (v) => { this.update((x) => { x.general.fx = { ...(x.general.fx || {}), amount: v }; }); })),
         row('Page header', h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.headerEditor(render) }), 'Title font and size, and what the line under the title shows: greeting, date, weather, warnings… Tip: hold the title on a page.'));
 
       // ---------------- Doorbell

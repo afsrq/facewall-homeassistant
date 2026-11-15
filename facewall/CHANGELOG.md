@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.26.0
+- **Living backgrounds**: subtle animated weather behind the tiles that matches outside: rain (with the odd lightning flash in storms), snow, drifting clouds, fog, wind streaks, stars on clear nights and a warm glow when it's sunny. Settings → Appearance → Weather in the background.
+- **Seasonal touches**: spring blossoms, autumn leaves and December snow when the weather is calm. Each can be turned off, and **How much** sets the density.
+
 ## 1.25.0
 - **Six more house styles** in the Architectural theme group, each with its own colours, background pattern and title font: **Craftsman** (oak, olive, ochre and brick with Prairie-style squares), **Spanish Revival** (stucco, terracotta and cobalt tile), **Scandinavian** (airy whites and sage with a soft dot grid), **Art Deco** (navy and gold fans), **Japandi** (greige, wood and wave scales) and **Farmhouse** (white shiplap, black and sage).
 

@@ -4,6 +4,7 @@ import { domainOf, isOn, lightRGB, formatState, cap } from './data.js';
 import { h, press, sheet, toast } from './ui.js';
 import { headerOf, headerContent, headerVars } from './header.js';
 import { iconSvg } from './iconlib.js';
+import { Fx, fxMode } from './fx.js';
 
 const TOGGLES = ['switch', 'input_boolean', 'fan', 'automation', 'siren', 'humidifier'];
 const ACTIONS = ['scene', 'script', 'button', 'input_button'];
@@ -262,6 +263,7 @@ export class HomePage {
     this.store.removeEventListener('timers', this.handlers.timers);
     this.store.removeEventListener('forecast', this.handlers.forecast);
     this.cards.forEach((c) => c.destroy?.());
+    this.fx?.stop();
     window.removeEventListener('resize', this.handlers.resize);
     clearInterval(this.interval);
     this.root.remove();
@@ -295,7 +297,11 @@ export class HomePage {
     press(head.querySelector('.head-titles'), { onLong: () => this.app.headerEditor?.() });
     this.grid = h('div.home-grid' + (this.editing ? '.editing' : ''));
     this.root.classList.toggle('editing', this.editing);
-    this.root.append(h('div.home-bg'), head, this.grid);
+    this.fxCanvas ||= h('canvas.home-fx', { 'aria-hidden': 'true' });
+    this.fx ||= new Fx(this.fxCanvas, () => this.fxNow, () => this.store.settings?.general?.fx?.amount || 'some');
+    this.fxNow = fxMode(this.store, this.store.settings);
+    this.root.append(h('div.home-bg'), this.fxCanvas, head, this.grid);
+    this.fx.start();
     this.layout();
 
     this.items.forEach((item, index) => {
@@ -440,6 +446,7 @@ export class HomePage {
   }
 
   tick() {
+    if (this.fx) this.fxNow = fxMode(this.store, this.store.settings);
     const now = new Date();
     if (!this.greet) return;
     if (this.hdFor !== this.store.settings && this.head) this.applyHeaderStyle(this.head);
