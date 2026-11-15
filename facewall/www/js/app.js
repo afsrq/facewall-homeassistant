@@ -837,6 +837,7 @@ class App {
         if (c && c2) it[sl.key + '2'] = c2; else delete it[sl.key + '2'];
       }))));
     }
+    if (kindFor(item) === 'graph') rows.push(row('Time span', segmented([{ v: 6, label: '6 h' }, { v: 24, label: '24 h' }, { v: 48, label: '2 days' }, { v: 168, label: '7 days' }], item.hours || 24, (v) => set((it) => { if (v === 24) delete it.hours; else it.hours = v; }))));
     // Show the tile only when something is true, and a badge in its corner.
     const DEP_GROUPS = [['Binary sensors', ['binary_sensor']], ['Sensors', ['sensor']], ['Covers and doors', ['cover', 'lock']], ['Lights and switches', ['light', 'switch', 'input_boolean', 'fan']], ['Media', ['media_player']], ['People', ['person', 'device_tracker']], ['Other', ['vacuum', 'climate', 'alarm_control_panel', 'input_select', 'water_heater']]];
     const special = item.id === ALL_OFF || item.id === SCENES;

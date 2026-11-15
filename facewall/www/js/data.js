@@ -90,6 +90,8 @@ export class Store extends EventTarget {
   }
 
   startTimer(id, minutes) { return this.adapter.startTimer(id, minutes); }
+  /** A sensor's recent history: [[epoch ms, number], ...]. */
+  history(id, hours = 24) { return this.adapter.history ? this.adapter.history(id, hours) : Promise.resolve([]); }
   cancelTimer(id) { return this.adapter.cancelTimer(id); }
 
   saveSettings(settings) {
@@ -200,6 +202,9 @@ class ServerAdapter {
     try { await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target }) }); }
     catch (e) { this.store.dispatchEvent(new CustomEvent('error', { detail: e.message })); }
   }
+  async history(id, hours) {
+    try { return (await fetchJSON(`api/history?id=${encodeURIComponent(id)}&hours=${hours}`, {}, 30000)).points || []; } catch { return []; }
+  }
   async startTimer(entity_id, minutes) {
     try { await fetchJSON('api/timer', { method: 'POST', body: JSON.stringify({ entity_id, minutes }) }); }
     catch (e) { this.store.dispatchEvent(new CustomEvent('error', { detail: e.message })); }
@@ -255,6 +260,8 @@ function demoStates() {
     st('binary_sensor.doorbell', 'off', { friendly_name: 'Doorbell', device_class: 'occupancy' }),
     st('media_player.living_room_speaker', 'playing', { friendly_name: 'Living Room Speaker', ...DEMO_TRACKS[0], media_position: 74, media_position_updated_at: new Date().toISOString(),
       volume_level: 0.35, is_volume_muted: false, source: 'Spotify', source_list: ['Spotify', 'AirPlay', 'TV'], app_name: 'Spotify', supported_features: 152511 }),
+    st('sensor.home_power', '1430', { friendly_name: 'Home Power', unit_of_measurement: 'W', device_class: 'power', state_class: 'measurement' }),
+    st('sensor.home_energy', '8421.6', { friendly_name: 'Energy Used', unit_of_measurement: 'kWh', device_class: 'energy', state_class: 'total_increasing' }),
     st('sensor.outdoor_temperature', '14.5', { friendly_name: 'Outside', unit_of_measurement: '°C', device_class: 'temperature' }),
     st('sensor.indoor_humidity', '46', { friendly_name: 'Humidity', unit_of_measurement: '%', device_class: 'humidity' }),
     st('binary_sensor.back_door', 'off', { friendly_name: 'Back Door', device_class: 'door' }),
@@ -332,6 +339,24 @@ class DemoAdapter {
       else if (service === 'open_cover') this.set(id, { state: 'open' }, { current_position: 100 });
       else if (service === 'close_cover') this.set(id, { state: 'closed' }, { current_position: 0 });
     }
+  }
+
+  /** Made-up history around the sensor's current value (a daily wave and a little noise). */
+  async history(id, hours) {
+    const s = this.store.get(id), now = Date.now(), v = Number(s?.state);
+    if (!Number.isFinite(v)) return [];
+    const total = /energy|kwh/i.test(s.attributes?.unit_of_measurement || '') || s.attributes?.state_class === 'total_increasing';
+    const n = Math.min(400, hours * 12), pts = [];
+    let seed = id.length * 97;
+    const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    for (let i = 0; i <= n; i++) {
+      const t = now - hours * 3600e3 * (1 - i / n);
+      const hr = new Date(t).getHours() + new Date(t).getMinutes() / 60;
+      const val = total ? v - (n - i) * ((hours * 1.1) / n) : v + Math.sin(((hr - 15) / 24) * 2 * Math.PI) * Math.max(1, Math.abs(v) * 0.12) + (rnd() - 0.5) * Math.max(0.4, Math.abs(v) * 0.03);
+      pts.push([Math.round(t), Math.round(val * 10) / 10]);
+    }
+    pts[pts.length - 1][1] = v;
+    return pts;
   }
 
   /** The demo media player: play/pause, tracks, volume, source, power. */

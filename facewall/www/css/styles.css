@@ -699,6 +699,18 @@ body.theme-light .tile-badge { background: rgba(0,0,0,0.12); color: inherit; }
 .tile-badge.alert { background: #ff9f0a; color: #241300; }
 .card.icon-tr .tile-badge { right: auto; left: clamp(8px, 5cqmin, 14px); }
 
+/* ------------------------------------------------------------ graph tile */
+.graph { display: flex; flex-direction: column; gap: 6px; color: var(--t-text); }
+.gr-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.gr-now { text-align: right; }
+.gr-val { font-size: clamp(20px, 14cqmin, 42px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gr-today { font-size: clamp(11px, 5cqmin, 14px); opacity: 0.7; margin-top: 4px; }
+.gr-chart { position: relative; flex: 1; min-height: 30px; color: var(--t-date); margin: 0 -4px -4px; }
+.card.tc-on .gr-chart, .card.tc-off .gr-chart, .weather .gr-chart { color: inherit; }
+.gr-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.gr-range { position: absolute; top: 0; bottom: 0; right: 4px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; opacity: 0.55; font-variant-numeric: tabular-nums; pointer-events: none; }
+@container (max-height: 120px) { .graph .card-sub, .gr-today { display: none; } }
+
 /* ------------------------------------------------------------ scenes row */
 .scenes { padding: calc(var(--gap, 16px) * 0.5); }
 .sc-wrap { height: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: calc(var(--gap, 16px) * 0.5); }

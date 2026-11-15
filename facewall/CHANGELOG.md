@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.19.0
+- **Graph tiles**: give any number sensor the *Graph* style (tile Options → Style) to see it over the last 6 hours, 24 hours, 2 days or 7 days, with the current value and the low and high. It keeps drawing live as the value changes. Energy meters (kWh) also show how much since midnight, so a power or energy sensor makes a simple energy tile.
+
 ## 1.18.0
 - **Show a tile only when it matters** (tile Options → Show the tile): always, only while it's on/open/playing, or depending on another device (on/off, equals, above, below). Hidden tiles free their space; while editing the layout they show faded.
 - **Badges** (tile Options → Badge): how long it's been on or open (turns orange after the time you pick, e.g. a door left open), how many lights are on in a light group or the tile's room, or any sensor's value (battery, temperature…).

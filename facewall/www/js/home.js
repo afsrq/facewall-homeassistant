@@ -27,6 +27,7 @@ export function stylesFor(id) {
   if (d === 'light') return [{ v: 'light', label: 'Light', sub: 'Tap on/off · hold for colour' }, { v: 'switch', label: 'Quick switch', sub: 'Tap on/off only' }, { v: 'controls', label: 'Controls', sub: 'Tap opens colour, dim & scenes' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
   if (['switch', 'input_boolean', 'fan'].includes(d)) return [{ v: 'toggle', label: 'Switch', sub: 'Tap on/off' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
   if (d === 'weather') return [{ v: 'daily', label: 'Daily', sub: 'Next days · tap for hourly too' }, { v: 'hourly', label: 'Hourly', sub: 'Next hours · tap for daily too' }];
+  if (d === 'sensor') return [{ v: 'value', label: 'Value', sub: 'The current reading' }, { v: 'graph', label: 'Graph', sub: 'The reading over time (choose how long below)' }];
   return [];
 }
 /** Tile kinds whose icon sits in the corner and can be moved (top left / top right / middle). */
@@ -58,12 +59,13 @@ export function kindFor(item) {
   if (d === 'camera') return 'camera';
   if (d === 'cover') return 'cover';
   if (ACTIONS.includes(d)) return 'action';
+  if (d === 'sensor' && style === 'graph') return 'graph';
   return 'sensor';
 }
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
   const k = kindFor(item);
-  const def = k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera'].includes(k) ? [2, 1] : [1, 1];
+  const def = k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -455,7 +457,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -682,6 +684,52 @@ export class HomePage {
       h('div.tile-bottom', {}, val, h('div.tile-name', { text: tileName(st, item) })));
     const update = () => { val.textContent = formatState(st, id); };
     return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ graph
+  graphCard(id, item = { id }) {
+    const st = this.store;
+    const hours = item.hours || 24;
+    const val = h('div.gr-val'), today = h('div.gr-today'), lo = h('span'), hi = h('span'), span = h('span.gr-span', { text: hours >= 168 ? `${hours / 24} days` : `${hours} h` });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 1000 300'); svg.setAttribute('preserveAspectRatio', 'none'); svg.classList.add('gr-svg');
+    const el = h('div.card.graph', {},
+      h('div.gr-top', {}, h('div.card-head', {}, h('span.card-ic', { html: iconHtml(st, item, 'gauge') }), h('div.card-titles', {}, h('div.card-title', { text: tileName(st, item) }), h('div.card-sub', {}, span))),
+        h('div.gr-now', {}, val, today)),
+      h('div.gr-chart', {}, svg, h('div.gr-range', {}, hi, lo)));
+    let points = [], loadedAt = 0;
+    const gid = 'g' + Math.random().toString(36).slice(2, 8);
+    const draw = () => {
+      const s = st.get(id), now = Date.now(), from = now - hours * 3600e3;
+      const live = Number(s?.state);
+      const pts = points.filter((p) => p[0] >= from);
+      if (Number.isFinite(live)) pts.push([now, live]);
+      if (pts.length < 2) { svg.innerHTML = ''; lo.textContent = hi.textContent = ''; return; }
+      let min = Math.min(...pts.map((p) => p[1])), max = Math.max(...pts.map((p) => p[1]));
+      const unit = s?.attributes?.unit_of_measurement || '';
+      lo.textContent = `${fmtNum(min)}${unit === '°C' || unit === '°F' ? '°' : ''}`; hi.textContent = `${fmtNum(max)}${unit === '°C' || unit === '°F' ? '°' : ''}`;
+      if (max - min < 1e-9) { max += 1; min -= 1; }
+      const pad = (max - min) * 0.12; min -= pad; max += pad;
+      const X = (t) => ((t - from) / (now - from)) * 1000, Y = (v) => 300 - ((v - min) / (max - min)) * 300;
+      // Step-free smooth-ish line through the points.
+      let d = `M${X(pts[0][0]).toFixed(1)} ${Y(pts[0][1]).toFixed(1)}`;
+      for (const [t, v] of pts.slice(1)) d += ` L${X(t).toFixed(1)} ${Y(v).toFixed(1)}`;
+      svg.innerHTML = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".35"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>`
+        + `<path d="${d} L1000 300 L${X(pts[0][0]).toFixed(1)} 300 Z" fill="url(#${gid})"/><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`
+        + `<circle cx="${X(pts[pts.length - 1][0]).toFixed(1)}" cy="${Y(pts[pts.length - 1][1]).toFixed(1)}" r="5" fill="currentColor" vector-effect="non-scaling-stroke"/>`;
+      // Energy meters: how much since midnight.
+      const total = s?.attributes?.state_class === 'total_increasing' || s?.attributes?.device_class === 'energy';
+      if (total && Number.isFinite(live)) {
+        const mid = new Date(); mid.setHours(0, 0, 0, 0);
+        const first = pts.find((p) => p[0] >= mid.getTime());
+        today.textContent = first ? `+${fmtNum(Math.max(0, live - first[1]))} ${unit} today` : '';
+      } else today.textContent = '';
+    };
+    const load = async () => { loadedAt = Date.now(); points = await st.history(id, hours); draw(); };
+    load();
+    const update = () => { const s = st.get(id); val.textContent = s ? formatState(st, id) : 'Missing'; draw(); };
+    const tick = () => { if (Date.now() - loadedAt > 5 * 60000) load(); };
+    return { id, el, update, tick };
   }
 
   // ------------------------------------------------------------------ scenes row

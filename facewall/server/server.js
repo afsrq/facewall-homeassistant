@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.18.0';
+const VERSION = '1.19.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -431,6 +431,27 @@ async function handleApi(req, res, route) {
       Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res);
       return;
     } catch (e) { if (!res.headersSent) return json(res, 502, { error: e.message }); return res.end(); }
+  }
+  // Sensor history for graph tiles: [[epoch ms, number], ...] for the last N hours.
+  if (route === 'history' && req.method === 'GET') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const id = q.get('id') || '';
+    const hours = Math.min(24 * 14, Math.max(1, Number(q.get('hours')) || 24));
+    if (!/^[a-z_]+\.[a-z0-9_]+$/.test(id)) return json(res, 400, { error: 'bad id' });
+    if (!ha.connected) return json(res, 503, { error: 'not connected' });
+    try {
+      const start = new Date(Date.now() - hours * 3600e3).toISOString();
+      const r = await haRequest({ type: 'history/history_during_period', start_time: start, entity_ids: [id], minimal_response: true, no_attributes: true, significant_changes_only: false }, 30000);
+      const rows = r?.[id] || [];
+      const points = [];
+      for (const x of rows) {
+        const v = Number(x.s ?? x.state), t = (x.lu ?? x.lc) ? Math.round((x.lu ?? x.lc) * 1000) : Date.parse(x.last_updated || x.last_changed);
+        if (Number.isFinite(v) && Number.isFinite(t)) points.push([t, v]);
+      }
+      // Keep it light: at most ~600 points.
+      const step = Math.ceil(points.length / 600);
+      return json(res, 200, { id, hours, points: step > 1 ? points.filter((_, i) => i % step === 0 || i === points.length - 1) : points });
+    } catch (e) { return json(res, 502, { error: e.message }); }
   }
   // Album art for media players: Home Assistant's picture URLs need its login, so fetch them here.
   if (route === 'art' && req.method === 'GET') {
