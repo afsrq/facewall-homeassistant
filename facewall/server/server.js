@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.13.0';
+const VERSION = '1.14.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -222,6 +222,8 @@ function watchedEntities() {
   for (const list of lists) for (const e of list) set.add(typeof e === 'string' ? e : e.id);
   for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr']) if (f[k]) set.add(f[k]);
   for (const id of Object.keys(timers)) set.add(id);
+  // The doorbell pop-up: its trigger, camera and lock.
+  for (const k of ['trigger', 'camera', 'lock']) if (s.doorbell?.[k]) set.add(s.doorbell[k]);
   // The page header: its weather entity, the sun, sensors and alert sensors.
   const WEATHER_PARTS = new Set(['now', 'highlow', 'feels', 'rain', 'wind', 'humidity', 'alerts']);
   const on = (s.header?.parts || [{ k: 'greeting', on: true }, { k: 'date', on: true }]).filter((p) => p && p.on);
@@ -395,6 +397,25 @@ async function handleApi(req, res, route) {
     return json(res, 200, { app: 'facewall', version: VERSION, ...status() });
   }
   if (route === 'snapshot' && req.method === 'GET') return json(res, 200, snapshot());
+  // Cameras: a snapshot, or the live MJPEG stream (live=1), fetched with Home Assistant's login.
+  if (route === 'camera' && req.method === 'GET') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const id = q.get('id') || '';
+    const base = SUPERVISOR_TOKEN ? 'http://supervisor/core' : HA_URL;
+    if (!/^camera\.[a-z0-9_]+$/.test(id) || !base) return json(res, 404, { error: 'no camera' });
+    const live = q.get('live') === '1';
+    const ctl = new AbortController();
+    req.on('close', () => ctl.abort());
+    try {
+      const r = await fetch(`${base}/api/${live ? 'camera_proxy_stream' : 'camera_proxy'}/${id}`, { headers: { Authorization: `Bearer ${TOKEN}` }, signal: live ? ctl.signal : AbortSignal.timeout(15000) });
+      if (!r.ok || !r.body) return json(res, 502, { error: `camera: ${r.status}` });
+      res.writeHead(200, { 'Content-Type': r.headers.get('content-type') || 'image/jpeg', 'Cache-Control': 'no-store' });
+      if (!live) return res.end(Buffer.from(await r.arrayBuffer()));
+      const { Readable } = await import('node:stream');
+      Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res);
+      return;
+    } catch (e) { if (!res.headersSent) return json(res, 502, { error: e.message }); return res.end(); }
+  }
   // Album art for media players: Home Assistant's picture URLs need its login, so fetch them here.
   if (route === 'art' && req.method === 'GET') {
     const id = new URL(req.url, 'http://x').searchParams.get('id') || '';

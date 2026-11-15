@@ -53,13 +53,14 @@ export function kindFor(item) {
   if (d === 'light') return style === 'switch' ? 'toggle' : 'light';
   if (TOGGLES.includes(d)) return 'toggle';
   if (d === 'media_player') return 'media';
+  if (d === 'camera') return 'camera';
   if (d === 'cover') return 'cover';
   if (ACTIONS.includes(d)) return 'action';
   return 'sensor';
 }
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
-  const def = ['climate', 'weather', 'media'].includes(kindFor(item)) ? [2, 1] : [1, 1];
+  const def = ['climate', 'weather', 'media', 'camera'].includes(kindFor(item)) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -80,6 +81,24 @@ export function mediaPosition(s) {
 }
 const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`);
 const MEDIA_OFF = ['off', 'standby', 'unavailable', 'unknown'];
+
+// ------------------------------------------------------------------ camera helpers
+/** A demo "camera" picture: a front porch, with the time so you can see it refresh. */
+function demoCamera(name) {
+  const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 360'><defs><linearGradient id='s' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#1d2a3a'/><stop offset='1' stop-color='#3a4756'/></linearGradient></defs>`
+    + `<rect width='640' height='360' fill='url(#s)'/><rect x='0' y='250' width='640' height='110' fill='#4a4036'/><rect x='120' y='60' width='400' height='200' fill='#6b5d4f'/>`
+    + `<rect x='270' y='110' width='100' height='150' rx='4' fill='#2f7f7a'/><circle cx='355' cy='190' r='5' fill='#e8b13a'/><circle cx='230' cy='120' r='14' fill='#ffd88a' opacity='.9'/><circle cx='230' cy='120' r='40' fill='#ffd88a' opacity='.15'/>`
+    + `<rect x='150' y='140' width='70' height='60' fill='#22303d'/><rect x='420' y='140' width='70' height='60' fill='#22303d'/>`
+    + `<text x='14' y='26' font-family='monospace' font-size='16' fill='#fff' opacity='.85'>${name.replace(/[<&]/g, '')}</text><text x='626' y='26' text-anchor='end' font-family='monospace' font-size='16' fill='#fff' opacity='.85'>${t}</text></svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+/** Picture URL for a camera: a snapshot, or the live stream (both through Facewall's server). */
+export function cameraUrl(store, id, live = false) {
+  if (store.mode === 'demo') return demoCamera(store.name?.(id) || id);
+  return `api/camera?id=${encodeURIComponent(id)}${live ? '&live=1' : `&t=${Date.now()}`}`;
+}
+const onScreen = (el) => { const r = el.getBoundingClientRect(); return !document.hidden && r.width > 0 && r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight; };
 
 // ------------------------------------------------------------------ weather helpers
 const WX = {
@@ -364,7 +383,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -591,6 +610,26 @@ export class HomePage {
       h('div.tile-bottom', {}, val, h('div.tile-name', { text: tileName(st, item) })));
     const update = () => { val.textContent = formatState(st, id); };
     return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ camera
+  cameraCard(id, item = { id }) {
+    const st = this.store;
+    const img = h('img.cam-img', { alt: '' });
+    const stamp = h('div.cam-age');
+    const el = h('div.card.camera', {}, img, h('div.cam-shade'), h('div.cam-label', {}, h('span.cam-dot'), h('span', { text: tileName(st, item) })), stamp);
+    press(el, { onTap: () => this.app.cameraView(id, { title: tileName(st, item) }) });
+    let last = 0, loading = false;
+    img.addEventListener('load', () => { loading = false; el.classList.add('has-img'); el.classList.remove('cam-err'); });
+    img.addEventListener('error', () => { loading = false; el.classList.add('cam-err'); });
+    // A fresh snapshot every 10 s while the tile is on screen.
+    const tick = () => {
+      if (loading || Date.now() - last < 10000 || !onScreen(el)) return;
+      last = Date.now(); loading = true;
+      img.src = cameraUrl(st, id);
+    };
+    const update = () => { const s = st.get(id); el.classList.toggle('off', !s || s.state === 'unavailable'); stamp.textContent = !s ? 'Missing' : s.state === 'unavailable' ? 'Unavailable' : ''; tick(); };
+    return { id, el, update, tick };
   }
 
   // ------------------------------------------------------------------ media

@@ -1,7 +1,7 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
+import { HomePage, cameraUrl, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
 import { loadIcons, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
@@ -114,6 +114,7 @@ class App {
       this.renderFace(); this.renderRooms();
     });
     this.store.addEventListener('status', () => this.showStatus());
+    this.store.addEventListener('state', (e) => this.checkDoorbell(e.detail));
     this.store.addEventListener('error', (e) => toast(e.detail, 'error'));
     this.showStatus();
 
@@ -534,6 +535,18 @@ class App {
         this.screen.theme ? 'Only on this iPad (the other screens use ' + themeById(s.general?.theme || DEFAULT_THEME).name + ')' : 'Used on every screen'),
         row('Page header', h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.headerEditor(render) }), 'Title font and size, and what the line under the title shows: greeting, date, weather, warnings… Tip: hold the title on a page.'));
 
+      // ---------------- Doorbell
+      const db = s.doorbell || {};
+      const updDb = (fn) => { this.update((x) => { x.doorbell ||= {}; fn(x.doorbell); }); render(); };
+      const doorSec = section('Doorbell pop-up',
+        row('When this rings', entitySelect(this.store, db.trigger, [['Binary sensors', ['binary_sensor']], ['Events', ['event']], ['Switches and helpers', ['input_boolean', 'switch', 'input_button']], ['Sensors', ['sensor']]], (v) => updDb((x) => { if (v) x.trigger = v; else delete x.trigger; }), 'Off (no pop-up)'),
+          'Your doorbell button, event or sensor from Home Assistant. Every iPad shows the camera full screen when it rings.'),
+        db.trigger ? row('Camera', entitySelect(this.store, db.camera, [['Cameras', ['camera']]], (v) => updDb((x) => { if (v) x.camera = v; else delete x.camera; }), 'No camera')) : null,
+        db.trigger ? row('Door lock', entitySelect(this.store, db.lock, [['Locks', ['lock']]], (v) => updDb((x) => { if (v) x.lock = v; else delete x.lock; }), 'No lock'), 'Adds an Unlock button (tap twice)') : null,
+        db.trigger ? row('Close after', segmented([{ v: 30, label: '30 s' }, { v: 60, label: '1 min' }, { v: 120, label: '2 min' }, { v: 300, label: '5 min' }], db.seconds || 60, (v) => updDb((x) => { x.seconds = v; }))) : null,
+        db.trigger ? row('Show on this iPad', toggle(!this.screen.noDoorbell, (v) => { this.updateScreen((x) => { if (v) delete x.noDoorbell; else x.noDoorbell = true; }); render(); })) : null,
+        row('Try it', h('button.pill.sm', { text: 'Show the pop-up', onclick: () => this.ringDoorbell() })));
+
       // ---------------- This screen
       const sc = this.screen;
       const startSel = h('select.select');
@@ -675,7 +688,7 @@ class App {
         : st.connected ? `Connected to Home Assistant${st.haVersion ? ' ' + st.haVersion : ''}` : `Not connected${st.error ? ': ' + st.error : ''}`;
       const aboutSec = section('Connection', h('div.about', { text: conn }),
         h('div.about.small', { text: 'Tip: hold the clock to change faces and swipe for your pages. With a mouse: right-click the clock, use the ‹ › arrows or ← → keys, and Esc to close panels.' }));
-      sh.body.append(appearanceSec, screenSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, aboutSec);
+      sh.body.append(appearanceSec, screenSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, aboutSec);
     };
     render();
   }
@@ -912,6 +925,74 @@ class App {
     await loadIcons();
     render();
     if (document.body.classList.contains('mouse')) setTimeout(() => search.focus(), 60);
+  }
+
+  // ------------------------------------------------------------------ cameras and the doorbell
+  /** Full-screen camera view. For the doorbell: a title, an Unlock button and closing by itself. */
+  cameraView(id, { title, doorbell = false, lock = null, seconds = 0, onClose } = {}) {
+    let refresh = null, countdown = null, closeAt = 0;
+    const img = h('img.cv-img', { alt: '' });
+    const sh = sheet({ title: title || (id ? this.store.name(id) : 'Camera'), cls: 'camera-sheet' + (doorbell ? '.doorbell' : ''), onClose: () => {
+      clearInterval(refresh); clearInterval(countdown); img.removeAttribute('src'); onClose?.();
+    } });
+    if (id) {
+      img.src = cameraUrl(this.store, id, true);
+      if (this.store.mode === 'demo') refresh = setInterval(() => { img.src = cameraUrl(this.store, id, true); }, 1000);
+      img.addEventListener('error', () => { img.replaceWith(h('div.cv-none', { html: icon('close') + '<span>Couldn’t load the camera</span>' })); });
+      sh.body.append(h('div.cv-wrap', {}, img));
+    } else sh.body.append(h('div.cv-none', { html: icon('bell') + '<span>No camera chosen</span>' }));
+    const bar = h('div.cv-bar');
+    const note = h('span.cv-note');
+    if (lock && this.store.get(lock)) {
+      let armed = null;
+      const btn = h('button.pill.cv-unlock');
+      const draw = () => { const locked = this.store.get(lock)?.state === 'locked'; btn.innerHTML = icon(locked ? 'unlock' : 'lock') + `<span>${armed ? 'Tap again to unlock' : locked ? 'Unlock the door' : 'Lock the door'}</span>`; btn.classList.toggle('armed', !!armed); };
+      btn.onclick = () => {
+        const locked = this.store.get(lock)?.state === 'locked';
+        if (!locked) { this.store.call('lock', 'lock', {}, { entity_id: lock }); return; }
+        if (armed) { clearTimeout(armed); armed = null; this.store.call('lock', 'unlock', {}, { entity_id: lock }); toast('Unlocking'); draw(); return; }
+        armed = setTimeout(() => { armed = null; draw(); }, 3000); draw();
+      };
+      const onEv = (e) => { if (e.detail === lock) draw(); };
+      this.store.addEventListener('state', onEv);
+      draw();
+      bar.append(btn);
+    }
+    bar.append(note, h('button.pill.primary', { text: doorbell ? 'Dismiss' : 'Close', onclick: () => sh.close() }));
+    sh.body.append(bar);
+    if (seconds) {
+      const restart = () => { closeAt = Date.now() + seconds * 1000; };
+      restart();
+      countdown = setInterval(() => { const left = Math.ceil((closeAt - Date.now()) / 1000); if (left <= 0) sh.close(); else note.textContent = `Closes in ${left} s`; }, 500);
+      sh.el.addEventListener('pointerdown', restart);
+      return { close: () => sh.close(), restart };
+    }
+    return { close: () => sh.close() };
+  }
+
+  /** Show the doorbell pop-up (also used by the Try it button). */
+  ringDoorbell() {
+    const db = this.settings.doorbell || {};
+    if (this.bell) { this.bell.restart?.(); return; }
+    this.lastActivity = Date.now();
+    this.wake(true);
+    this.dim.style.opacity = 0;
+    this.bell = this.cameraView(db.camera || null, { title: 'Someone’s at the door', doorbell: true, lock: db.lock, seconds: db.seconds || 60, onClose: () => { this.bell = null; this.applyDim(); } });
+  }
+
+  /** Watch the doorbell trigger: a button/sensor turning on, or a new event. */
+  checkDoorbell(id) {
+    const db = this.settings?.doorbell;
+    if (!db?.trigger || id !== db.trigger || this.screen.noDoorbell) return;
+    const s = this.store.get(id);
+    this.bellPrev ||= {};
+    const prev = this.bellPrev[id];
+    this.bellPrev[id] = s?.state;
+    if (!s || s.state === prev || ['unavailable', 'unknown'].includes(s.state)) return;
+    // Only fresh changes (a state re-sent after a settings change isn't a ring).
+    if (s.last_changed && Date.now() - new Date(s.last_changed).getTime() > 30000) return;
+    const d = domainOf(id);
+    if (d === 'event' || d === 'input_button' || d === 'sensor' || s.state === 'on') this.ringDoorbell();
   }
 
   // ------------------------------------------------------------------ page header
@@ -1152,8 +1233,8 @@ class App {
     const chips = h('div.filter-chips');
     const list = h('div.ent-list');
     sh.body.append(search, chips, list);
-    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['media_player', 'Media'], ['scene', 'Scenes'], ['other', 'Other']];
-    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather', 'media_player'];
+    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['media_player', 'Media'], ['camera', 'Cameras'], ['scene', 'Scenes'], ['other', 'Other']];
+    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather', 'media_player', 'camera'];
     const renderChips = () => {
       chips.innerHTML = '';
       for (const [v, l] of groups) chips.append(h('button.fchip' + (filter === v ? '.on' : ''), { text: l, onclick: () => { filter = v; renderChips(); renderList(); } }));

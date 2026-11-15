@@ -667,6 +667,26 @@ body:not(.mouse) .icon-del { display: grid; }
 .ms-end { justify-content: flex-end; }
 @media (orientation: portrait) { .ms-wrap { grid-template-columns: 1fr; } .ms-art { max-width: 320px; margin: 0 auto; width: 100%; } }
 
+/* ------------------------------------------------------------ cameras and the doorbell */
+.camera { position: relative; overflow: hidden; padding: 0; background: #0d0f12; color: #fff; }
+.cam-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.4s; }
+.camera.has-img .cam-img { opacity: 1; }
+.cam-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.45), transparent 32%, transparent 70%, rgba(0,0,0,0.35)); }
+.cam-label { position: absolute; left: 12px; top: 10px; right: 12px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: clamp(12px, 6cqmin, 17px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.cam-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff453a; flex: none; box-shadow: 0 0 6px #ff453a; }
+.camera.off .cam-dot, .camera.cam-err .cam-dot { background: #8e8e93; box-shadow: none; }
+.cam-age { position: absolute; left: 12px; bottom: 10px; font-size: 13px; opacity: 0.8; }
+.camera-sheet { width: min(1100px, 96vw); }
+.camera-sheet.doorbell { width: min(1180px, 98vw); box-shadow: 0 0 0 3px #ff9f0a, 0 30px 80px rgba(0,0,0,0.6); }
+.cv-wrap { border-radius: 18px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; max-height: 68vh; margin: 0 auto; }
+.cv-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cv-none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; aspect-ratio: 16 / 9; max-height: 50vh; border-radius: 18px; background: rgba(255,255,255,0.05); font-size: 48px; opacity: 0.7; }
+.cv-none span { font-size: 16px; }
+.cv-bar { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.cv-note { flex: 1; font-size: 14px; opacity: 0.6; text-align: right; }
+.cv-unlock { font-size: 17px; padding: 12px 20px; }
+.cv-unlock.armed { background: #ff9f0a; color: #241300; }
+
 /* ------------------------------------------------------------ custom tile colours (per tile On / Off colour) */
 .card.tc-off:not(:is(.light.on, .toggle.on, .cover.on, .climate.on, .timer.on, .action.fired, .lock.unlocked, .alloff:not(.dim))) {
   background: var(--tc-off-bg) !important; color: var(--tc-off-fg);

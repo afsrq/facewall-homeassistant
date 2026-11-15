@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.14.0
+- **Camera tile**: a snapshot that refreshes every 10 seconds while it's on screen; tap for the live view.
+- **Doorbell pop-up** (⚙︎ → Doorbell pop-up): when your doorbell button, event or sensor rings, every iPad wakes, leaves the clock and shows the camera full screen with **Unlock the door** (tap twice) and **Dismiss**. It closes by itself after the time you choose; turn it off per iPad. *Try it* shows the pop-up without anyone ringing.
+- Camera pictures and live video come through Facewall's server, so the iPads don't need to log in to Home Assistant.
+
 ## 1.13.0
 - **Media player tile** (speakers, TVs, Spotify, AirPlay…): album art fills the tile, with title, artist, previous / play-pause / next, volume and a progress line. It adapts to its size: a small tile keeps just the art and play button. Tap it for the full player: big artwork, progress with times, controls, volume and mute, source and power.
 - Album art comes through Facewall's server, so it works on the iPads without logging in to Home Assistant.
