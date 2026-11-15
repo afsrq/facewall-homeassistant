@@ -220,6 +220,12 @@ const DEMO_KEY = 'facewall-demo-settings';
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
+// Made-up tracks for the demo media player.
+const DEMO_TRACKS = [
+  { media_title: 'Desert Modern', media_artist: 'The Breeze Blocks', media_album_name: 'Palm Canyon Drive', media_duration: 214, entity_picture: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f2a65a'/%3E%3Cstop offset='1' stop-color='%23c2541f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ccircle cx='150' cy='150' r='78' fill='%232f7f7a' opacity='.85'/%3E%3Ccircle cx='150' cy='150' r='18' fill='%23f6ead8'/%3E%3C/svg%3E" },
+  { media_title: 'Pool Light', media_artist: 'Atomic Ranch', media_album_name: 'Butterfly Roof', media_duration: 187, entity_picture: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231fa3a0'/%3E%3Cstop offset='1' stop-color='%230f4c5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Crect x='60' y='60' width='180' height='180' rx='40' fill='none' stroke='%23f28aa8' stroke-width='16'/%3E%3Ccircle cx='150' cy='150' r='40' fill='%23f28aa8'/%3E%3C/svg%3E" },
+  { media_title: 'Dusk Over San Jacinto', media_artist: 'Mustard & Teal', media_album_name: 'Sunburst', media_duration: 251, entity_picture: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232b1b2e'/%3E%3Cstop offset='1' stop-color='%235a2d59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Cpath d='M40 220 Q150 40 260 220' fill='none' stroke='%23ffb38a' stroke-width='14'/%3E%3Ccircle cx='150' cy='120' r='26' fill='%23ffb38a'/%3E%3C/svg%3E" },
+];
 function demoStates() {
   const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes, last_changed: new Date().toISOString() });
   return [
@@ -244,6 +250,8 @@ function demoStates() {
     st('weather.home', 'partlycloudy', { friendly_name: 'Forecast Home', temperature: 14.5, apparent_temperature: 12.9, temperature_unit: '°C', humidity: 58, wind_speed: 12, wind_speed_unit: 'km/h', supported_features: 3 }),
     (() => { const d = new Date(), rise = new Date(d), set = new Date(d); rise.setHours(6, 52, 0, 0); set.setHours(16, 58, 0, 0); if (rise < d) rise.setDate(rise.getDate() + 1); if (set < d) set.setDate(set.getDate() + 1);
       return st('sun.sun', set < rise ? 'above_horizon' : 'below_horizon', { friendly_name: 'Sun', next_rising: rise.toISOString(), next_setting: set.toISOString() }); })(),
+    st('media_player.living_room_speaker', 'playing', { friendly_name: 'Living Room Speaker', ...DEMO_TRACKS[0], media_position: 74, media_position_updated_at: new Date().toISOString(),
+      volume_level: 0.35, is_volume_muted: false, source: 'Spotify', source_list: ['Spotify', 'AirPlay', 'TV'], app_name: 'Spotify', supported_features: 152511 }),
     st('sensor.outdoor_temperature', '14.5', { friendly_name: 'Outside', unit_of_measurement: '°C', device_class: 'temperature' }),
     st('sensor.indoor_humidity', '46', { friendly_name: 'Humidity', unit_of_measurement: '%', device_class: 'humidity' }),
     st('binary_sensor.back_door', 'off', { friendly_name: 'Back Door', device_class: 'door' }),
@@ -295,6 +303,7 @@ class DemoAdapter {
       const s = this.store.get(id); if (!s) continue;
       const d = domainOf(id);
       const on = isOn(s);
+      if (d === 'media_player') { this.media(id, s, service, data); continue; }
       if (service === 'toggle') this.set(id, { state: on ? 'off' : (d === 'cover' ? 'open' : 'on') }, d === 'light' && !on ? { brightness: s.attributes.brightness || 255 } : {});
       else if (service === 'turn_on') {
         if (d === 'water_heater') this.set(id, { state: 'electric' });
@@ -319,6 +328,28 @@ class DemoAdapter {
       else if (service === 'set_hvac_mode') { if (data.hvac_mode !== 'off') this.lastMode[id] = data.hvac_mode; else if (s.state !== 'off') this.lastMode[id] = s.state; this.set(id, { state: data.hvac_mode }); }
       else if (service === 'open_cover') this.set(id, { state: 'open' }, { current_position: 100 });
       else if (service === 'close_cover') this.set(id, { state: 'closed' }, { current_position: 0 });
+    }
+  }
+
+  /** The demo media player: play/pause, tracks, volume, source, power. */
+  media(id, s, service, data) {
+    const a = s.attributes, now = new Date().toISOString();
+    const pos = () => (s.state === 'playing' ? Math.min(a.media_duration || 0, (a.media_position || 0) + (Date.now() - new Date(a.media_position_updated_at).getTime()) / 1000) : a.media_position || 0);
+    const track = (step) => {
+      const i = (DEMO_TRACKS.findIndex((t) => t.media_title === a.media_title) + step + DEMO_TRACKS.length) % DEMO_TRACKS.length;
+      this.set(id, { state: 'playing' }, { ...DEMO_TRACKS[i], media_position: 0, media_position_updated_at: now });
+    };
+    switch (service) {
+      case 'media_play_pause': case 'toggle': this.set(id, { state: s.state === 'playing' ? 'paused' : 'playing' }, { media_position: pos(), media_position_updated_at: now }); break;
+      case 'media_play': this.set(id, { state: 'playing' }, { media_position: pos(), media_position_updated_at: now }); break;
+      case 'media_pause': this.set(id, { state: 'paused' }, { media_position: pos(), media_position_updated_at: now }); break;
+      case 'media_next_track': track(1); break;
+      case 'media_previous_track': track(-1); break;
+      case 'volume_set': this.set(id, {}, { volume_level: data.volume_level, is_volume_muted: false }); break;
+      case 'volume_mute': this.set(id, {}, { is_volume_muted: !!data.is_volume_muted }); break;
+      case 'select_source': this.set(id, {}, { source: data.source }); break;
+      case 'turn_off': this.set(id, { state: 'off' }); break;
+      case 'turn_on': this.set(id, { state: 'paused' }, { media_position_updated_at: now }); break;
     }
   }
 

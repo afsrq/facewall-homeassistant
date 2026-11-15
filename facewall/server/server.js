@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.12.0';
+const VERSION = '1.13.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -395,6 +395,24 @@ async function handleApi(req, res, route) {
     return json(res, 200, { app: 'facewall', version: VERSION, ...status() });
   }
   if (route === 'snapshot' && req.method === 'GET') return json(res, 200, snapshot());
+  // Album art for media players: Home Assistant's picture URLs need its login, so fetch them here.
+  if (route === 'art' && req.method === 'GET') {
+    const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
+    const pic = id.startsWith('media_player.') ? ha.states.get(id)?.attributes?.entity_picture : null;
+    if (!pic) return json(res, 404, { error: 'no picture' });
+    const external = /^https?:\/\//i.test(pic);
+    const base = SUPERVISOR_TOKEN ? 'http://supervisor/core' : HA_URL;
+    if (!external && !base) return json(res, 404, { error: 'no picture' });
+    try {
+      const r = await fetch(external ? pic : base + pic, { headers: external ? {} : { Authorization: `Bearer ${TOKEN}` }, signal: AbortSignal.timeout(10000) });
+      if (!r.ok) return json(res, 502, { error: `picture: ${r.status}` });
+      const type = r.headers.get('content-type') || 'image/jpeg';
+      if (!/^image\//i.test(type)) return json(res, 502, { error: 'not an image' });
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': buf.length, 'Cache-Control': 'private, max-age=600' });
+      return res.end(buf);
+    } catch (e) { return json(res, 502, { error: e.message }); }
+  }
 
   if (route === 'events' && req.method === 'GET') {
     res.writeHead(200, {

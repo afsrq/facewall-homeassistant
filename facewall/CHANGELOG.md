@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.13.0
+- **Media player tile** (speakers, TVs, Spotify, AirPlay…): album art fills the tile, with title, artist, previous / play-pause / next, volume and a progress line. It adapts to its size: a small tile keeps just the art and play button. Tap it for the full player: big artwork, progress with times, controls, volume and mute, source and power.
+- Album art comes through Facewall's server, so it works on the iPads without logging in to Home Assistant.
+- Softer breeze-block pattern on the Palm Springs theme.
+
 ## 1.12.0
 - **Architectural themes**, matched to the style of the house, each with its own colours, a subtle background pattern and a title font: **Mid-century** (cream, mustard and teal), **Walnut** (dark wood), **Atomic** (mint and orange) with atomic starbursts and boomerangs in Futura; **Palm Springs** (blush, flamingo and turquoise), **Desert Pool** (turquoise and sunny yellow) and **Desert Dusk** (plum and pink) with a breeze-block pattern in Avenir Next. A title font you choose in the page header still wins.
 

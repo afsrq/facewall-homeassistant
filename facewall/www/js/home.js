@@ -52,15 +52,34 @@ export function kindFor(item) {
   if (d === 'lock') return 'lock';
   if (d === 'light') return style === 'switch' ? 'toggle' : 'light';
   if (TOGGLES.includes(d)) return 'toggle';
+  if (d === 'media_player') return 'media';
   if (d === 'cover') return 'cover';
   if (ACTIONS.includes(d)) return 'action';
   return 'sensor';
 }
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
-  const def = ['climate', 'weather'].includes(kindFor(item)) ? [2, 1] : [1, 1];
+  const def = ['climate', 'weather', 'media'].includes(kindFor(item)) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
+
+// ------------------------------------------------------------------ media helpers
+/** Album art URL for a media player (through Facewall's server, which has Home Assistant's login). */
+export function mediaArt(store, id) {
+  const pic = store.get(id)?.attributes?.entity_picture;
+  if (!pic) return null;
+  if (store.mode === 'demo' || /^data:/.test(pic)) return pic;
+  return `api/art?id=${encodeURIComponent(id)}&v=${encodeURIComponent(pic.slice(-40))}`;
+}
+/** Where the track is now, in seconds (Home Assistant only reports it when it changes). */
+export function mediaPosition(s) {
+  const a = s?.attributes || {};
+  if (a.media_position == null) return null;
+  const extra = s.state === 'playing' && a.media_position_updated_at ? (Date.now() - new Date(a.media_position_updated_at).getTime()) / 1000 : 0;
+  return Math.max(0, Math.min(a.media_duration || Infinity, a.media_position + extra));
+}
+const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`);
+const MEDIA_OFF = ['off', 'standby', 'unavailable', 'unknown'];
 
 // ------------------------------------------------------------------ weather helpers
 const WX = {
@@ -334,7 +353,7 @@ export class HomePage {
     if (html !== this.lastLine) { this.date.innerHTML = html; this.lastLine = html; this.date.style.display = html ? '' : 'none'; this.layout(); }
     const use24h = this.store.settings?.general?.use24h;
     this.time.textContent = now.toLocaleTimeString(undefined, { hour: use24h ? '2-digit' : 'numeric', minute: '2-digit', hour12: !use24h });
-    for (const c of this.cards) if (c.timer && this.store.timers[c.id]) c.update();
+    for (const c of this.cards) { if (c.timer && this.store.timers[c.id]) c.update(); c.tick?.(); }
   }
 
   onState(id) {
@@ -345,7 +364,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -572,6 +591,106 @@ export class HomePage {
       h('div.tile-bottom', {}, val, h('div.tile-name', { text: tileName(st, item) })));
     const update = () => { val.textContent = formatState(st, id); };
     return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ media
+  mediaCard(id, item = { id }) {
+    const st = this.store;
+    const call = (service, data = {}) => st.call('media_player', service, data, { entity_id: id });
+    const art = h('div.media-art');
+    const title = h('div.media-title'), artist = h('div.media-artist');
+    const playBtn = h('button.media-btn.media-play', { 'aria-label': 'Play or pause', onclick: (e) => { e.stopPropagation(); const s = st.get(id); if (s && MEDIA_OFF.includes(s.state)) call('turn_on'); else call('media_play_pause'); } });
+    const prev = h('button.media-btn', { html: icon('prev'), 'aria-label': 'Previous', onclick: (e) => { e.stopPropagation(); call('media_previous_track'); } });
+    const next = h('button.media-btn', { html: icon('next'), 'aria-label': 'Next', onclick: (e) => { e.stopPropagation(); call('media_next_track'); } });
+    const vol = h('input.media-vol', { type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Volume' });
+    vol.addEventListener('pointerdown', (e) => e.stopPropagation());
+    vol.addEventListener('change', () => call('volume_set', { volume_level: Number(vol.value) / 100 }));
+    const bar = h('div.media-bar', {}, h('i'));
+    const el = h('div.card.media', {}, art, h('div.media-shade'),
+      h('div.media-body', {},
+        h('div.card-head', {}, h('span.card-ic', { html: iconHtml(st, item, 'play') }), h('div.card-titles', {}, h('div.card-title', { text: tileName(st, item) }))),
+        h('div.media-info', {}, title, artist),
+        h('div.media-ctl', {}, prev, playBtn, next, h('span.media-vol-wrap', {}, h('span.media-vol-ic', { html: icon('volume') }), vol))),
+      bar);
+    press(el, { onTap: (e) => { if (!e.target.closest('button, input')) this.mediaSheet(id, item); }, onLong: () => this.mediaSheet(id, item) });
+    let lastArt = null;
+    const tick = () => {
+      const s = st.get(id), a = s?.attributes || {}, p = mediaPosition(s);
+      bar.firstChild.style.width = p != null && a.media_duration ? `${(100 * p / a.media_duration).toFixed(2)}%` : '0';
+    };
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const off = !s || MEDIA_OFF.includes(s.state);
+      const url = off ? null : mediaArt(st, id);
+      if (url !== lastArt) { art.style.backgroundImage = url ? `url("${url}")` : ''; lastArt = url; }
+      el.classList.toggle('has-art', !!url);
+      el.classList.toggle('on', s?.state === 'playing');
+      el.classList.toggle('off', off);
+      title.textContent = !s ? 'Missing' : off ? (s.state === 'unavailable' ? 'Unavailable' : 'Off') : a.media_title || a.app_name || cap(s.state);
+      artist.textContent = off ? '' : [a.media_artist || a.media_album_artist, a.media_album_name && !a.media_artist ? a.media_album_name : null].filter(Boolean).join(' · ') || (a.source && a.media_title ? a.source : '');
+      playBtn.innerHTML = icon(off ? 'power' : s.state === 'playing' ? 'pause' : 'play');
+      if (document.activeElement !== vol) vol.value = Math.round((a.volume_level ?? 0) * 100);
+      vol.parentElement.style.display = a.volume_level == null || off ? 'none' : '';
+      prev.style.display = next.style.display = off ? 'none' : '';
+      tick();
+    };
+    return { id, el, update, tick };
+  }
+
+  mediaSheet(id, item = { id }) {
+    const st = this.store;
+    const call = (service, data = {}) => st.call('media_player', service, data, { entity_id: id });
+    let onEv = () => {}, timer = null;
+    const sh = sheet({ title: tileName(st, item), cls: 'media-sheet', onClose: () => { st.removeEventListener('state', onEv); clearInterval(timer); } });
+    const art = h('div.ms-art'), title = h('div.ms-title'), sub = h('div.ms-sub');
+    const pos = h('div.ms-time'), dur = h('div.ms-time'), bar = h('div.ms-bar', {}, h('i'));
+    const playBtn = h('button.ms-play', { 'aria-label': 'Play or pause', onclick: () => { const s = st.get(id); if (s && MEDIA_OFF.includes(s.state)) call('turn_on'); else call('media_play_pause'); } });
+    const vol = h('input.range.ms-vol', { type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Volume' });
+    vol.addEventListener('change', () => call('volume_set', { volume_level: Number(vol.value) / 100 }));
+    const mute = h('button.icon-btn', { 'aria-label': 'Mute', onclick: () => call('volume_mute', { is_volume_muted: !st.get(id)?.attributes?.is_volume_muted }) });
+    const power = h('button.pill.sm', { onclick: () => call(MEDIA_OFF.includes(st.get(id)?.state) ? 'turn_on' : 'turn_off') });
+    const source = h('select.select');
+    source.onchange = () => call('select_source', { source: source.value });
+    const sourceRow = h('div.ms-row', {}, h('span.ms-label', { text: 'Source' }), source);
+    sh.body.append(h('div.ms-wrap', {},
+      art,
+      h('div.ms-side', {},
+        title, sub,
+        h('div.ms-prog', {}, bar, h('div.ms-times', {}, pos, dur)),
+        h('div.ms-ctl', {},
+          h('button.ms-btn', { html: icon('prev'), 'aria-label': 'Previous', onclick: () => call('media_previous_track') }),
+          playBtn,
+          h('button.ms-btn', { html: icon('next'), 'aria-label': 'Next', onclick: () => call('media_next_track') })),
+        h('div.ms-row', {}, mute, vol),
+        sourceRow,
+        h('div.ms-row.ms-end', {}, power))));
+    const tick = () => {
+      const s = st.get(id), a = s?.attributes || {}, p = mediaPosition(s);
+      pos.textContent = fmtTime(p); dur.textContent = fmtTime(a.media_duration);
+      bar.firstChild.style.width = p != null && a.media_duration ? `${(100 * p / a.media_duration).toFixed(2)}%` : '0';
+    };
+    const render = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const off = !s || MEDIA_OFF.includes(s.state);
+      const url = off ? null : mediaArt(st, id);
+      art.style.backgroundImage = url ? `url("${url}")` : '';
+      art.innerHTML = url ? '' : icon('music');
+      title.textContent = off ? 'Off' : a.media_title || a.app_name || cap(s.state);
+      sub.textContent = off ? '' : [a.media_artist, a.media_album_name].filter(Boolean).join(' · ');
+      playBtn.innerHTML = icon(off ? 'power' : s.state === 'playing' ? 'pause' : 'play');
+      if (document.activeElement !== vol) vol.value = Math.round((a.volume_level ?? 0) * 100);
+      mute.innerHTML = icon(a.is_volume_muted ? 'volumeOff' : 'volume');
+      power.textContent = off ? 'Turn on' : 'Turn off';
+      const list = a.source_list || [];
+      sourceRow.style.display = list.length ? '' : 'none';
+      if (source.options.length !== list.length) { source.innerHTML = ''; for (const x of list) source.append(h('option', { value: x, text: x })); }
+      source.value = a.source || '';
+      tick();
+    };
+    onEv = (e) => { if (e.detail?.id === id || e.detail === id) render(); };
+    st.addEventListener('state', onEv);
+    timer = setInterval(tick, 1000);
+    render();
   }
 
   // ------------------------------------------------------------------ weather

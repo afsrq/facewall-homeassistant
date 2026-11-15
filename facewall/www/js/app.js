@@ -1152,8 +1152,8 @@ class App {
     const chips = h('div.filter-chips');
     const list = h('div.ent-list');
     sh.body.append(search, chips, list);
-    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['scene', 'Scenes'], ['other', 'Other']];
-    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather'];
+    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['media_player', 'Media'], ['scene', 'Scenes'], ['other', 'Other']];
+    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather', 'media_player'];
     const renderChips = () => {
       chips.innerHTML = '';
       for (const [v, l] of groups) chips.append(h('button.fchip' + (filter === v ? '.on' : ''), { text: l, onclick: () => { filter = v; renderChips(); renderList(); } }));

@@ -60,6 +60,10 @@ In a tile's **Options** (Edit layout → *Options*, or ⚙︎ → Tiles on page)
 
 Text and icons turn dark or light to stay readable. *Use on all … tiles* copies the colours to the other tiles of the same kind on that page (e.g. every light).
 
+## Media players
+
+Add a speaker, TV or other media player (Add tiles → *Media*). The tile shows the album art with title, artist, play controls and volume; make it smaller for just the art and a play button. Tap it for the full player with progress, mute, source and power.
+
 ## Weather
 
 Add your weather entity (Add tiles → *Weather*). Make the tile wider for more days, or taller for a day list with temperature bars. Its **Style** chooses a *Daily* or *Hourly* forecast; tap the tile for both.
