@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.9.0';
+const VERSION = '1.10.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -244,9 +244,14 @@ function snapshot() {
 }
 
 // ---------------------------------------------------------------- your own icons (e.g. Font Awesome Pro SVGs)
-// Only plain shapes survive: no scripts, styles, links or event handlers.
-const SVG_TAGS = 'path|circle|rect|ellipse|line|polyline|polygon|g';
-const SVG_ATTRS = ['d', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'points', 'opacity', 'fill-opacity', 'fill-rule', 'clip-rule', 'transform'];
+// Only plain shapes survive: no scripts, styles, links, images or event handlers.
+// Line icons keep their stroke settings; masks, clip paths and gradients are kept for icon sets that use them.
+const SVG_TAGS = 'path|circle|rect|ellipse|line|polyline|polygon|g|defs|mask|clipPath|linearGradient|radialGradient|stop';
+const SVG_CONTAINERS = new Set(['g', 'defs', 'mask', 'clippath', 'lineargradient', 'radialgradient']);
+const SVG_CASE = { clippath: 'clipPath', lineargradient: 'linearGradient', radialgradient: 'radialGradient' };
+const SVG_ATTRS = ['d', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'points', 'opacity', 'fill', 'fill-opacity', 'fill-rule', 'clip-rule', 'transform',
+  'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity',
+  'id', 'mask', 'clip-path', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform', 'fx', 'fy', 'fr', 'maskUnits', 'clipPathUnits'];
 const SAFE_VALUE = /^[\w\s.,\-#%()]*$/;
 function attrOf(tag, name) {
   const m = tag.match(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'));
@@ -259,19 +264,19 @@ function sanitizeSvg(text) {
   if (!vb || !/^[\d.\s,-]+$/.test(vb)) vb = `0 0 ${parseFloat(attrOf(open[0], 'width')) || 24} ${parseFloat(attrOf(open[0], 'height')) || 24}`;
   const inner = String(text).slice(open.index + open[0].length)
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(style|script|defs|title|desc|metadata|foreignObject|a|image|use)\b[\s\S]*?<\/\1>/gi, '');
-  let out = '', depth = 0;
+    .replace(/<(style|script|title|desc|metadata|foreignObject|a|image|use|text|filter|pattern|symbol|marker|animate\w*|set)\b[\s\S]*?<\/\1>/gi, '');
+  let out = '';
+  const stack = [];
   for (const m of inner.matchAll(new RegExp(`<(\\/?)(${SVG_TAGS})\\b([^>]*?)(\\/?)>`, 'gi'))) {
     const [, close, rawTag, attrs, selfClose] = m;
-    const tag = rawTag.toLowerCase();
-    if (close) { if (tag === 'g' && depth > 0) { out += '</g>'; depth--; } continue; }
+    const key = rawTag.toLowerCase(), tag = SVG_CASE[key] || key;
+    if (close) { if (stack.length && stack[stack.length - 1] === tag) { out += `</${tag}>`; stack.pop(); } continue; }
     let a = '';
     for (const name of SVG_ATTRS) { const v = attrOf(' ' + attrs, name); if (v != null && SAFE_VALUE.test(v)) a += ` ${name}="${v}"`; }
     if (/fa-secondary/.test(attrOf(' ' + attrs, 'class') || '') && !/ opacity=/.test(a)) a += ' opacity=".4"';
-    if (attrOf(' ' + attrs, 'fill') === 'none') a += ' fill="none"';
-    if (tag === 'g') { if (selfClose) continue; out += `<g${a}>`; depth++; } else out += `<${tag}${a}/>`;
+    if (SVG_CONTAINERS.has(key)) { if (selfClose) continue; out += `<${tag}${a}>`; stack.push(tag); } else out += `<${tag}${a}/>`;
   }
-  out += '</g>'.repeat(depth);
+  while (stack.length) out += `</${stack.pop()}>`;
   return out ? { vb, body: out } : null;
 }
 const iconCache = new Map(); // file -> { mtime, icon }

@@ -8,7 +8,7 @@ Watch faces for a wall-mounted iPad, with your Home Assistant devices one swipe 
 - **Room pages**: swipe Clock → Home → Living Room → Kitchen…, each page with its own tiles and grid. Make a room page from a Home Assistant area in one tap.
 - **Several iPads**: each one remembers its own start page and clock face.
 - **Weather**: live forecast tiles that adapt to their size, with hourly and daily detail.
-- **Icons & styles**: Home Assistant/Material Design icons (7,000+) and Font Awesome Free (2,100+), bundled; add your own Font Awesome Pro icons as SVGs; custom names, and per-tile styles: a light can be a quick switch, full colour/dim/effects/scenes controls, or a timer. Add the same device as many times as you like.
+- **Icons & styles**: Home Assistant/Material Design icons (7,000+), Phosphor, Material Symbols, Tabler and Font Awesome Free, bundled (35,000+ in all), plus an online search of 200,000+ open-source icons that saves what you pick; add your own Font Awesome Pro icons as SVGs; custom names, and per-tile styles: a light can be a quick switch, full colour/dim/effects/scenes controls, or a timer. Add the same device as many times as you like.
 - **Tile colours**: a solid colour or gradient per tile, for on and off; works on the thermostat and weather tiles too.
 - **Full screen in Home Assistant**: hide Home Assistant's sidebar and top bar on the iPads you choose.
 - **Themes**: 18 themes (dark, pastel and electric) with a live preview picker; use one for the whole house or a different one per iPad.
@@ -62,3 +62,12 @@ Or with Node 22+ directly: `HA_URL=… HA_TOKEN=… node server/server.js`.
 
 - `facewall/server/server.js`: a small Node server with no dependencies. It holds one WebSocket connection to Home Assistant, streams state changes to the iPad, runs the on-for-N-minutes timers, and saves settings in `/data`.
 - `facewall/www/`: the iPad app (plain HTML/CSS/JS, no build step). If it can't reach the server, it runs in demo mode with pretend devices.
+
+## Icon credits
+
+Bundled icon sets keep their own licences; the full texts are in `facewall/www/icons/`:
+[Material Design Icons](https://pictogrammers.com/library/mdi/) (Apache 2.0),
+[Font Awesome Free](https://fontawesome.com) (icons CC BY 4.0),
+[Phosphor](https://phosphoricons.com) (MIT),
+[Material Symbols](https://fonts.google.com/icons) (Apache 2.0) and
+[Tabler Icons](https://tabler.io/icons) (MIT). Online search uses the free [Iconify](https://iconify.design) API.

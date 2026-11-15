@@ -471,6 +471,11 @@ body.theme-light .eo-move button { color: #fff; background: rgba(255,255,255,0.2
 .icon-cell:hover, .icon-cell.on { background: rgba(10,132,255,0.3); }
 .icon-cell { position: relative; }
 .icon-cell .ic { width: 1em; height: 1em; }
+.style-chips { margin-top: -4px; }
+.fchip.sm { padding: 5px 11px; font-size: 12.5px; }
+.icon-cell .icon-lib { font-size: 9.5px; opacity: 0.45; margin-top: -4px; }
+.icon-cell.busy { opacity: 0.5; pointer-events: none; }
+.online-bar { margin: 2px 0 10px; }
 .icon-del { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; display: none; place-items: center; font-size: 12px; background: #ff453a; color: #fff; padding: 0 !important; opacity: 1 !important; }
 .icon-cell:hover .icon-del { display: grid; }
 body:not(.mouse) .icon-del { display: grid; }

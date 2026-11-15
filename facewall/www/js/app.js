@@ -3,7 +3,7 @@ import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
 import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
-import { loadIcons, iconSvg, searchIcons, LIBRARIES, uploadIcons, deleteIcon, onIconsChanged } from './iconlib.js';
+import { loadIcons, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { inHaPanel, setHaKiosk, openHaMenu } from './hapanel.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
@@ -819,40 +819,91 @@ class App {
 
   /** Icon picker: Home Assistant (MDI), Font Awesome Free and your own icons (e.g. Font Awesome Pro SVGs). */
   async iconPicker(current, onPick) {
-    const sh = sheet({ title: 'Choose an icon', cls: 'icon-sheet' });
-    let lib = 'all';
-    const search = h('input.search', { type: 'search', placeholder: 'Search icons: lamp, sofa, tv… (or fas:couch, fapro:…)', autocomplete: 'off', autocapitalize: 'off' });
+    let lib = 'all', style = null, onlineTimer = null, onlineCtl = null, onlineFor = null, online = null;
+    const stop = onIconsChanged(() => { if (lib !== 'online') render(); });
+    const sh = sheet({ title: 'Choose an icon', cls: 'icon-sheet', onClose: () => { stop(); onlineCtl?.abort(); } });
+    const search = h('input.search', { type: 'search', placeholder: 'Search icons: lamp, sofa, tv… (or ph:lamp, fas:couch, fapro:…)', autocomplete: 'off', autocapitalize: 'off' });
     const chips = h('div.filter-chips');
+    const styleChips = h('div.filter-chips.style-chips');
     const grid = h('div.icon-grid', {}, h('div.ent-empty', { text: 'Loading icons…' }));
     const files = h('input', { type: 'file', accept: '.svg,image/svg+xml', multiple: true, style: { display: 'none' } });
     const proBar = h('div.pro-bar', {},
       h('div.about.small', { html: 'Add your <b>Font Awesome Pro</b> (or any) icons: download the SVGs from fontawesome.com and upload them here, or put them in Home Assistant’s <code>custom_icons</code> folder. They’re used as <code>fapro:name</code>.' }),
       h('button.pill.sm.primary', { html: icon('plus') + '<span>Upload SVG</span>', onclick: () => files.click() }));
+    const onlineBar = h('div.about.small.online-bar', { html: 'Searches <b>Iconify</b>: 200,000+ free, open-source icons from 200+ sets. The icon you choose is saved in Facewall, so the iPads don’t need the internet to show it. Each set keeps its own licence (shown under the icon).' });
     files.addEventListener('change', async () => {
       const added = await uploadIcons([...files.files]);
       files.value = '';
       toast(added.length ? `Added ${added.length} icon${added.length === 1 ? '' : 's'}` : 'No usable SVG icons in those files', added.length ? '' : 'error');
       lib = 'pro'; renderChips(); render();
     });
-    sh.body.append(search, chips, proBar, files, grid);
+    sh.body.append(search, chips, styleChips, proBar, onlineBar, files, grid);
     const renderChips = () => {
       chips.innerHTML = '';
-      for (const l of LIBRARIES) chips.append(h('button.fchip' + (lib === l.v ? '.on' : ''), { text: l.label, onclick: () => { lib = l.v; renderChips(); render(); } }));
+      for (const l of LIBRARIES) chips.append(h('button.fchip' + (lib === l.v ? '.on' : ''), { text: l.label, onclick: () => { lib = l.v; style = null; renderChips(); render(); } }));
       proBar.style.display = lib === 'pro' || lib === 'all' ? '' : 'none';
+      onlineBar.style.display = lib === 'online' ? '' : 'none';
+      const set = SETS[lib];
+      styleChips.innerHTML = '';
+      styleChips.style.display = set ? '' : 'none';
+      if (set) {
+        const cur = style || set.def;
+        for (const [v, label] of [...set.styles, ['all', 'Every style']]) {
+          styleChips.append(h('button.fchip.sm' + (cur === v ? '.on' : ''), { text: label, onclick: () => { style = v; renderChips(); render(); } }));
+        }
+      }
+    };
+    const cell = (it, svg, onclick) => {
+      const c = h('button.icon-cell' + (current === it.name ? '.on' : ''), { title: `${it.name}  ·  ${it.lib}`, onclick });
+      c.innerHTML = svg;
+      c.append(h('span', { text: it.label }));
+      return c;
+    };
+    const message = (text) => { grid.innerHTML = ''; grid.append(h('div.ent-empty', { text })); };
+    const renderOnline = () => {
+      const q = search.value.trim();
+      if (q.length < 2) { onlineFor = null; return message('Type what you’re looking for, e.g. floor lamp, ceiling fan, dog.'); }
+      if (online && onlineFor === q) {
+        grid.innerHTML = '';
+        for (const it of online) {
+          const c = cell(it, it.svg, async () => {
+            c.classList.add('busy');
+            try { const name = await useOnlineIcon(it); onPick(name); sh.close(); } catch { c.classList.remove('busy'); toast('Couldn’t save that icon. Try again.', 'error'); }
+          });
+          c.append(h('span.icon-lib', { text: it.lib }));
+          grid.append(c);
+        }
+        if (!online.length) message('Nothing found. Try another word (searches are in English).');
+        return;
+      }
+      clearTimeout(onlineTimer);
+      message('Searching…');
+      onlineTimer = setTimeout(async () => {
+        onlineCtl?.abort(); onlineCtl = new AbortController();
+        try {
+          const res = await searchOnline(q, { signal: onlineCtl.signal });
+          if (search.value.trim() !== q || lib !== 'online') return;
+          online = res; onlineFor = q; renderOnline();
+        } catch (e) {
+          if (e.name !== 'AbortError' && lib === 'online') message('Couldn’t reach Iconify. This needs an internet connection on the device you’re using.');
+        }
+      }, 350);
     };
     const render = () => {
-      const items = searchIcons(lib, search.value);
+      if (lib === 'online') return renderOnline();
+      const items = searchIcons(lib, search.value, 180, style);
       grid.innerHTML = '';
       for (const it of items) {
         const svg = iconSvg(it.name);
         if (!svg) continue;
-        const cell = h('button.icon-cell' + (current === it.name ? '.on' : ''), { title: `${it.name}  ·  ${it.lib}`, onclick: () => { onPick(it.name); sh.close(); } });
-        cell.innerHTML = svg;
-        cell.append(h('span', { text: it.label }));
-        if (it.deletable) cell.append(h('span.icon-del', { html: icon('close'), title: 'Delete this uploaded icon', onclick: async (e) => { e.stopPropagation(); await deleteIcon(it.label); render(); } }));
-        grid.append(cell);
+        const c = cell(it, svg, () => { onPick(it.name); sh.close(); });
+        if (it.deletable) c.append(h('span.icon-del', { html: icon('close'), title: 'Delete this uploaded icon', onclick: async (e) => { e.stopPropagation(); await deleteIcon(it.label); render(); } }));
+        grid.append(c);
       }
-      if (!grid.children.length) grid.append(h('div.ent-empty', { text: lib === 'pro' ? 'No icons of your own yet. Upload SVGs above.' : 'No icons match.' }));
+      if (!grid.children.length) {
+        const loading = SETS[lib] || lib === 'all';
+        grid.append(h('div.ent-empty', { text: lib === 'pro' ? 'No icons of your own yet. Upload SVGs above.' : loading && !items.length && !search.value ? 'Loading icons…' : 'No icons match.' }));
+      }
     };
     search.addEventListener('input', render);
     renderChips();

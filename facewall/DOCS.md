@@ -40,7 +40,8 @@ Tile sizes are in grid columns/rows, so set the page's **Columns** and **Rows** 
 
 In **Edit layout** (▦) every tile has an **Options** button (or tap a tile's size badge in ⚙︎ → Tiles):
 - **Style:** lights can be *Light* (tap on/off, hold for colour), *Quick switch* (tap on/off only), *Controls* (tap opens colour, dim, effects and scenes) or *Timer*. Switches can be *Switch* or *Timer*.
-- **Icon:** search Home Assistant's icons (Material Design, 7,000+) and Font Awesome Free (2,100+). Without a custom icon, a tile uses the device's Home Assistant icon if it has one.
+- **Icon:** search the built-in sets, each with its own tab: Home Assistant's icons (Material Design, 7,000+), **Phosphor** (1,500 icons in 6 styles: regular, thin, light, bold, fill, duotone), **Material Symbols** (Google; rounded, standard and sharp, filled or outline), **Tabler** (6,500, outline and filled) and Font Awesome Free (2,100+). Phosphor and Material Symbols tabs have style buttons; *Every style* shows them all. Without a custom icon, a tile uses the device's Home Assistant icon if it has one.
+- **Search online:** the *Search online* tab searches Iconify's 200,000+ open-source icons (Lucide, Fluent, Carbon, Iconoir and many more). The icon you choose is saved in Facewall, under *Your icons*, so the iPads show it without internet. The set's name and licence are shown under each result. Searching needs internet on the device you're using.
 - **Font Awesome Pro / your own icons:** in the icon picker choose *Your icons / Pro* → **Upload SVG** (download SVGs from fontawesome.com with your Pro account), or put SVG files in Home Assistant's `custom_icons` folder. They're named `fapro:<file name>`. Pro icons are licensed to you, so they're never included in this repo.
 - **Icon position:** top left, top right or the middle of the tile. **Icon size:** 50%–300%.
 - **Name position:** bottom, under the icon, or above the icon.

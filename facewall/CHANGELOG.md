@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.0
+- **More icons**: Phosphor (MIT, 6 styles incl. duotone), Material Symbols (Apache 2.0; rounded, standard and sharp, filled or outline) and Tabler (MIT, outline and filled) are now built in, each with its own tab and style buttons. Sets load only when a tile or the picker uses them.
+- **Search online**: search 200,000+ open-source icons from Iconify. The icon you pick is saved in Facewall, so the iPads don't need the internet afterwards. Icons from the built-in sets are used directly.
+- Your own icons can now be line icons (stroke) and can use masks or gradients; animated icons are kept in their final state.
+
 ## 1.9.0
 - **Tile colours**: give any tile its own background for when it's on and when it's off (for locks: unlocked/locked; the thermostat: running/off; weather and sensors: one background). Pick a solid colour, a ready-made gradient, or a gradient from two colours of your own. Text and icons switch to dark or light automatically so they stay readable. *Use on all … tiles* copies the colours to the other tiles like it on the page.
 - Lights that are on in plain white now stand out on light themes: they use the theme's "on" colour instead of white-on-white. Pastel themes have stronger "on" colours.
