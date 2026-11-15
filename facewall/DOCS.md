@@ -66,6 +66,12 @@ Text and icons turn dark or light to stay readable. *Use on all … tiles* copie
 - **Garage door**: a cover's Options → *Style* → **Garage door**. Tap twice to open or close it.
 - **People**: Add tiles → *People*. Shows each person's photo with a green ring when home.
 
+## Vacuum, alarm, air quality
+
+- **Vacuum** (Add tiles → *Vacuums*): Clean / Pause, Dock and Find, with battery and status.
+- **Alarm** (Add tiles → *Alarm*): arm Home, Away or Night and disarm; a keypad appears when a code is needed. Armed screens get a red edge; a triggered alarm makes it pulse.
+- **Air quality**: a CO₂, PM2.5, PM10, AQI or VOC sensor's Options → *Style* → **Ring**: green, amber or red by the usual guideline levels.
+
 ## Media players
 
 Add a speaker, TV or other media player (Add tiles → *Media*). The tile shows the album art with title, artist, play controls and volume; make it smaller for just the art and a play button. Tap it for the full player with progress, mute, source and power.

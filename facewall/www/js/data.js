@@ -260,6 +260,10 @@ function demoStates() {
     st('weather.home', 'partlycloudy', { friendly_name: 'Forecast Home', temperature: 14.5, apparent_temperature: 12.9, temperature_unit: '°C', humidity: 58, wind_speed: 12, wind_speed_unit: 'km/h', supported_features: 3 }),
     (() => { const d = new Date(), rise = new Date(d), set = new Date(d); rise.setHours(6, 52, 0, 0); set.setHours(16, 58, 0, 0); if (rise < d) rise.setDate(rise.getDate() + 1); if (set < d) set.setDate(set.getDate() + 1);
       return st('sun.sun', set < rise ? 'above_horizon' : 'below_horizon', { friendly_name: 'Sun', next_rising: rise.toISOString(), next_setting: set.toISOString() }); })(),
+    st('vacuum.robo', 'docked', { friendly_name: 'Robo', battery_level: 92, status: 'Charging', supported_features: 16383 }),
+    st('alarm_control_panel.home', 'disarmed', { friendly_name: 'Home Alarm', code_format: 'number', code_arm_required: false, supported_features: 7 }),
+    st('sensor.living_room_co2', '720', { friendly_name: 'Living Room CO₂', unit_of_measurement: 'ppm', device_class: 'carbon_dioxide' }),
+    st('sensor.living_room_pm25', '41', { friendly_name: 'PM2.5', unit_of_measurement: 'µg/m³', device_class: 'pm25' }),
     st('cover.garage_door', 'closed', { friendly_name: 'Garage Door', device_class: 'garage', current_position: 0 }),
     st('person.alex', 'home', { friendly_name: 'Alex' }),
     st('person.sam', 'not_home', { friendly_name: 'Sam' }),
@@ -326,6 +330,13 @@ class DemoAdapter {
       const d = domainOf(id);
       const on = isOn(s);
       if (d === 'media_player') { this.media(id, s, service, data); continue; }
+      if (d === 'vacuum') { const m = { start: 'cleaning', pause: 'paused', return_to_base: 'returning', stop: 'idle' }[service]; if (m) { this.set(id, { state: m }); if (m === 'returning') setTimeout(() => this.set(id, { state: 'docked' }), 2500); } continue; }
+      if (d === 'alarm_control_panel') {
+        if (service === 'alarm_disarm') { if (data.code === '1234') this.set(id, { state: 'disarmed' }); else this.store.dispatchEvent(new CustomEvent('error', { detail: 'Wrong code (the demo code is 1234)' })); }
+        else if (service.startsWith('alarm_arm_')) { this.set(id, { state: 'arming' }); setTimeout(() => this.set(id, { state: 'armed_' + service.slice(10) }), 1500); }
+        else if (service === 'alarm_trigger') this.set(id, { state: 'triggered' });
+        continue;
+      }
       if (service === 'toggle') this.set(id, { state: on ? 'off' : (d === 'cover' ? 'open' : 'on') }, d === 'light' && !on ? { brightness: s.attributes.brightness || 255 } : {});
       else if (service === 'turn_on') {
         if (d === 'water_heater') this.set(id, { state: 'electric' });

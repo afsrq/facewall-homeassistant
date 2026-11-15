@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.24.0
+- **Vacuum tile** (Add tiles → Vacuums): status (cleaning, docked, going home, needs help), battery, and Clean / Pause, Dock and Find; the robot wanders while it cleans.
+- **Alarm panel** (Add tiles → Alarm): Arm Home / Away / Night and Disarm, with a keypad when your alarm needs a code. While armed, every screen gets a thin red edge; when triggered, the edges pulse red and the tile turns red.
+- **Air quality ring** (sensor → Style → Ring): CO₂, PM2.5, PM10, AQI, VOC, NO₂, ozone and CO as a ring that's green (good), amber (fair) or red (poor).
+
 ## 1.23.0
 - **Thermostat dial** (climate tile → Style → Dial): drag around the ring to set the temperature; the ring takes the mode's colour (blue cooling, orange heating, green auto), a dot shows the room temperature, and tapping the mode cycles through modes.
 - **Garage door** (cover tile → Style → Garage door): an animated door that rolls up as it opens and shows the position while moving. Tap twice to open or close.

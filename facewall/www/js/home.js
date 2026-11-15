@@ -29,7 +29,7 @@ export function stylesFor(id) {
   if (d === 'weather') return [{ v: 'daily', label: 'Daily', sub: 'Next days · tap for hourly too' }, { v: 'hourly', label: 'Hourly', sub: 'Next hours · tap for daily too' }];
   if (d === 'climate') return [{ v: 'buttons', label: 'Buttons', sub: 'Up/down buttons and modes' }, { v: 'dial', label: 'Dial', sub: 'Drag around the ring to set the temperature' }];
   if (d === 'cover') return [{ v: 'button', label: 'Button', sub: 'Tap to open or close' }, { v: 'garage', label: 'Garage door', sub: 'An animated door (tap twice to move it)' }];
-  if (d === 'sensor') return [{ v: 'value', label: 'Value', sub: 'The current reading' }, { v: 'graph', label: 'Graph', sub: 'The reading over time (choose how long below)' }];
+  if (d === 'sensor') return [{ v: 'value', label: 'Value', sub: 'The current reading' }, { v: 'graph', label: 'Graph', sub: 'The reading over time (choose how long below)' }, { v: 'ring', label: 'Ring', sub: 'A coloured ring: green, amber, red (great for CO₂, PM2.5, AQI)' }];
   return [];
 }
 /** Tile kinds whose icon sits in the corner and can be moved (top left / top right / middle). */
@@ -64,12 +64,15 @@ export function kindFor(item) {
   if (d === 'cover') return style === 'garage' ? 'garage' : 'cover';
   if (ACTIONS.includes(d)) return 'action';
   if (d === 'sensor' && style === 'graph') return 'graph';
+  if (d === 'sensor' && style === 'ring') return 'airq';
+  if (d === 'vacuum') return 'vacuum';
+  if (d === 'alarm_control_panel') return 'alarm';
   return 'sensor';
 }
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
   const k = kindFor(item);
-  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
+  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'vacuum' || k === 'alarm' ? [2, 1] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -506,7 +509,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard, vacuum: this.vacuumCard, alarm: this.alarmCard, airq: this.airqCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -664,6 +667,103 @@ export class HomePage {
       el.classList.toggle('on', !!s && s.state !== 'closed');
       el.classList.toggle('moving', ['opening', 'closing'].includes(s?.state));
       label.textContent = !s ? 'Missing' : cap(s.state) + (a.current_position != null && !['open', 'closed'].includes(s.state) ? ` · ${a.current_position}%` : '');
+    };
+    return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ vacuum
+  vacuumCard(id, item = { id }) {
+    const st = this.store;
+    const call = (svc) => st.call('vacuum', svc, {}, { entity_id: id });
+    const bot = h('div.vc-bot', {}, h('i'));
+    const state = h('div.vc-state'), batt = h('div.vc-batt');
+    const go = h('button.pill.sm.vc-go'), dock = h('button.pill.sm', { html: icon('home') + '<span>Dock</span>' }), find = h('button.pill.sm', { html: icon('bell') + '<span>Find</span>' });
+    go.onclick = (e) => { e.stopPropagation(); call(st.get(id)?.state === 'cleaning' ? 'pause' : 'start'); };
+    dock.onclick = (e) => { e.stopPropagation(); call('return_to_base'); };
+    find.onclick = (e) => { e.stopPropagation(); call('locate'); toast('It should beep now'); };
+    const el = h('div.card.vacuum', {}, h('div.card-head', {}, h('span.card-ic', { html: iconHtml(st, item, 'auto') }), h('div.card-titles', {}, h('div.card-title', { text: tileName(st, item) }))),
+      h('div.vc-main', {}, bot, h('div', {}, state, batt)), h('div.vc-ctl', {}, go, dock, find));
+    const LABEL = { cleaning: 'Cleaning', docked: 'Docked', returning: 'Going home', paused: 'Paused', idle: 'Idle', error: 'Needs help' };
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const v = s?.state || 'unavailable';
+      el.classList.toggle('on', v === 'cleaning' || v === 'returning');
+      el.classList.toggle('err', v === 'error');
+      state.textContent = LABEL[v] || cap(v);
+      const b = a.battery_level;
+      batt.textContent = b != null ? `Battery ${Math.round(b)}%${a.status && a.status.toLowerCase() !== v ? ` · ${a.status}` : ''}` : a.status || '';
+      go.innerHTML = icon(v === 'cleaning' ? 'pause' : 'play') + `<span>${v === 'cleaning' ? 'Pause' : 'Clean'}</span>`;
+    };
+    return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ alarm panel
+  alarmCard(id, item = { id }) {
+    const st = this.store;
+    const LABEL = { disarmed: 'Disarmed', armed_home: 'Armed · Home', armed_away: 'Armed · Away', armed_night: 'Armed · Night', armed_vacation: 'Armed · Vacation', armed_custom_bypass: 'Armed', arming: 'Arming…', pending: 'Entry delay…', disarming: 'Disarming…', triggered: 'ALARM' };
+    const state = h('div.al-state'), btns = h('div.al-ctl');
+    const el = h('div.card.alarm', {}, h('div.card-head', {}, h('span.card-ic', { html: iconHtml(st, item, 'lock') }), h('div.card-titles', {}, h('div.card-title', { text: tileName(st, item) }))),
+      h('div.al-main', {}, h('span.al-shield', { html: icon('lock') }), state), btns);
+    const act = (svc, needsCode) => {
+      const a = st.get(id)?.attributes || {};
+      if (needsCode && a.code_format) this.keypad(a.code_format === 'number', svc.includes('disarm') ? 'Disarm' : 'Arm', (code) => st.call('alarm_control_panel', svc, { code }, { entity_id: id }));
+      else st.call('alarm_control_panel', svc, {}, { entity_id: id });
+    };
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {}, v = s?.state || 'unavailable';
+      const armed = v.startsWith('armed'), trig = v === 'triggered';
+      el.classList.toggle('armed', armed); el.classList.toggle('trig', trig); el.classList.toggle('busy', ['arming', 'pending', 'disarming'].includes(v));
+      state.textContent = LABEL[v] || cap(v);
+      btns.innerHTML = '';
+      const feat = Number(a.supported_features ?? 63);
+      if (v === 'disarmed') {
+        if (feat & 1) btns.append(h('button.pill.sm', { text: 'Home', onclick: (e) => { e.stopPropagation(); act('alarm_arm_home', a.code_arm_required); } }));
+        if (feat & 2) btns.append(h('button.pill.sm', { text: 'Away', onclick: (e) => { e.stopPropagation(); act('alarm_arm_away', a.code_arm_required); } }));
+        if (feat & 4) btns.append(h('button.pill.sm', { text: 'Night', onclick: (e) => { e.stopPropagation(); act('alarm_arm_night', a.code_arm_required); } }));
+      } else if (s) btns.append(h('button.pill.sm.al-off', { text: 'Disarm', onclick: (e) => { e.stopPropagation(); act('alarm_disarm', true); } }));
+      // The whole screen shows it: a red edge while armed, pulsing when triggered.
+      document.body.classList.toggle('alarm-armed', armed);
+      document.body.classList.toggle('alarm-triggered', trig);
+    };
+    return { id, el, update };
+  }
+
+  /** A number (or text) keypad for alarm codes. */
+  keypad(numeric, action, done) {
+    let code = '';
+    const dots = h('div.kp-dots');
+    const sh = sheet({ title: `Enter code to ${action.toLowerCase()}`, cls: 'keypad-sheet' });
+    const draw = () => { dots.textContent = code ? '•'.repeat(code.length) : ' '; };
+    const go = () => { if (!code) return; sh.close(); done(code); };
+    if (numeric) {
+      const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓'];
+      sh.body.append(dots, h('div.kp-grid', {}, keys.map((k) => h('button.kp-key' + (k === '✓' ? '.ok' : ''), { text: k, onclick: () => { if (k === '⌫') code = code.slice(0, -1); else if (k === '✓') return go(); else code += k; draw(); } }))));
+    } else {
+      const inp = h('input.text-in.wide-in', { type: 'password', autocomplete: 'off', onkeydown: (e) => { if (e.key === 'Enter') { code = inp.value; go(); } } });
+      sh.body.append(inp, h('div.sheet-actions', {}, h('button.pill.primary', { text: action, onclick: () => { code = inp.value; go(); } })));
+      setTimeout(() => inp.focus(), 50);
+    }
+    draw();
+  }
+
+  // ------------------------------------------------------------------ air quality ring
+  airqCard(id, item = { id }) {
+    const st = this.store;
+    // [good below, fair below, scale max] by device class.
+    const SCALE = { carbon_dioxide: [800, 1200, 2000], pm25: [12, 35, 100], pm10: [54, 154, 250], aqi: [50, 100, 300], volatile_organic_compounds: [250, 2000, 5000], volatile_organic_compounds_parts: [220, 660, 2000], nitrogen_dioxide: [53, 100, 360], ozone: [54, 70, 200], carbon_monoxide: [9, 35, 100] };
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 100 100'); svg.classList.add('aq-svg');
+    svg.innerHTML = '<circle cx="50" cy="50" r="42" class="aq-track"/><circle cx="50" cy="50" r="42" class="aq-fill" transform="rotate(-90 50 50)" pathLength="100"/>';
+    const val = h('div.aq-val'), word = h('div.aq-word');
+    const el = h('div.card.airq', {}, h('div.aq-wrap', {}, svg, h('div.aq-center', {}, val, word)), h('div.tile-bottom', {}, h('div.tile-name', { text: tileName(st, item) })));
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {}, v = Number(s?.state);
+      const sc = SCALE[a.device_class] || [Infinity, Infinity, Math.max(100, Number.isFinite(v) ? v * 1.5 : 100)];
+      const lvl = !Number.isFinite(v) ? 'na' : v < sc[0] ? 'good' : v < sc[1] ? 'fair' : 'poor';
+      el.dataset.lvl = lvl;
+      val.textContent = s ? formatState(st, id) : 'Missing';
+      word.textContent = { good: 'Good', fair: 'Fair', poor: 'Poor', na: '' }[lvl];
+      svg.querySelector('.aq-fill').setAttribute('stroke-dasharray', `${Number.isFinite(v) ? Math.max(2, Math.min(100, (v / sc[2]) * 100)) : 0} 100`);
     };
     return { id, el, update };
   }
