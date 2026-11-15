@@ -49,6 +49,16 @@ In **Edit layout** (▦) every tile has an **Options** button (or tap a tile's s
 
 When adding tiles, tapping a device that's already on the page adds another copy; use − to remove one.
 
+## Tile colours
+
+In a tile's **Options** (Edit layout → *Options*, or ⚙︎ → Tiles on page), choose its **On colour** and **Off colour**:
+
+- **Default** keeps the normal look (a light's own colour, the theme's colours, the thermostat's mode colour).
+- **Solid**: one colour from the palette, or **+** for any colour.
+- **Gradient**: a ready-made one, or *Your own* with a start and end colour.
+
+Text and icons turn dark or light to stay readable. *Use on all … tiles* copies the colours to the other tiles of the same kind on that page (e.g. every light).
+
 ## Weather
 
 Add your weather entity (Add tiles → *Weather*). Make the tile wider for more days, or taller for a day list with temperature bars. Its **Style** chooses a *Daily* or *Hourly* forecast; tap the tile for both.
@@ -69,6 +79,12 @@ Add your weather entity (Add tiles → *Weather*). Make the tile wider for more 
 - **Discard** (or close) keeps what you had.
 
 Light colours on light tiles, the weather tile's sky and the AC's mode colours stay as they are in every theme.
+
+## Hiding Home Assistant's sidebar and top bar
+
+If you open Facewall from Home Assistant's sidebar (or the Home Assistant app), turn on ⚙︎ → *This screen* → **Hide Home Assistant's sidebar and top bar**. It's per iPad, so your computer keeps the normal Home Assistant layout. While it's hidden, *Home Assistant menu → Open* shows the sidebar over Facewall.
+
+For a wall iPad you can also skip Home Assistant's page completely: open `http://homeassistant.local:8099/` in Safari and add it to the Home Screen (see *Port 8099* below).
 
 ## Faces
 

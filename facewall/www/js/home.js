@@ -82,6 +82,38 @@ function wxWhen(iso, mode, i, use24h) {
 }
 
 const lum = ([r, g, b]) => (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+// ------------------------------------------------------------------ custom tile colours
+/** The colour slots a tile offers (key in the tile's settings + label). "on" means the tile's active state. */
+export function colorSlots(item) {
+  const k = kindFor(item);
+  if (k === 'sensor' || k === 'weather') return [{ key: 'offColor', label: 'Tile colour', def: 'Default' }];
+  if (k === 'lock') return [{ key: 'onColor', label: 'Unlocked colour', def: 'Amber' }, { key: 'offColor', label: 'Locked colour', def: 'Theme' }];
+  if (k === 'action') return [{ key: 'onColor', label: 'Colour when tapped', def: 'Theme' }, { key: 'offColor', label: 'Tile colour', def: 'Theme' }];
+  if (k === 'alloff') return [{ key: 'onColor', label: 'Colour while lights are on', def: 'Theme' }, { key: 'offColor', label: 'Colour when all are off', def: 'Theme' }];
+  if (k === 'climate') return [{ key: 'onColor', label: 'Colour when running', def: 'Mode colour' }, { key: 'offColor', label: 'Colour when off', def: 'Theme' }];
+  if (k === 'light') return [{ key: 'onColor', label: 'On colour', def: 'Light’s colour' }, { key: 'offColor', label: 'Off colour', def: 'Theme' }];
+  return [{ key: 'onColor', label: 'On colour', def: 'Theme' }, { key: 'offColor', label: 'Off colour', def: 'Theme' }];
+}
+const HEX = /^#[0-9a-f]{6}$/i;
+const hexRgb = (c) => { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+/** Give a card its own on/off background: a solid colour, or a gradient when a second colour is set.
+ *  CSS does the rest, keyed on each card's state class. */
+export const GRADIENT_ANGLE = 160;
+export function tileBackground(c, c2) { return c2 ? `linear-gradient(${GRADIENT_ANGLE}deg, ${c}, ${c2})` : c; }
+export function applyTileColors(el, item) {
+  for (const [key, cls] of [['onColor', 'tc-on'], ['offColor', 'tc-off']]) {
+    const c = item[key];
+    if (!c || !HEX.test(c)) continue;
+    const c2 = HEX.test(item[key + '2'] || '') ? item[key + '2'] : null;
+    const a = hexRgb(c), b = c2 ? hexRgb(c2) : a;
+    const avg = a.map((v, i) => Math.round((v + b[i]) / 2));
+    el.classList.add(cls);
+    el.style.setProperty('--' + cls + '-bg', tileBackground(c, c2));
+    el.style.setProperty('--' + cls + '-rgb', avg.join(','));
+    el.style.setProperty('--' + cls + '-fg', lum(avg) > 0.6 ? '#1c1c1e' : '#ffffff');
+  }
+}
 const fmtTemp = (t) => (t == null ? '--' : Number.isInteger(t) ? String(t) : t.toFixed(1));
 function fmtLeft(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -164,6 +196,7 @@ export class HomePage {
       const movable = ICON_MOVABLE.includes(kindFor(item));
       card.el.classList.add('icon-' + (movable ? item.iconPos || 'tl' : 'tl'), 'name-' + (movable ? item.namePos || 'bottom' : 'bottom'));
       if (item.iconScale && item.iconScale !== 1) card.el.style.setProperty('--icon-scale', String(item.iconScale));
+      applyTileColors(card.el, item);
       if (this.editing) this.attachEditor(card.el, item, index);
       this.cards.push(card); this.grid.append(card.el); card.update();
     });
@@ -427,6 +460,7 @@ export class HomePage {
       big.innerHTML = icon(open ? 'unlock' : 'lock');
       label.textContent = cap(state);
       el.classList.toggle('alert', open || state === 'jammed');
+      el.classList.toggle('unlocked', open);
     };
     return { id, el, update };
   }
@@ -451,7 +485,9 @@ export class HomePage {
         el.style.setProperty('--lc', rgb);
         el.style.setProperty('--la', String(0.55 + 0.45 * bri));
         el.classList.toggle('dark-text', lum(c) > 0.62);
-      } else { el.style.removeProperty('--lc'); el.classList.remove('dark-text'); }
+        // White-ish bulbs: on light themes these get the theme's "on" colour so they don't look off.
+        el.classList.toggle('pale', (Math.max(...c) - Math.min(...c)) / Math.max(1, Math.max(...c)) < 0.3);
+      } else { el.style.removeProperty('--lc'); el.classList.remove('dark-text', 'pale'); }
       state.textContent = !s ? 'Missing' : on ? (s.attributes.brightness != null ? `On · ${Math.round(s.attributes.brightness / 2.55)}%` : 'On') : cap(s.state);
     };
     return { id, el, update };

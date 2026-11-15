@@ -1,10 +1,11 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize } from './home.js';
+import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
 import { loadIcons, iconSvg, searchIcons, LIBRARIES, uploadIcons, deleteIcon, onIconsChanged } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
+import { inHaPanel, setHaKiosk, openHaMenu } from './hapanel.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -95,6 +96,7 @@ class App {
     if (this.store.mode === 'demo') document.body.classList.add('demo');
     this.screenId = this.resolveScreen();
     applyTheme(this.themeId());
+    setHaKiosk(!!this.screen.hideHa);
     this.buildShell();
     this.renderFace();
     this.renderRooms();
@@ -107,6 +109,7 @@ class App {
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
       if (!this.themePreviewing) applyTheme(this.themeId());
+      setHaKiosk(!!this.screen.hideHa);
       this.renderFace(); this.renderRooms();
     });
     this.store.addEventListener('status', () => this.showStatus());
@@ -155,6 +158,7 @@ class App {
   update(mut) {
     const s = clone(this.settings); mut(s); this.store.saveSettings(s);
     if (!this.themePreviewing) applyTheme(this.themeId());
+    setHaKiosk(!!this.screen.hideHa);
     return s;
   }
 
@@ -548,6 +552,9 @@ class App {
           sel.onchange = () => this.updateScreen((x) => { x.clockTap = sel.value; });
           return sel;
         })(), 'A quick way to this iPad’s room without swiping'),
+        row('Hide Home Assistant’s sidebar and top bar', toggle(!!sc.hideHa, (v) => { this.updateScreen((x) => { if (v) x.hideHa = true; else delete x.hideHa; }); render(); }),
+          inHaPanel ? 'Full screen inside Home Assistant on this iPad' : 'For when Facewall is opened inside Home Assistant (its sidebar or the app)'),
+        inHaPanel && sc.hideHa ? row('Home Assistant menu', h('button.pill.sm', { text: 'Open', onclick: () => { openHaMenu(); } }), 'Opens Home Assistant’s sidebar over Facewall') : null,
         h('div.about.small', { text: 'To keep these even if Safari’s data is cleared, add this address to the iPad’s Home Screen:' }),
         h('div.copy-row', {}, h('code.addr', { text: link }), h('button.pill.sm', { text: 'Copy', onclick: async () => {
           try { await navigator.clipboard.writeText(link); toast('Address copied'); } catch { toast('Couldn’t copy. Select the address instead.'); }
@@ -672,6 +679,52 @@ class App {
   }
 
   /** Rows for a tile's options (name, style, icon, size). Used inline in Settings and in the tile Options panel. */
+  /** A background choice: the default, a solid colour, or a gradient (ready-made or two colours of your own). */
+  colorCtl(value, value2, defLabel, onPick) {
+    const SOLID = ['#ff453a', '#ff9f0a', '#ffd60a', '#30d158', '#64d2ff', '#0a84ff', '#5e5ce6', '#bf5af2', '#ff375f', '#ffffff', '#8e8e93', '#1c1c1e'];
+    const GRADIENTS = [
+      ['Sunset', '#ff7e5f', '#feb47b'], ['Fire', '#f12711', '#f5af19'], ['Peach', '#ffd3a5', '#fd6585'], ['Berry', '#c33764', '#1d2671'],
+      ['Grape', '#8e2de2', '#4a00e0'], ['Ocean', '#2193b0', '#6dd5ed'], ['Aurora', '#00c9a7', '#845ec2'], ['Forest', '#134e5e', '#71b280'],
+      ['Mint', '#d4fc79', '#96e6a1'], ['Night', '#141e30', '#243b55'], ['Steel', '#485563', '#29323c'], ['Cloud', '#f5f7fa', '#c3cfe2'],
+    ];
+    const v = value?.toLowerCase(), v2 = value2?.toLowerCase();
+    let mode = !v ? 'default' : v2 ? 'gradient' : 'solid';
+    const wrap = h('div.color-ctl');
+    const picker = (val, onChange, label) => {
+      const inp = h('input', { type: 'color', value: val, 'aria-label': label });
+      inp.addEventListener('change', () => onChange(inp.value.toLowerCase()));
+      return inp;
+    };
+    const draw = () => {
+      wrap.innerHTML = '';
+      wrap.append(segmented([{ v: 'default', label: defLabel }, { v: 'solid', label: 'Solid' }, { v: 'gradient', label: 'Gradient' }], mode, (m) => {
+        if (m === 'default') { if (v) onPick(null, null); else { mode = m; draw(); } return; }
+        mode = m; draw();
+      }));
+      if (mode === 'solid') {
+        const isCustom = !!v && !v2 && !SOLID.includes(v);
+        wrap.append(h('div.cs-row', {},
+          SOLID.map((c) => h('button.cs' + (v === c && !v2 ? '.sel' : ''), { style: { background: c }, 'aria-label': c, onclick: () => onPick(c, null) })),
+          h('label.cs.cs-custom' + (isCustom ? '.sel' : ''), { style: isCustom ? { background: v } : {}, title: 'Any colour' },
+            h('span', { html: icon('plus') }), picker(v || '#0a84ff', (c) => onPick(c, null), 'Pick any colour'))));
+      } else if (mode === 'gradient') {
+        const preset = GRADIENTS.find(([, a, b]) => a === v && b === v2);
+        const from = v2 ? v : GRADIENTS[0][1], to = v2 || GRADIENTS[0][2];
+        let fromVal = from, toVal = to;
+        wrap.append(
+          h('div.cs-row', {}, GRADIENTS.map(([name, a, b]) => h('button.cs.cs-grad' + (preset && preset[0] === name ? '.sel' : ''), { style: { background: tileBackground(a, b) }, 'aria-label': name, title: name, onclick: () => onPick(a, b) }))),
+          h('div.cs-row.cs-own', {},
+            h('span.cs-own-label', { text: 'Your own:' }),
+            h('label.cs.cs-end', { style: { background: from }, title: 'From' }, picker(from, (c) => { fromVal = c; onPick(fromVal, toVal); }, 'Gradient start colour')),
+            h('span.cs-arrow', { html: icon('back') }),
+            h('label.cs.cs-end', { style: { background: to }, title: 'To' }, picker(to, (c) => { toVal = c; onPick(fromVal, toVal); }, 'Gradient end colour')),
+            h('span.cs-sample', { style: { background: tileBackground(from, to) } })));
+      }
+    };
+    draw();
+    return wrap;
+  }
+
   tileOptionRows(pageId, i, after) {
     const item = pageOf(this.settings, pageId)?.entities?.[i];
     if (!item) return [];
@@ -701,6 +754,23 @@ class App {
     slider.addEventListener('change', () => set((it) => { const v = Number(slider.value) / 100; if (v === 1) delete it.iconScale; else it.iconScale = v; }));
     rows.push(row('Icon size', h('div.range-ctl', {}, slider, sizeLabel,
       scale !== 1 ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.iconScale; }) }) : null)));
+    // Tile colours: one for when it's on (or unlocked, running…) and one for when it's off.
+    const slots = colorSlots(item);
+    for (const sl of slots) {
+      rows.push(row(sl.label, this.colorCtl(item[sl.key], item[sl.key + '2'], sl.def, (c, c2) => set((it) => {
+        if (c) it[sl.key] = c; else delete it[sl.key];
+        if (c && c2) it[sl.key + '2'] = c2; else delete it[sl.key + '2'];
+      }))));
+    }
+    const kind = kindFor(item);
+    const alike = pageOf(this.settings, pageId).entities.filter((e, j) => j !== i && e?.id && kindFor(e) === kind);
+    if (alike.length && slots.some((sl) => item[sl.key])) {
+      const noun = { light: 'light', toggle: 'switch', cover: 'cover', lock: 'lock', climate: 'climate', timer: 'timer', action: 'scene/button', sensor: 'sensor', weather: 'weather' }[kind] || 'tile';
+      rows.push(row('Same colours elsewhere', h('button.pill.sm', { text: alike.length === 1 ? `Use on the other ${noun} tile` : `Use on all ${alike.length + 1} ${noun} tiles`, onclick: () => {
+        this.update((x) => { for (const e of pageOf(x, pageId).entities) if (e?.id && kindFor(e) === kind) for (const sl of slots) for (const k of [sl.key, sl.key + '2']) { if (item[k]) e[k] = item[k]; else delete e[k]; } });
+        this.roomFor(pageId)?.render(); after?.(); toast('Colours copied');
+      } }), 'Copies these colours to the other tiles like this on this page'));
+    }
     const cols = this.roomFor(pageId)?.cols || 5;
     const [w, hh] = sizeOf(item);
     // Free sizes in 0.1 steps: slider plus − / + for fine nudges.
