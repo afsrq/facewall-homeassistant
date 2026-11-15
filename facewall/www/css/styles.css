@@ -699,6 +699,24 @@ body.theme-light .tile-badge { background: rgba(0,0,0,0.12); color: inherit; }
 .tile-badge.alert { background: #ff9f0a; color: #241300; }
 .card.icon-tr .tile-badge { right: auto; left: clamp(8px, 5cqmin, 14px); }
 
+/* ------------------------------------------------------------ calendar tile */
+.calendar { display: flex; flex-direction: column; gap: 8px; }
+.cal-list { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 5px; -webkit-mask-image: linear-gradient(180deg, #000 85%, transparent); mask-image: linear-gradient(180deg, #000 85%, transparent); }
+.cal-list.big { overflow: visible; -webkit-mask-image: none; mask-image: none; gap: 8px; }
+.cal-day { font-size: clamp(11px, 5cqmin, 13px); font-weight: 750; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.55; margin-top: 4px; }
+.cal-day:first-child { margin-top: 0; }
+.cal-ev { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: clamp(12px, 6cqmin, 16px); }
+.cal-bar { width: 4px; align-self: stretch; min-height: 1.4em; border-radius: 2px; background: var(--cal); flex: none; }
+.cal-time { flex: none; min-width: 4.8em; font-variant-numeric: tabular-nums; opacity: 0.7; font-size: 0.9em; }
+.cal-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cal-title { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-loc { font-size: 0.8em; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-ev.past { opacity: 0.4; }
+.cal-now { flex: none; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; background: var(--cal); color: #fff; }
+.cal-none { opacity: 0.55; font-size: 14px; }
+.calendar-sheet { width: min(640px, 94vw); }
+.calendar-sheet .cal-ev { font-size: 16px; }
+
 /* ------------------------------------------------------------ graph tile */
 .graph { display: flex; flex-direction: column; gap: 6px; color: var(--t-text); }
 .gr-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }

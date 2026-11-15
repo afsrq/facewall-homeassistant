@@ -837,6 +837,11 @@ class App {
         if (c && c2) it[sl.key + '2'] = c2; else delete it[sl.key + '2'];
       }))));
     }
+    if (kindFor(item) === 'calendar') {
+      rows.push(row('Show', segmented([{ v: 1, label: 'Today' }, { v: 3, label: '3 days' }, { v: 7, label: '7 days' }], item.days || 3, (v) => set((it) => { if (v === 3) delete it.days; else it.days = v; }))));
+      (item.calendars || []).forEach((c, j) => rows.push(row(this.store.name(c) || c, h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => set((it) => { it.calendars.splice(j, 1); }) }), j === 0 ? 'Also shown here' : null)));
+      rows.push(row('Add another calendar', entitySelect(this.store, null, [['Calendars', ['calendar']]], (v) => { if (v && v !== item.id) set((it) => { (it.calendars ||= []).includes(v) || it.calendars.push(v); }); }, 'Choose…'), 'Each calendar gets its own colour'));
+    }
     if (kindFor(item) === 'graph') rows.push(row('Time span', segmented([{ v: 6, label: '6 h' }, { v: 24, label: '24 h' }, { v: 48, label: '2 days' }, { v: 168, label: '7 days' }], item.hours || 24, (v) => set((it) => { if (v === 24) delete it.hours; else it.hours = v; }))));
     // Show the tile only when something is true, and a badge in its corner.
     const DEP_GROUPS = [['Binary sensors', ['binary_sensor']], ['Sensors', ['sensor']], ['Covers and doors', ['cover', 'lock']], ['Lights and switches', ['light', 'switch', 'input_boolean', 'fan']], ['Media', ['media_player']], ['People', ['person', 'device_tracker']], ['Other', ['vacuum', 'climate', 'alarm_control_panel', 'input_select', 'water_heater']]];
@@ -1399,8 +1404,8 @@ class App {
     const chips = h('div.filter-chips');
     const list = h('div.ent-list');
     sh.body.append(search, chips, list);
-    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['media_player', 'Media'], ['camera', 'Cameras'], ['scene', 'Scenes'], ['other', 'Other']];
-    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather', 'media_player', 'camera'];
+    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['media_player', 'Media'], ['camera', 'Cameras'], ['calendar', 'Calendars'], ['scene', 'Scenes'], ['other', 'Other']];
+    const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather', 'media_player', 'camera', 'calendar'];
     const renderChips = () => {
       chips.innerHTML = '';
       for (const [v, l] of groups) chips.append(h('button.fchip' + (filter === v ? '.on' : ''), { text: l, onclick: () => { filter = v; renderChips(); renderList(); } }));

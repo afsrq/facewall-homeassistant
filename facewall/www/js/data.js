@@ -90,6 +90,8 @@ export class Store extends EventTarget {
   }
 
   startTimer(id, minutes) { return this.adapter.startTimer(id, minutes); }
+  /** Calendar events between two dates: [{ summary, location, start, end, allDay }]. */
+  events(id, start, end) { return this.adapter.events ? this.adapter.events(id, start, end) : Promise.resolve([]); }
   /** A sensor's recent history: [[epoch ms, number], ...]. */
   history(id, hours = 24) { return this.adapter.history ? this.adapter.history(id, hours) : Promise.resolve([]); }
   cancelTimer(id) { return this.adapter.cancelTimer(id); }
@@ -202,6 +204,9 @@ class ServerAdapter {
     try { await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target }) }); }
     catch (e) { this.store.dispatchEvent(new CustomEvent('error', { detail: e.message })); }
   }
+  async events(id, start, end) {
+    try { return (await fetchJSON(`api/calendar?id=${encodeURIComponent(id)}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`, {}, 20000)).events || []; } catch { return []; }
+  }
   async history(id, hours) {
     try { return (await fetchJSON(`api/history?id=${encodeURIComponent(id)}&hours=${hours}`, {}, 30000)).points || []; } catch { return []; }
   }
@@ -260,6 +265,8 @@ function demoStates() {
     st('binary_sensor.doorbell', 'off', { friendly_name: 'Doorbell', device_class: 'occupancy' }),
     st('media_player.living_room_speaker', 'playing', { friendly_name: 'Living Room Speaker', ...DEMO_TRACKS[0], media_position: 74, media_position_updated_at: new Date().toISOString(),
       volume_level: 0.35, is_volume_muted: false, source: 'Spotify', source_list: ['Spotify', 'AirPlay', 'TV'], app_name: 'Spotify', supported_features: 152511 }),
+    st('calendar.family', 'off', { friendly_name: 'Family' }),
+    st('calendar.work', 'off', { friendly_name: 'Work' }),
     st('sensor.home_power', '1430', { friendly_name: 'Home Power', unit_of_measurement: 'W', device_class: 'power', state_class: 'measurement' }),
     st('sensor.home_energy', '8421.6', { friendly_name: 'Energy Used', unit_of_measurement: 'kWh', device_class: 'energy', state_class: 'total_increasing' }),
     st('sensor.outdoor_temperature', '14.5', { friendly_name: 'Outside', unit_of_measurement: '°C', device_class: 'temperature' }),
@@ -339,6 +346,20 @@ class DemoAdapter {
       else if (service === 'open_cover') this.set(id, { state: 'open' }, { current_position: 100 });
       else if (service === 'close_cover') this.set(id, { state: 'closed' }, { current_position: 0 });
     }
+  }
+
+  /** Made-up events for the demo calendars. */
+  async events(id, start, end) {
+    const day = (n, hh, mm) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); if (hh != null) d.setHours(hh, mm || 0); return d; };
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const ev = (summary, s, e, location = '') => ({ summary, location, start: s.toISOString(), end: e.toISOString(), allDay: false });
+    const all = (summary, n) => ({ summary, location: '', start: ymd(day(n)), end: ymd(day(n + 1)), allDay: true });
+    const sets = {
+      'calendar.family': [ev('School drop-off', day(0, 8, 0), day(0, 8, 30)), ev('Dentist', day(0, 15, 30), day(0, 16, 15), 'Main St Dental'), ev('Pizza night', day(0, 18, 30), day(0, 20, 0)),
+        all('Trash day', 1), ev('Soccer practice', day(1, 17, 0), day(1, 18, 30), 'Riverside Park'), ev('Book club', day(2, 19, 0), day(2, 21, 0)), all('Grandma visiting', 3), ev('Farmers market', day(4, 9, 0), day(4, 11, 0))],
+      'calendar.work': [ev('Stand-up', day(0, 9, 30), day(0, 9, 45)), ev('Design review', day(1, 13, 0), day(1, 14, 0)), ev('1:1', day(2, 11, 0), day(2, 11, 30))],
+    };
+    return (sets[id] || []).filter((e) => new Date(e.end) > start && new Date(e.start) < end);
   }
 
   /** Made-up history around the sensor's current value (a daily wave and a little noise). */

@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.19.0';
+const VERSION = '1.20.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -431,6 +431,23 @@ async function handleApi(req, res, route) {
       Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res);
       return;
     } catch (e) { if (!res.headersSent) return json(res, 502, { error: e.message }); return res.end(); }
+  }
+  // Calendar events for calendar tiles (Home Assistant's calendar REST API).
+  if (route === 'calendar' && req.method === 'GET') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const id = q.get('id') || '';
+    const base = SUPERVISOR_TOKEN ? 'http://supervisor/core' : HA_URL;
+    if (!/^calendar\.[a-z0-9_]+$/.test(id) || !base) return json(res, 400, { error: 'bad calendar' });
+    const start = new Date(q.get('start') || Date.now()), end = new Date(q.get('end') || Date.now() + 7 * 864e5);
+    if (Number.isNaN(start) || Number.isNaN(end)) return json(res, 400, { error: 'bad dates' });
+    try {
+      const r = await fetch(`${base}/api/calendars/${id}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`, { headers: { Authorization: `Bearer ${TOKEN}` }, signal: AbortSignal.timeout(15000) });
+      if (!r.ok) return json(res, 502, { error: `calendar: ${r.status}` });
+      const list = await r.json();
+      return json(res, 200, { id, events: (Array.isArray(list) ? list : []).slice(0, 300).map((e) => ({
+        summary: e.summary || '', location: e.location || '', start: e.start?.dateTime || e.start?.date || e.start, end: e.end?.dateTime || e.end?.date || e.end, allDay: !!e.start?.date,
+      })) });
+    } catch (e) { return json(res, 502, { error: e.message }); }
   }
   // Sensor history for graph tiles: [[epoch ms, number], ...] for the last N hours.
   if (route === 'history' && req.method === 'GET') {

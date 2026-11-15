@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.20.0
+- **Calendar tile**: your Home Assistant calendars as an agenda for today, 3 days or 7 days, with times, places, all-day events and a "Now" tag; past events fade. Add more calendars to the same tile (each gets its own colour). Tap it for the next two weeks.
+
 ## 1.19.0
 - **Graph tiles**: give any number sensor the *Graph* style (tile Options → Style) to see it over the last 6 hours, 24 hours, 2 days or 7 days, with the current value and the low and high. It keeps drawing live as the value changes. Energy meters (kWh) also show how much since midnight, so a power or energy sensor makes a simple energy tile.
 

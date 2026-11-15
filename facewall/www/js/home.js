@@ -57,6 +57,7 @@ export function kindFor(item) {
   if (TOGGLES.includes(d)) return 'toggle';
   if (d === 'media_player') return 'media';
   if (d === 'camera') return 'camera';
+  if (d === 'calendar') return 'calendar';
   if (d === 'cover') return 'cover';
   if (ACTIONS.includes(d)) return 'action';
   if (d === 'sensor' && style === 'graph') return 'graph';
@@ -65,7 +66,7 @@ export function kindFor(item) {
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
   const k = kindFor(item);
-  const def = k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph'].includes(k) ? [2, 1] : [1, 1];
+  const def = k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -86,6 +87,51 @@ export function showWhenMet(store, sw) {
     case 'below': return Number.isFinite(n) && n < Number(v);
     default: return true;
   }
+}
+
+// ------------------------------------------------------------------ calendar helpers
+const CAL_COLORS = ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff'];
+/** All-day dates ("2026-11-16") are local days, not UTC midnight. */
+const calDate = (v, allDay) => { if (allDay && /^\d{4}-\d{2}-\d{2}$/.test(v)) { const [y, m, d] = v.split('-').map(Number); return new Date(y, m - 1, d); } return new Date(v); };
+const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+function dayLabel(d) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - t) / 864e5);
+  return diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+/** Events from several calendars for the next `days` days, grouped by day: [[label, [ev…]], …]. */
+export async function loadAgenda(store, ids, days) {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setDate(end.getDate() + days);
+  const lists = await Promise.all(ids.map((id, i) => store.events(id, start, end).then((evs) => evs.map((e) => ({ ...e, cal: id, color: CAL_COLORS[i % CAL_COLORS.length], s: calDate(e.start, e.allDay), e: calDate(e.end, e.allDay) })))));
+  const all = lists.flat().filter((e) => e.e > start).sort((a, b) => (a.allDay === b.allDay ? a.s - b.s : a.allDay ? -1 : 1) || a.s - b.s);
+  const groups = new Map();
+  for (let i = 0; i < days; i++) { const d = new Date(start); d.setDate(d.getDate() + i); groups.set(dayKey(d), [dayLabel(d), []]); }
+  for (const e of all) {
+    // Multi-day events show on each day they cover.
+    for (let i = 0; i < days; i++) {
+      const d0 = new Date(start); d0.setDate(d0.getDate() + i);
+      const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+      if (e.s < d1 && e.e > d0) groups.get(dayKey(d0))[1].push(e);
+    }
+  }
+  return [...groups.values()];
+}
+function agendaHtml(groups, use24h, { hideEmptyDays = true } = {}) {
+  const now = Date.now(), out = [];
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const tm = (d) => d.toLocaleTimeString(undefined, { hour: use24h ? '2-digit' : 'numeric', minute: '2-digit', hour12: !use24h });
+  for (const [label, evs] of groups) {
+    if (!evs.length && hideEmptyDays && label !== 'Today') continue;
+    out.push(`<div class="cal-day">${esc(label)}</div>`);
+    if (!evs.length) out.push('<div class="cal-none">Nothing planned</div>');
+    for (const e of evs) {
+      const past = !e.allDay && e.e.getTime() < now, live = !e.allDay && e.s.getTime() <= now && e.e.getTime() > now;
+      out.push(`<div class="cal-ev${past ? ' past' : ''}${live ? ' live' : ''}" style="--cal:${e.color}"><span class="cal-bar"></span><span class="cal-time">${e.allDay ? 'All day' : esc(tm(e.s))}</span>`
+        + `<span class="cal-text"><span class="cal-title">${esc(e.summary || 'Busy')}</span>${e.location ? `<span class="cal-loc">${esc(e.location)}</span>` : ''}</span>${live ? '<span class="cal-now">Now</span>' : ''}</div>`);
+    }
+  }
+  return out.join('');
 }
 
 // ------------------------------------------------------------------ media helpers
@@ -457,7 +503,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -684,6 +730,33 @@ export class HomePage {
       h('div.tile-bottom', {}, val, h('div.tile-name', { text: tileName(st, item) })));
     const update = () => { val.textContent = formatState(st, id); };
     return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ calendar
+  calendarCard(id, item = { id }) {
+    const st = this.store;
+    const ids = [id, ...(item.calendars || [])].filter((c, i, a) => c && a.indexOf(c) === i);
+    const days = item.days || 3;
+    const list = h('div.cal-list', {}, h('div.cal-none', { text: 'Loading…' }));
+    const el = h('div.card.calendar', {}, h('div.card-head', {}, h('span.card-ic', { html: iconHtml(st, item, 'calendar') }), h('div.card-titles', {}, h('div.card-title', { text: tileName(st, item) }))), list);
+    press(el, { onTap: () => this.calendarSheet(ids, tileName(st, item)) });
+    let groups = [], loadedAt = 0, lastMin = -1;
+    const draw = () => { list.innerHTML = agendaHtml(groups, st.settings?.general?.use24h) || '<div class="cal-none">Nothing planned</div>'; };
+    const load = async () => { loadedAt = Date.now(); groups = await loadAgenda(st, ids, days); draw(); };
+    load();
+    const tick = () => {
+      if (Date.now() - loadedAt > 10 * 60000) load();
+      const m = new Date().getMinutes(); if (m !== lastMin) { lastMin = m; if (groups.length) draw(); }
+    };
+    return { id, el, update: () => {}, tick };
+  }
+
+  async calendarSheet(ids, title) {
+    const sh = sheet({ title, cls: 'calendar-sheet' });
+    sh.body.append(h('div.cal-none', { text: 'Loading…' }));
+    const groups = await loadAgenda(this.store, ids, 14);
+    sh.body.innerHTML = '';
+    sh.body.append(h('div.cal-list.big', { html: agendaHtml(groups, this.store.settings?.general?.use24h) }));
   }
 
   // ------------------------------------------------------------------ graph

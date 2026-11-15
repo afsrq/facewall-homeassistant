@@ -81,6 +81,10 @@ In a tile's Options:
 - **Copy a page** (⚙︎ → *Pages*, the copy button): duplicates the page with all its tiles and grid.
 - **Backup** (⚙︎ → *Backup*): *Download* saves everything (pages, tiles, themes, header, screens, doorbell, uploaded icons) in one file; *Restore* puts it back on every screen.
 
+## Calendar
+
+Add a calendar (Add tiles → *Calendars*): Google, iCloud (CalDAV), Local Calendar or any calendar in Home Assistant. Options: **Show** today, 3 days or 7 days, and **Add another calendar** to merge several into one tile, each in its own colour. Tap the tile for the next two weeks.
+
 ## Graphs and energy
 
 Any sensor with a number (temperature, humidity, power, energy…) can show a graph: tile Options → **Style → Graph**, then **Time span** (6 h, 24 h, 2 days, 7 days). History comes from Home Assistant's recorder. For energy, use a power sensor (W) for a live usage curve, or an energy meter (kWh), which also shows *+x kWh today*.
