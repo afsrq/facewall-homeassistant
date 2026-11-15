@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.17.0';
+const VERSION = '1.18.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -222,6 +222,17 @@ function watchedEntities() {
   for (const list of lists) for (const e of list) set.add(typeof e === 'string' ? e : e.id);
   for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr']) if (f[k]) set.add(f[k]);
   for (const id of Object.keys(timers)) set.add(id);
+  // Tiles' show-when rules and badges.
+  for (const p of s.pages || []) for (const e of p.entities || []) {
+    if (!e || typeof e !== 'object') continue;
+    if (e.showWhen?.id) set.add(e.showWhen.id);
+    if (e.badge?.k === 'entity' && e.badge.id) set.add(e.badge.id);
+    if (e.badge?.k === 'lights') {
+      const members = ha.states.get(e.id)?.attributes?.entity_id;
+      if (Array.isArray(members)) members.forEach((m) => set.add(m));
+      else { const area = ha.areas?.[e.id]; if (area) for (const [id, a] of Object.entries(ha.areas)) if (a === area && id.startsWith('light.')) set.add(id); }
+    }
+  }
   // Screens: motion sensors that wake them, and the sun for night themes.
   for (const sc of Object.values(s.screens || {})) {
     if (sc?.motion) set.add(sc.motion);

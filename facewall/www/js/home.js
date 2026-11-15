@@ -67,6 +67,25 @@ export function sizeOf(item) {
   return [item.w || def[0], item.h || def[1]];
 }
 
+// ------------------------------------------------------------------ show-when helpers
+/** On, open, unlocked, playing, home, running… */
+export const isActive = (s) => !!s && (isOn(s) || ['open', 'opening', 'unlocked', 'unlocking', 'playing', 'home', 'detected', 'cleaning', 'heat', 'cool'].includes(s.state));
+/** Is a tile's "show only when" rule met right now? */
+export function showWhenMet(store, sw) {
+  const s = store.get(sw.id);
+  if (!s) return false;
+  const v = String(sw.value ?? '').trim().toLowerCase(), st = String(s.state).toLowerCase(), n = Number(s.state);
+  switch (sw.op || 'active') {
+    case 'active': return isActive(s);
+    case 'inactive': return !isActive(s);
+    case 'is': return st === v;
+    case 'not': return st !== v;
+    case 'above': return Number.isFinite(n) && n > Number(v);
+    case 'below': return Number.isFinite(n) && n < Number(v);
+    default: return true;
+  }
+}
+
 // ------------------------------------------------------------------ media helpers
 /** Album art URL for a media player (through Facewall's server, which has Home Assistant's login). */
 export function mediaArt(store, id) {
@@ -237,6 +256,7 @@ export class HomePage {
       if (item.iconScale && item.iconScale !== 1) card.el.style.setProperty('--icon-scale', String(item.iconScale));
       applyTileColors(card.el, item);
       if (this.editing) this.attachEditor(card.el, item, index);
+      this.dress(card, item);
       this.cards.push(card); this.grid.append(card.el); card.update();
     });
     if (!this.cards.length) {
@@ -379,7 +399,56 @@ export class HomePage {
   }
 
   onState(id) {
-    for (const c of this.cards) if (c.id === id || (c.watch && c.watch.includes(id))) c.update();
+    for (const c of this.cards) if (c.id === id || (c.watch && c.watch.includes(id)) || c.deps?.has(id)) c.update();
+  }
+
+  // ------------------------------------------------------------------ show-when and badges
+  /** Lights a badge counts: a light group's members, the page's lights (All off), or the lights in the tile's room. */
+  badgeLights(item) {
+    if (item.id === ALL_OFF) return [...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))];
+    const members = this.store.get(item.id)?.attributes?.entity_id;
+    if (Array.isArray(members) && members.length) return members.filter((m) => domainOf(m) === 'light');
+    const area = this.store.area(item.id);
+    return area ? Object.keys(this.store.areas || {}).filter((e) => this.store.areas[e] === area && domainOf(e) === 'light') : [];
+  }
+  /** Add the tile's show-when rule and badge on top of its own update. */
+  dress(card, item) {
+    const sw = item.showWhen, bd = item.badge;
+    if (!sw?.id && !bd?.k) return;
+    const deps = new Set();
+    if (sw?.id) deps.add(sw.id);
+    if (bd?.k === 'entity' && bd.id) deps.add(bd.id);
+    const lights = bd?.k === 'lights' ? this.badgeLights(item) : [];
+    for (const l of lights) deps.add(l);
+    card.deps = deps;
+    const badge = bd?.k ? h('div.tile-badge') : null;
+    if (badge) card.el.append(badge);
+    const base = card.update, baseTick = card.tick;
+    let lastSince = 0;
+    const decorate = () => {
+      if (sw?.id) {
+        const show = showWhenMet(this.store, sw);
+        card.el.classList.toggle('cond-hidden', !show);
+      }
+      if (!badge) return;
+      let text = '', alert = false;
+      if (bd.k === 'since') {
+        const s = this.store.get(item.id);
+        if (s && isActive(s) && s.last_changed) {
+          const min = (Date.now() - new Date(s.last_changed).getTime()) / 60000;
+          text = min < 1 ? 'now' : min < 60 ? `${Math.floor(min)} min` : `${Math.floor(min / 60)} h ${Math.floor(min % 60)} m`;
+          alert = !!bd.alertMin && min >= bd.alertMin;
+        }
+      } else if (bd.k === 'lights') {
+        const n = lights.filter((l) => isOn(this.store.get(l))).length;
+        text = n ? `${n} on` : '';
+      } else if (bd.k === 'entity' && bd.id && this.store.get(bd.id)) text = formatState(this.store, bd.id);
+      badge.textContent = text;
+      badge.style.display = text ? '' : 'none';
+      badge.classList.toggle('alert', alert);
+    };
+    card.update = () => { base(); decorate(); };
+    card.tick = () => { baseTick?.(); if (bd?.k === 'since' && Date.now() - lastSince > 15000) { lastSince = Date.now(); decorate(); } };
   }
 
   // ------------------------------------------------------------------ cards

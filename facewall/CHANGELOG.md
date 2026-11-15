@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.18.0
+- **Show a tile only when it matters** (tile Options → Show the tile): always, only while it's on/open/playing, or depending on another device (on/off, equals, above, below). Hidden tiles free their space; while editing the layout they show faded.
+- **Badges** (tile Options → Badge): how long it's been on or open (turns orange after the time you pick, e.g. a door left open), how many lights are on in a light group or the tile's room, or any sensor's value (battery, temperature…).
+
 ## 1.17.0
 - **Scenes row** (⚙︎ → Tiles on page → Scenes row → Add): one tile with a row of one-tap buttons for scenes, scripts and buttons, each in its own colour (or the theme's). Choose and order the buttons in its Options. Square tiles stack the buttons in two columns.
 

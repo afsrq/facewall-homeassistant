@@ -837,6 +837,28 @@ class App {
         if (c && c2) it[sl.key + '2'] = c2; else delete it[sl.key + '2'];
       }))));
     }
+    // Show the tile only when something is true, and a badge in its corner.
+    const DEP_GROUPS = [['Binary sensors', ['binary_sensor']], ['Sensors', ['sensor']], ['Covers and doors', ['cover', 'lock']], ['Lights and switches', ['light', 'switch', 'input_boolean', 'fan']], ['Media', ['media_player']], ['People', ['person', 'device_tracker']], ['Other', ['vacuum', 'climate', 'alarm_control_panel', 'input_select', 'water_heater']]];
+    const special = item.id === ALL_OFF || item.id === SCENES;
+    const sw = item.showWhen;
+    const swMode = !sw ? 'always' : !special && sw.id === item.id && sw.op === 'active' ? 'active' : 'other';
+    rows.push(row('Show the tile', segmented([{ v: 'always', label: 'Always' }, ...(special ? [] : [{ v: 'active', label: 'Only when on / open' }]), { v: 'other', label: 'Depends on…' }], swMode, (v) => set((it) => {
+      if (v === 'always') delete it.showWhen;
+      else if (v === 'active') it.showWhen = { id: it.id, op: 'active' };
+      else it.showWhen = { id: sw?.id && sw.id !== it.id ? sw.id : '', op: 'active' };
+    })), swMode === 'always' ? 'Hidden tiles stay visible (faded) while you edit the layout' : swMode === 'active' ? 'e.g. the garage appears only while it’s open' : null));
+    if (swMode === 'other') {
+      rows.push(row('When', entitySelect(this.store, sw.id || null, DEP_GROUPS, (v) => set((it) => { it.showWhen.id = v || ''; }), 'Choose…')));
+      const ops = [{ v: 'active', label: 'is on / open' }, { v: 'inactive', label: 'is off / closed' }, { v: 'is', label: 'is…' }, { v: 'above', label: 'above' }, { v: 'below', label: 'below' }];
+      rows.push(row('Is', h('div.icon-ctl', {}, segmented(ops, sw.op || 'active', (v) => set((it) => { it.showWhen.op = v; })),
+        ['is', 'above', 'below'].includes(sw.op) ? h('input.text-in', { value: sw.value ?? '', placeholder: sw.op === 'is' ? 'e.g. home' : 'e.g. 25', style: { width: '110px' }, onchange: (e) => set((it) => { it.showWhen.value = e.target.value.trim(); }) }) : null)));
+    }
+    const bd = item.badge || {};
+    const badgeKinds = [{ v: '', label: 'None' }, ...(special ? [] : [{ v: 'since', label: 'Time on / open' }]), ...(item.id === SCENES ? [] : [{ v: 'lights', label: 'Lights on' }]), { v: 'entity', label: 'A sensor' }];
+    rows.push(row('Badge', segmented(badgeKinds, bd.k || '', (v) => set((it) => { if (v) it.badge = { k: v }; else delete it.badge; })),
+      bd.k === 'since' ? 'How long it’s been on or open' : bd.k === 'lights' ? 'Lights on in this group or room' : bd.k === 'entity' ? 'e.g. a battery or temperature' : 'A small label in the tile’s corner'));
+    if (bd.k === 'since') rows.push(row('Turn orange after', segmented([{ v: 0, label: 'Never' }, { v: 5, label: '5 min' }, { v: 10, label: '10 min' }, { v: 30, label: '30 min' }, { v: 60, label: '1 hour' }], bd.alertMin || 0, (v) => set((it) => { if (v) it.badge.alertMin = v; else delete it.badge.alertMin; })), 'e.g. a door left open'));
+    if (bd.k === 'entity') rows.push(row('Sensor', entitySelect(this.store, bd.id || null, [['Sensors', ['sensor']], ['Binary sensors', ['binary_sensor']]], (v) => set((it) => { if (v) it.badge.id = v; else delete it.badge.id; }), 'Choose…')));
     const kind = kindFor(item);
     const alike = pageOf(this.settings, pageId).entities.filter((e, j) => j !== i && e?.id && kindFor(e) === kind);
     if (alike.length && slots.some((sl) => item[sl.key])) {

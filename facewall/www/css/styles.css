@@ -690,6 +690,15 @@ body:not(.mouse) .icon-del { display: grid; }
 .cv-unlock { font-size: 17px; padding: 12px 20px; }
 .cv-unlock.armed { background: #ff9f0a; color: #241300; }
 
+/* ------------------------------------------------------------ show-when and badges */
+.home-grid:not(.editing) > .card.cond-hidden { display: none; }
+.home-grid.editing > .card.cond-hidden { opacity: 0.45; }
+.tile-badge { position: absolute; top: clamp(8px, 5cqmin, 14px); right: clamp(8px, 5cqmin, 14px); z-index: 2; padding: 3px 9px; border-radius: 99px; font-size: clamp(11px, 5.5cqmin, 14px); font-weight: 750;
+  background: rgba(0,0,0,0.28); color: #fff; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-variant-numeric: tabular-nums; white-space: nowrap; }
+body.theme-light .tile-badge { background: rgba(0,0,0,0.12); color: inherit; }
+.tile-badge.alert { background: #ff9f0a; color: #241300; }
+.card.icon-tr .tile-badge { right: auto; left: clamp(8px, 5cqmin, 14px); }
+
 /* ------------------------------------------------------------ scenes row */
 .scenes { padding: calc(var(--gap, 16px) * 0.5); }
 .sc-wrap { height: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: calc(var(--gap, 16px) * 0.5); }
