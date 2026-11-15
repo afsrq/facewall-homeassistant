@@ -3,7 +3,7 @@ import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
 import { HomePage, cameraUrl, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
-import { loadIcons, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
+import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { inHaPanel, setHaKiosk, openHaMenu } from './hapanel.js';
 import { FONTS, WEIGHTS, SEPARATORS, PARTS, DATE_FORMATS, fmtDate, defaultHeader, headerOf, headerSegments, headerContent, headerVars, weatherEntity } from './header.js';
@@ -635,6 +635,11 @@ class App {
           } }),
           h('span.ent-sub.count', { text: `${p.entities.length} tile${p.entities.length === 1 ? '' : 's'}` }),
           h('button.pill.sm' + (p.id === editPage ? '.primary' : ''), { text: p.id === editPage ? 'Editing' : 'Edit', onclick: () => { editPage = p.id; openTile = null; render(); } }),
+          h('button.icon-btn.sm', { html: icon('copy'), 'aria-label': 'Copy this page', onclick: () => {
+            const id = 'p-' + uid();
+            this.update((x) => { const src = pageOf(x, p.id); x.pages.splice(i + 1, 0, { ...structuredClone(src), id, name: `${src.name} copy` }); });
+            editPage = id; this.renderRooms(); render(); toast(`Copied “${p.name}”. Rename it and change its tiles.`);
+          } }),
           h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move page up', disabled: i === 0, onclick: () => mv(-1) }),
           h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move page down', disabled: i === s.pages.length - 1, onclick: () => mv(1) }),
           armedDelete === p.id
@@ -687,8 +692,7 @@ class App {
           h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move up', disabled: i === 0, onclick: () => { openTile = null; upd((a) => a.splice(i - 1, 0, a.splice(i, 1)[0])); } }),
           h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move down', disabled: i === ents.length - 1, onclick: () => { openTile = null; upd((a) => a.splice(i + 1, 0, a.splice(i, 1)[0])); } }),
           h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => { openTile = null; upd((a) => a.splice(i, 1)); } })));
-        if (isOpen) list.append(h('div.ent-edit', {}, ...this.tileOptionRows(editPage, i, render),
-          h('button.pill.sm', { html: icon('plus') + '<span>Add another copy</span>', onclick: () => { upd((a) => a.splice(i + 1, 0, { id })); toast('Added a copy. Give it a different style or size.'); } })));
+        if (isOpen) list.append(h('div.ent-edit', {}, ...this.tileOptionRows(editPage, i, render), this.tileCopyRow(editPage, i, () => { this.renderRooms(); render(); })));
       });
       if (!ents.length) list.append(h('div.ent-empty', { text: 'No tiles on this page yet.' }));
       const hasAllOff = ents.some((e) => e.id === ALL_OFF);
@@ -723,7 +727,14 @@ class App {
         : st.connected ? `Connected to Home Assistant${st.haVersion ? ' ' + st.haVersion : ''}` : `Not connected${st.error ? ': ' + st.error : ''}`;
       const aboutSec = section('Connection', h('div.about', { text: conn }),
         h('div.about.small', { text: 'Tip: hold the clock to change faces and swipe for your pages. With a mouse: right-click the clock, use the ‹ › arrows or ← → keys, and Esc to close panels.' }));
-      sh.body.append(appearanceSec, screenSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, aboutSec);
+      // ---------------- Backup
+      const restoreIn = h('input', { type: 'file', accept: '.json,application/json', style: { display: 'none' } });
+      restoreIn.addEventListener('change', async () => { const f = restoreIn.files[0]; restoreIn.value = ''; if (f) await this.restoreBackup(f); render(); });
+      const backupSec = section('Backup',
+        row('Save a backup', h('button.pill.sm', { html: icon('download') + '<span>Download</span>', onclick: () => this.downloadBackup() }), 'Every page, tile, theme, header, screen and doorbell setting, plus your uploaded icons, in one file'),
+        row('Restore a backup', h('button.pill.sm', { html: icon('upload') + '<span>Choose file…</span>', onclick: () => restoreIn.click() }), 'Replaces the current setup on every screen'),
+        restoreIn);
+      sh.body.append(appearanceSec, screenSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, backupSec, aboutSec);
     };
     render();
   }
@@ -857,14 +868,59 @@ class App {
       if (!it) return sh.close();
       sh.setTitle(tileName(this.store, it));
       sh.body.innerHTML = '';
-      sh.body.append(...this.tileOptionRows(pageId, i, render), h('div.sheet-actions', {},
-        h('button.pill', { html: icon('plus') + '<span>Add another copy</span>', onclick: () => {
-          this.update((x) => { pageOf(x, pageId).entities.splice(i + 1, 0, { id: it.id }); });
-          this.roomFor(pageId)?.render(); toast('Added a copy next to it. Give it a different style or size.');
-        } }),
+      sh.body.append(...this.tileOptionRows(pageId, i, render), this.tileCopyRow(pageId, i, () => { this.renderRooms(); render(); }), h('div.sheet-actions', {},
         h('button.pill.danger-pill', { text: 'Remove tile', onclick: () => { this.update((x) => { pageOf(x, pageId).entities.splice(i, 1); }); this.roomFor(pageId)?.render(); sh.close(); } })));
     };
     render();
+  }
+
+  /** Duplicate a tile (with all its settings) next to it, or copy it to another page. */
+  tileCopyRow(pageId, i, after) {
+    const pages = this.settings.pages || [];
+    const sel = h('select.select');
+    sel.append(h('option', { value: '', text: 'Copy to another page…' }));
+    for (const p of pages) if (p.id !== pageId) sel.append(h('option', { value: p.id, text: p.name }));
+    sel.disabled = pages.length < 2;
+    sel.onchange = () => {
+      const to = sel.value; if (!to) return;
+      const item = pageOf(this.settings, pageId)?.entities?.[i];
+      if (!item) return;
+      this.update((x) => { pageOf(x, to).entities.push(structuredClone(item)); });
+      toast(`Copied to ${pageOf(this.settings, to)?.name}`); sel.value = ''; after?.();
+    };
+    return h('div.icon-ctl.copy-row', {},
+      h('button.pill.sm', { html: icon('copy') + '<span>Duplicate</span>', onclick: () => {
+        this.update((x) => { const a = pageOf(x, pageId).entities; a.splice(i + 1, 0, structuredClone(a[i])); });
+        toast('Duplicated, with the same size, style, icon and colours'); after?.();
+      } }),
+      sel);
+  }
+
+  /** Download every setting (and uploaded icons) as one file. */
+  async downloadBackup() {
+    await loadCustom(true);
+    const icons = {};
+    for (const c of customList()) if (c.source === 'upload' || !c.source) icons[c.name] = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${c.vb}">${c.body}</svg>`;
+    const data = { app: 'facewall', kind: 'backup', created: new Date().toISOString(), settings: this.settings, icons };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `facewall-backup-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('Backup downloaded');
+  }
+
+  /** Restore a backup file: settings for every screen, and its icons. */
+  async restoreBackup(file) {
+    let data;
+    try { data = JSON.parse(await file.text()); } catch { return toast('That file isn’t a Facewall backup', 'error'); }
+    if (data?.app !== 'facewall' || !data.settings || !Array.isArray(data.settings.pages)) return toast('That file isn’t a Facewall backup', 'error');
+    if (!confirm(`Restore the backup from ${new Date(data.created).toLocaleString()}? It replaces the current setup on every screen.`)) return;
+    const icons = Object.entries(data.icons || {}).map(([n, svg]) => new File([svg], n + '.svg', { type: 'image/svg+xml' }));
+    if (icons.length) await uploadIcons(icons);
+    const restored = structuredClone(data.settings); migrate(restored);
+    this.update((x) => { for (const k of Object.keys(x)) delete x[k]; Object.assign(x, restored); });
+    this.appliedTheme = null; this.syncTheme(); this.renderFace(); this.renderRooms();
+    toast(`Restored: ${data.settings.pages.length} page${data.settings.pages.length === 1 ? '' : 's'}${icons.length ? `, ${icons.length} icon${icons.length === 1 ? '' : 's'}` : ''}`);
   }
 
   /** Icon picker: Home Assistant (MDI), Font Awesome Free and your own icons (e.g. Font Awesome Pro SVGs). */

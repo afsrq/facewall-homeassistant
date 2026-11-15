@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.0
+- **Duplicate a tile** with everything about it (size, style, icon, name, colours) from its Options, or **copy it to another page**.
+- **Copy a page** (⚙︎ → Pages → copy button): a ready-made starting point for the next room.
+- **Backup and restore** (⚙︎ → Backup): download every page, tile, theme, header, screen and doorbell setting plus your uploaded icons as one file, and restore it later.
+
 ## 1.15.0
 - **Screen off and wake on motion** (⚙︎ → This screen): the screen goes black after 5 min – 1 hour with nobody touching it or moving in the room, and a Home Assistant motion or presence sensor wakes it (it also stays on while the sensor sees someone). Tap to wake; choose whether it wakes to the clock, this iPad's page, or where it was. The doorbell wakes it too.
 - **Night theme per iPad** (⚙︎ → Appearance): switch to another theme (e.g. Walnut or Desert Dusk) at sunset and back at sunrise, or at set times.

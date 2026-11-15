@@ -69,6 +69,12 @@ Add a speaker, TV or other media player (Add tiles → *Media*). The tile shows 
 - **Camera tiles** (Add tiles → *Cameras*) show a picture that refreshes every 10 seconds while the tile is on screen. Tap one for live video.
 - **Doorbell pop-up**: ⚙︎ → *Doorbell pop-up* → pick what rings (a doorbell button or binary sensor, an `event.` entity from a video doorbell, or any helper), the camera to show and, if you like, your door lock. When it rings, every iPad wakes up and shows the camera full screen with **Unlock the door** (tap twice, like the lock tile) and **Dismiss**. It closes by itself after 30 s to 5 min. Turn *Show on this iPad* off for screens that shouldn't pop up (a bedroom, say). **Try it** shows the pop-up so you can check the camera.
 
+## Copies and backups
+
+- **Duplicate** (a tile's Options): an exact copy next to it. **Copy to another page** puts the same tile on another page.
+- **Copy a page** (⚙︎ → *Pages*, the copy button): duplicates the page with all its tiles and grid.
+- **Backup** (⚙︎ → *Backup*): *Download* saves everything (pages, tiles, themes, header, screens, doorbell, uploaded icons) in one file; *Restore* puts it back on every screen.
+
 ## Weather
 
 Add your weather entity (Add tiles → *Weather*). Make the tile wider for more days, or taller for a day list with temperature bars. Its **Style** chooses a *Daily* or *Hourly* forecast; tap the tile for both.
