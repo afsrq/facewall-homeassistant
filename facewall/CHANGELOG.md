@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.17.0
+- **Scenes row** (⚙︎ → Tiles on page → Scenes row → Add): one tile with a row of one-tap buttons for scenes, scripts and buttons, each in its own colour (or the theme's). Choose and order the buttons in its Options. Square tiles stack the buttons in two columns.
+
 ## 1.16.0
 - **Duplicate a tile** with everything about it (size, style, icon, name, colours) from its Options, or **copy it to another page**.
 - **Copy a page** (⚙︎ → Pages → copy button): a ready-made starting point for the next room.

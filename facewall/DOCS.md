@@ -75,6 +75,10 @@ Add a speaker, TV or other media player (Add tiles → *Media*). The tile shows 
 - **Copy a page** (⚙︎ → *Pages*, the copy button): duplicates the page with all its tiles and grid.
 - **Backup** (⚙︎ → *Backup*): *Download* saves everything (pages, tiles, themes, header, screens, doorbell, uploaded icons) in one file; *Restore* puts it back on every screen.
 
+## Scenes row
+
+⚙︎ → *Tiles on page* → **Scenes row** → *Add* puts one tile on the page with buttons for your scenes. In its Options, add scenes, scripts or buttons, put them in order, and choose colourful buttons or the theme's colour. Make the tile wide and short for a row, or square for a 2-column grid.
+
 ## Weather
 
 Add your weather entity (Add tiles → *Weather*). Make the tile wider for more days, or taller for a day list with temperature bars. Its **Style** chooses a *Daily* or *Hourly* forecast; tap the tile for both.

@@ -1,7 +1,7 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, cameraUrl, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
+import { HomePage, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
@@ -700,6 +700,11 @@ class App {
         h('button.pill.wide.primary', { html: icon('grid') + '<span>Edit layout on screen</span>', onclick: () => { sh.close(); this.goToRoom(editPage); this.roomFor(editPage)?.setEditing(true); } }),
         list,
         h('button.pill.wide', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.entityBrowser(editPage, () => { render(); refreshRoom(); }) }),
+        row('Scenes row', h('button.pill.sm', { html: icon('plus') + '<span>Add</span>', onclick: () => {
+          const pick = this.store.list(['scene']).map((x) => x.entity_id);
+          upd((a) => a.push({ id: SCENES, scenes: pick.slice(0, 4) }));
+          toast('Added a scenes row. Choose its buttons in the tile’s Options.');
+        } }), 'One tile with a row of one-tap scene and script buttons'),
         row('“All lights off” tile', toggle(hasAllOff, (v) => upd((a) => { const k = a.findIndex((e) => e.id === ALL_OFF); if (v && k < 0) a.push({ id: ALL_OFF }); if (!v && k >= 0) a.splice(k, 1); })), 'Turns off every light on this page'));
       const setL = (k, v) => { this.update((x) => { const p2 = pageOf(x, editPage); p2.layout = { ...(p2.layout || {}), [k]: v }; }); refreshRoom(); render(); };
       const layoutSec = section(`Grid on “${pg.name}”`,
@@ -797,8 +802,17 @@ class App {
       const cur = styleOf(item);
       rows.push(row('Style', segmented(styles.map((x) => ({ v: x.v, label: x.label })), cur, (v) => set((it) => { it.style = v; delete it.timer; })), styles.find((x) => x.v === cur)?.sub));
     }
-    const haIcon = item.id !== ALL_OFF && this.store.get(item.id)?.attributes?.icon;
-    rows.push(row('Icon', h('div.icon-ctl', {},
+    if (item.id === SCENES) {
+      const list = item.scenes || [];
+      rows.push(...list.map((sid, j) => row(this.store.name(sid) || sid, h('div.icon-ctl', {},
+        h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Earlier', disabled: j === 0, onclick: () => set((it) => { it.scenes.splice(j - 1, 0, it.scenes.splice(j, 1)[0]); }) }),
+        h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Later', disabled: j === list.length - 1, onclick: () => set((it) => { it.scenes.splice(j + 1, 0, it.scenes.splice(j, 1)[0]); }) }),
+        h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => set((it) => { it.scenes.splice(j, 1); }) })), j === 0 ? 'Buttons, in order' : null)));
+      rows.push(row('Add a button', entitySelect(this.store, null, [['Scenes', ['scene']], ['Scripts', ['script']], ['Buttons', ['button', 'input_button']]], (v) => { if (v) set((it) => { (it.scenes ||= []).push(v); }); }, 'Choose…')));
+      rows.push(row('Button colours', segmented([{ v: false, label: 'Colourful' }, { v: true, label: 'Theme' }], !!item.plain, (v) => set((it) => { if (v) it.plain = true; else delete it.plain; }))));
+    }
+    const haIcon = item.id !== ALL_OFF && item.id !== SCENES && this.store.get(item.id)?.attributes?.icon;
+    if (item.id !== SCENES) rows.push(row('Icon', h('div.icon-ctl', {},
       h('span.icon-prev', { html: iconHtml(this.store, item, tileIcon(item.id)) }),
       h('button.pill.sm', { text: 'Choose…', onclick: () => this.iconPicker(item.icon || haIcon, (name) => set((it) => { if (name) it.icon = name; else delete it.icon; })) }),
       item.icon ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.icon; }) }) : null),
@@ -813,7 +827,7 @@ class App {
     const slider = h('input.range', { type: 'range', min: 50, max: 300, step: 10, value: Math.round(scale * 100), 'aria-label': 'Icon size' });
     slider.addEventListener('input', () => { sizeLabel.textContent = `${slider.value}%`; });
     slider.addEventListener('change', () => set((it) => { const v = Number(slider.value) / 100; if (v === 1) delete it.iconScale; else it.iconScale = v; }));
-    rows.push(row('Icon size', h('div.range-ctl', {}, slider, sizeLabel,
+    if (item.id !== SCENES) rows.push(row('Icon size', h('div.range-ctl', {}, slider, sizeLabel,
       scale !== 1 ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.iconScale; }) }) : null)));
     // Tile colours: one for when it's on (or unlocked, running…) and one for when it's off.
     const slots = colorSlots(item);

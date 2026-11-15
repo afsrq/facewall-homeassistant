@@ -10,10 +10,11 @@ const ACTIONS = ['scene', 'script', 'button', 'input_button'];
 export const TIMER_OK = (id) => ['switch', 'input_boolean', 'fan', 'water_heater', 'light'].includes(domainOf(id));
 
 export const ALL_OFF = '_alloff';
+export const SCENES = '_scenes';
 /** A tile's label: its custom name, or the entity's name. Accepts a tile item or an entity id. */
 export const tileName = (store, x) => {
   const item = typeof x === 'string' ? { id: x } : x || {};
-  return item.name || (item.id === ALL_OFF ? 'All lights off' : store.name(item.id));
+  return item.name || (item.id === ALL_OFF ? 'All lights off' : item.id === SCENES ? 'Scenes' : store.name(item.id));
 };
 /** Icon markup for a tile: the tile's own icon, else the entity's Home Assistant icon, else the built-in one. */
 export function iconHtml(store, item, fallback) {
@@ -33,7 +34,7 @@ export const ICON_MOVABLE = ['light', 'toggle', 'action', 'cover', 'sensor', 'al
 export const ICON_POSITIONS = [{ v: 'tl', label: 'Top left' }, { v: 'tr', label: 'Top right' }, { v: 'center', label: 'Middle' }];
 export const NAME_POSITIONS = [{ v: 'bottom', label: 'Bottom' }, { v: 'below', label: 'Under icon' }, { v: 'above', label: 'Above icon' }];
 export const styleOf = (item) => item.style || (item.timer ? 'timer' : stylesFor(item.id)[0]?.v || null);
-export const tileIcon = (id) => (id === ALL_OFF ? 'bulbOff' : domainIcon(domainOf(id)));
+export const tileIcon = (id) => (id === ALL_OFF ? 'bulbOff' : id === SCENES ? domainIcon('scene') : domainIcon(domainOf(id)));
 export const MAX_H = 6;
 // Tile sizes are in columns/rows with 0.1 steps; the grid has SUB fine tracks per column and per row.
 export const SUB = 10;
@@ -44,6 +45,7 @@ export const pageOf = (settings, pageId) => settings?.pages?.find((p) => p.id ==
 
 export function kindFor(item) {
   if (item.id === ALL_OFF) return 'alloff';
+  if (item.id === SCENES) return 'scenes';
   const d = domainOf(item.id);
   if (d === 'climate') return 'climate';
   if (d === 'weather') return 'weather';
@@ -60,7 +62,8 @@ export function kindFor(item) {
 }
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
-  const def = ['climate', 'weather', 'media', 'camera'].includes(kindFor(item)) ? [2, 1] : [1, 1];
+  const k = kindFor(item);
+  const def = k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -126,7 +129,7 @@ const lum = ([r, g, b]) => (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 /** The colour slots a tile offers (key in the tile's settings + label). "on" means the tile's active state. */
 export function colorSlots(item) {
   const k = kindFor(item);
-  if (k === 'sensor' || k === 'weather') return [{ key: 'offColor', label: 'Tile colour', def: 'Default' }];
+  if (k === 'sensor' || k === 'weather' || k === 'scenes') return [{ key: 'offColor', label: 'Tile colour', def: 'Default' }];
   if (k === 'lock') return [{ key: 'onColor', label: 'Unlocked colour', def: 'Amber' }, { key: 'offColor', label: 'Locked colour', def: 'Theme' }];
   if (k === 'action') return [{ key: 'onColor', label: 'Colour when tapped', def: 'Theme' }, { key: 'offColor', label: 'Tile colour', def: 'Theme' }];
   if (k === 'alloff') return [{ key: 'onColor', label: 'Colour while lights are on', def: 'Theme' }, { key: 'offColor', label: 'Colour when all are off', def: 'Theme' }];
@@ -383,7 +386,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -610,6 +613,28 @@ export class HomePage {
       h('div.tile-bottom', {}, val, h('div.tile-name', { text: tileName(st, item) })));
     const update = () => { val.textContent = formatState(st, id); };
     return { id, el, update };
+  }
+
+  // ------------------------------------------------------------------ scenes row
+  scenesCard(id, item = { id: SCENES }) {
+    const st = this.store;
+    const ids = (item.scenes || []).filter(Boolean);
+    const PAL = ['#e8b13a', '#2f7f7a', '#d9822b', '#5e5ce6', '#ff375f', '#1fa3a0', '#bf5af2', '#30d158'];
+    const wrap = h('div.sc-wrap');
+    const el = h('div.card.scenes' + (item.plain ? '.plain' : ''), {}, wrap);
+    const run = (sid, b) => {
+      const d = domainOf(sid);
+      st.call(d, d === 'button' || d === 'input_button' ? 'press' : 'turn_on', {}, { entity_id: sid });
+      b.classList.add('fired'); setTimeout(() => b.classList.remove('fired'), 1200);
+    };
+    ids.forEach((sid, i) => {
+      const c = PAL[i % PAL.length];
+      const b = h('button.sc-btn', { style: item.plain ? {} : { '--sc': c }, onclick: (e) => { e.stopPropagation(); if (!this.editing) run(sid, b); } },
+        h('span.sc-ic', { html: iconHtml(st, { id: sid }, domainIcon(domainOf(sid))) }), h('span.sc-name', { text: st.name(sid) || sid }));
+      wrap.append(b);
+    });
+    if (!ids.length) wrap.append(h('div.sc-empty', { text: 'Choose scenes in this tile’s Options' }));
+    return { id, el, update: () => {} };
   }
 
   // ------------------------------------------------------------------ camera

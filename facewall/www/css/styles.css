@@ -690,6 +690,23 @@ body:not(.mouse) .icon-del { display: grid; }
 .cv-unlock { font-size: 17px; padding: 12px 20px; }
 .cv-unlock.armed { background: #ff9f0a; color: #241300; }
 
+/* ------------------------------------------------------------ scenes row */
+.scenes { padding: calc(var(--gap, 16px) * 0.5); }
+.sc-wrap { height: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: calc(var(--gap, 16px) * 0.5); }
+@container (max-aspect-ratio: 1.4) { .sc-wrap { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); grid-auto-rows: 1fr; grid-auto-columns: auto; } }
+.sc-btn { --sc: var(--t-on-bg); display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px; min-width: 0; padding: clamp(8px, 7cqh, 16px) clamp(10px, 4cqw, 16px);
+  border-radius: 16px; background: color-mix(in srgb, var(--sc) 22%, transparent); color: inherit; text-align: left; transition: transform 0.15s, background 0.3s; }
+.sc-btn .sc-ic { font-size: clamp(18px, 22cqh, 30px); color: var(--sc); line-height: 0; }
+.scenes.plain .sc-btn { background: var(--t-soft); }
+.scenes.plain .sc-btn .sc-ic { color: var(--t-on-icon); }
+.sc-name { font-weight: 700; font-size: clamp(12px, 14cqh, 17px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sc-btn:active { transform: scale(0.96); }
+.sc-btn.fired { background: var(--sc); color: #fff; }
+.sc-btn.fired .sc-ic { color: #fff; }
+.scenes.plain .sc-btn.fired { background: var(--t-on-bg); color: var(--t-on-text); }
+@container (max-height: 90px) { .sc-btn { flex-direction: row; align-items: center; justify-content: flex-start; } }
+.sc-empty { display: grid; place-items: center; opacity: 0.6; font-size: 14px; grid-column: 1 / -1; }
+
 /* ------------------------------------------------------------ custom tile colours (per tile On / Off colour) */
 .card.tc-off:not(:is(.light.on, .toggle.on, .cover.on, .climate.on, .timer.on, .action.fired, .lock.unlocked, .alloff:not(.dim))) {
   background: var(--tc-off-bg) !important; color: var(--tc-off-fg);
