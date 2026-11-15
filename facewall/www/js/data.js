@@ -69,6 +69,13 @@ export class Store extends EventTarget {
 
   // ---- actions
   call(domain, service, data = {}, target) { return this.adapter.call(domain, service, data, target); }
+  /** Call a service that answers (e.g. Music Assistant search). Resolves to the response, or throws. */
+  ask(domain, service, data = {}, target) { return this.adapter.ask ? this.adapter.ask(domain, service, data, target) : Promise.reject(new Error('not supported')); }
+  /** { entities: { id: { pl: integration, di: device } }, ma: [Music Assistant entry ids] } — fetched once, then cached. */
+  registry(fresh) {
+    if (!this._reg || fresh) this._reg = (this.adapter.registry ? this.adapter.registry() : Promise.resolve(null)).then((r) => r || { entities: {}, ma: [] }).catch(() => { this._reg = null; return { entities: {}, ma: [] }; });
+    return this._reg;
+  }
 
   /** Toggle / activate an entity in the most sensible way for its domain. Returns the expected new "on" state. */
   activate(id) {
@@ -206,6 +213,10 @@ class ServerAdapter {
     try { await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target }) }); }
     catch (e) { this.store.dispatchEvent(new CustomEvent('error', { detail: e.message })); }
   }
+  async ask(domain, service, data, target) {
+    return (await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target, response: true }) }, 30000)).response;
+  }
+  async registry() { return fetchJSON('api/registry', {}, 20000); }
   async photos(folder) {
     try { return await fetchJSON(`api/photos?folder=${encodeURIComponent(folder || '')}`, {}, 30000); } catch (e) { return { roots: [], files: [], error: e.message }; }
   }
@@ -277,6 +288,8 @@ function demoStates() {
     st('camera.front_door', 'idle', { friendly_name: 'Front Door Camera' }),
     st('binary_sensor.living_room_motion', 'off', { friendly_name: 'Living Room Motion', device_class: 'motion' }),
     st('binary_sensor.doorbell', 'off', { friendly_name: 'Doorbell', device_class: 'occupancy' }),
+    st('media_player.living_room_tv', 'playing', { friendly_name: 'Living Room TV', media_title: 'Nature’s Wonders', media_series_title: 'Episode 3', app_name: 'TV', source: 'TV', source_list: ['TV', 'Netflix', 'YouTube', 'Disney+', 'Prime Video', 'Plex', 'Music', 'Photos'], volume_level: 0.4, supported_features: 22463 }),
+    st('remote.living_room_tv', 'on', { friendly_name: 'Living Room TV' }),
     st('media_player.living_room_speaker', 'playing', { friendly_name: 'Living Room Speaker', ...DEMO_TRACKS[0], media_position: 74, media_position_updated_at: new Date().toISOString(),
       volume_level: 0.35, is_volume_muted: false, source: 'Spotify', source_list: ['Spotify', 'AirPlay', 'TV'], app_name: 'Spotify', supported_features: 152511 }),
     (() => { const t = new Date(); t.setHours(t.getHours() + 2, 30, 0, 0); const p = (n) => String(n).padStart(2, '0');
@@ -336,6 +349,7 @@ class DemoAdapter {
       const d = domainOf(id);
       const on = isOn(s);
       if (d === 'media_player') { this.media(id, s, service, data); continue; }
+      if (d === 'remote') { const tv = 'media_player.' + id.split('.')[1]; if (service === 'turn_off') this.set(tv, { state: 'standby' }); else if (service === 'turn_on') this.set(tv, { state: 'paused' }); continue; }
       if (d === 'vacuum') { const m = { start: 'cleaning', pause: 'paused', return_to_base: 'returning', stop: 'idle' }[service]; if (m) { this.set(id, { state: m }); if (m === 'returning') setTimeout(() => this.set(id, { state: 'docked' }), 2500); } continue; }
       if (d === 'alarm_control_panel') {
         if (service === 'alarm_disarm') { if (data.code === '1234') this.set(id, { state: 'disarmed' }); else this.store.dispatchEvent(new CustomEvent('error', { detail: 'Wrong code (the demo code is 1234)' })); }
@@ -379,6 +393,9 @@ class DemoAdapter {
     }
   }
 
+  async registry() {
+    return { entities: { 'media_player.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'remote.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'media_player.living_room_speaker': { pl: 'music_assistant', di: 'sp1' } }, ma: ['demo'] };
+  }
   /** Made-up 'photos' for the demo: painted skies and hills. */
   async photos(folder) {
     if (!folder) return { roots: ['media', 'share'], files: [] };
@@ -438,7 +455,8 @@ class DemoAdapter {
       case 'media_previous_track': track(-1); break;
       case 'volume_set': this.set(id, {}, { volume_level: data.volume_level, is_volume_muted: false }); break;
       case 'volume_mute': this.set(id, {}, { is_volume_muted: !!data.is_volume_muted }); break;
-      case 'select_source': this.set(id, {}, { source: data.source }); break;
+      case 'select_source': this.set(id, {}, { source: data.source, ...(id.endsWith('_tv') ? { app_name: data.source, media_title: data.source === 'TV' ? 'Nature’s Wonders' : null, media_series_title: data.source === 'TV' ? 'Episode 3' : null } : {}) }); break;
+      case 'volume_up': case 'volume_down': this.set(id, {}, { volume_level: Math.max(0, Math.min(1, (a.volume_level || 0) + (service === 'volume_up' ? 0.05 : -0.05))) }); break;
       case 'turn_off': this.set(id, { state: 'off' }); break;
       case 'turn_on': this.set(id, { state: 'paused' }, { media_position_updated_at: now }); break;
     }

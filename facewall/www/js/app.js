@@ -891,6 +891,7 @@ class App {
       (item.calendars || []).forEach((c, j) => rows.push(row(this.store.name(c) || c, h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => set((it) => { it.calendars.splice(j, 1); }) }), j === 0 ? 'Also shown here' : null)));
       rows.push(row('Add another calendar', entitySelect(this.store, null, [['Calendars', ['calendar']]], (v) => { if (v && v !== item.id) set((it) => { (it.calendars ||= []).includes(v) || it.calendars.push(v); }); }, 'Choose…'), 'Each calendar gets its own colour'));
     }
+    if (kindFor(item) === 'remote') rows.push(row('Remote', entitySelect(this.store, item.remote, [['Remotes', ['remote']]], (v) => set((it) => { if (v) it.remote = v; else delete it.remote; }), 'Find it for me'), 'Usually found on its own (same device). Pick one if the arrows don’t work.'));
     if (kindFor(item) === 'graph') rows.push(row('Time span', segmented([{ v: 6, label: '6 h' }, { v: 24, label: '24 h' }, { v: 48, label: '2 days' }, { v: 168, label: '7 days' }], item.hours || 24, (v) => set((it) => { if (v === 24) delete it.hours; else it.hours = v; }))));
     // Show the tile only when something is true, and a badge in its corner.
     const DEP_GROUPS = [['Binary sensors', ['binary_sensor']], ['Sensors', ['sensor']], ['Covers and doors', ['cover', 'lock']], ['Lights and switches', ['light', 'switch', 'input_boolean', 'fan']], ['Media', ['media_player']], ['People', ['person', 'device_tracker']], ['Other', ['vacuum', 'climate', 'alarm_control_panel', 'input_select', 'water_heater']]];

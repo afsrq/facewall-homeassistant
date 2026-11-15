@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.29.0
+- **TV remote tile**: set a media player's tile Style to **TV remote** for a round touchpad (swipe or tap the arrows, tap OK), Back, Home, play/pause, volume and power, plus an **Apps** button that opens the TV's apps and inputs. Works with Apple TV, Roku, Android TV (and Fire TV via ADB), Google TV, LG webOS, Samsung, Sony Bravia and Philips. Facewall finds the TV's matching remote on its own; you can pick a different one in the tile's settings.
+
 ## 1.28.0
 - **Time as text on the hands-only faces** (Classic, Numerals, Roman, Gradient, Starburst, Atomic, Confetti): customize a face → Time as text. Put it in any corner, above or below the dial (the dial shrinks to make room), and pick the font, size, weight, colour, date underneath and AM/PM. In a corner it shrinks to fit beside the dial, and an info complication in the same corner moves out of its way.
 

@@ -5,6 +5,7 @@ import { h, press, sheet, toast } from './ui.js';
 import { headerOf, headerContent, headerVars } from './header.js';
 import { iconSvg } from './iconlib.js';
 import { Fx, fxMode } from './fx.js';
+import { remoteFor, touchpad } from './remote.js';
 
 const TOGGLES = ['switch', 'input_boolean', 'fan', 'automation', 'siren', 'humidifier'];
 const ACTIONS = ['scene', 'script', 'button', 'input_button'];
@@ -30,6 +31,7 @@ export function stylesFor(id) {
   if (d === 'weather') return [{ v: 'daily', label: 'Daily', sub: 'Next days · tap for hourly too' }, { v: 'hourly', label: 'Hourly', sub: 'Next hours · tap for daily too' }];
   if (d === 'climate') return [{ v: 'buttons', label: 'Buttons', sub: 'Up/down buttons and modes' }, { v: 'dial', label: 'Dial', sub: 'Drag around the ring to set the temperature' }];
   if (d === 'cover') return [{ v: 'button', label: 'Button', sub: 'Tap to open or close' }, { v: 'garage', label: 'Garage door', sub: 'An animated door (tap twice to move it)' }];
+  if (d === 'media_player') return [{ v: 'player', label: 'Now playing', sub: 'Artwork, title and play controls' }, { v: 'remote', label: 'TV remote', sub: 'Arrows, OK, back, home, volume and apps (Apple TV, Roku, Android/Fire TV, LG, Samsung, Sony)' }];
   if (d === 'sensor') return [{ v: 'value', label: 'Value', sub: 'The current reading' }, { v: 'graph', label: 'Graph', sub: 'The reading over time (choose how long below)' }, { v: 'ring', label: 'Ring', sub: 'A coloured ring: green, amber, red (great for CO₂, PM2.5, AQI)' }];
   return [];
 }
@@ -59,7 +61,7 @@ export function kindFor(item) {
   if (d === 'lock') return 'lock';
   if (d === 'light') return style === 'switch' ? 'toggle' : 'light';
   if (TOGGLES.includes(d)) return 'toggle';
-  if (d === 'media_player') return 'media';
+  if (d === 'media_player') return style === 'remote' ? 'remote' : 'media';
   if (d === 'camera') return 'camera';
   if (d === 'calendar') return 'calendar';
   if (d === 'cover') return style === 'garage' ? 'garage' : 'cover';
@@ -73,7 +75,7 @@ export function kindFor(item) {
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
   const k = kindFor(item);
-  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'vacuum' || k === 'alarm' ? [2, 1] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
+  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'remote' ? [1.5, 2] : k === 'vacuum' || k === 'alarm' ? [2, 1] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -516,7 +518,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard, vacuum: this.vacuumCard, alarm: this.alarmCard, airq: this.airqCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard, vacuum: this.vacuumCard, alarm: this.alarmCard, airq: this.airqCard, remote: this.remoteCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -1112,6 +1114,51 @@ export class HomePage {
       tick();
     };
     return { id, el, update, tick };
+  }
+
+  // ------------------------------------------------------------------ TV remote
+  remoteCard(id, item = { id }) {
+    const st = this.store;
+    let rm = remoteFor(st, null, id, item.remote);
+    st.registry().then((reg) => { rm = remoteFor(st, reg, id, item.remote); update(); });
+    const tap = (key) => (e) => { e.stopPropagation(); rm.press(key); navigator.vibrate?.(8); };
+    const btn = (key, ic, label, cls = '') => h('button.rm-btn' + cls, { html: icon(ic), 'aria-label': label, onclick: tap(key) });
+    const now = h('div.rm-now'), sub = h('div.rm-sub');
+    const power = h('button.rm-btn.rm-power', { html: icon('power'), 'aria-label': 'Power', onclick: tap('power') });
+    const pad = h('div.rm-pad', {},
+      btn('up', 'up', 'Up', '.rm-up'), btn('left', 'left', 'Left', '.rm-left'), btn('right', 'right', 'Right', '.rm-right'), btn('down', 'down', 'Down', '.rm-down'),
+      h('button.rm-ok', { text: 'OK', 'aria-label': 'OK', onclick: tap('ok') }));
+    touchpad(pad, (k) => { rm.press(k); navigator.vibrate?.(8); pad.dataset.flash = k; clearTimeout(pad._t); pad._t = setTimeout(() => { delete pad.dataset.flash; }, 180); });
+    const playBtn = btn('play', 'play', 'Play or pause');
+    const apps = h('button.rm-btn', { html: icon('grid'), 'aria-label': 'Apps', onclick: (e) => { e.stopPropagation(); this.appsSheet(id, item); } });
+    const row1 = h('div.rm-row', {}, btn('back', 'undo', 'Back'), btn('home', 'tv', 'Home'), playBtn);
+    const row2 = h('div.rm-row', {}, btn('voldown', 'minus', 'Volume down'), h('span.rm-vol', { html: icon('volume') }), btn('volup', 'plus', 'Volume up'), apps);
+    const el = h('div.card.remote', {},
+      h('div.card-head', {}, h('span.card-ic', { html: iconHtml(st, item, 'tv') }), h('div.card-titles', {}, h('div.card-title', { text: tileName(st, item) }), sub), power),
+      now, h('div.rm-padwrap', {}, pad), row1, row2);
+    press(el, { onTap: () => {}, onLong: () => this.mediaSheet(id, item) });
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const off = !s || ['off', 'standby', 'unavailable'].includes(s.state);
+      el.classList.toggle('on', !off);
+      el.classList.toggle('no-nav', !rm.canNavigate);
+      now.textContent = off ? (s?.state === 'unavailable' ? 'Unavailable' : 'Off') : [a.media_title, a.media_artist || a.media_series_title].filter(Boolean).join(' · ') || a.app_name || a.source || cap(s.state);
+      sub.textContent = rm.name || '';
+      playBtn.innerHTML = icon(s?.state === 'playing' ? 'pause' : 'play');
+      apps.style.display = (a.source_list || []).length ? '' : 'none';
+    };
+    return { id, el, update };
+  }
+  /** Apps / inputs to launch on a TV (its source list). */
+  appsSheet(id, item = { id }) {
+    const st = this.store, a = st.get(id)?.attributes || {};
+    const sh = sheet({ title: `${tileName(st, item)}: apps`, cls: 'apps-sheet' });
+    const grid = h('div.app-grid');
+    for (const src of a.source_list || []) {
+      grid.append(h('button.app-btn' + (src === a.source ? '.sel' : ''), { onclick: () => { st.call('media_player', 'select_source', { source: src }, { entity_id: id }); sh.close(); } },
+        h('span.app-ic', { text: src.replace(/[^A-Za-z0-9]/g, '').slice(0, 2) || '•', style: { '--hue': [...src].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7) } }), h('span.app-name', { text: src })));
+    }
+    sh.body.append(grid);
   }
 
   mediaSheet(id, item = { id }) {

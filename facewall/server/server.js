@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.28.0';
+const VERSION = '1.29.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -396,10 +396,27 @@ async function saveTimers() {
   broadcast('timers', timers);
   try { await writeJSON(TIMERS_FILE, timers); } catch (e) { log('Could not save timers:', e.message); }
 }
-async function callService(domain, service, data = {}, target) {
+async function callService(domain, service, data = {}, target, response = false) {
   const msg = { type: 'call_service', domain, service, service_data: data };
   if (target) msg.target = target;
+  if (response) msg.return_response = true;
   return haRequest(msg);
+}
+// Which integration each entity comes from and which device it belongs to (for TV remotes and Music Assistant).
+let registryCache = null, registryAt = 0;
+async function registry() {
+  if (registryCache && Date.now() - registryAt < 300000) return registryCache;
+  const out = { entities: {}, ma: [] };
+  try {
+    const r = await haRequest({ type: 'config/entity_registry/list_for_display' });
+    for (const e of r?.entities || []) if (e.ei && (e.pl || e.di)) out.entities[e.ei] = { pl: e.pl || null, di: e.di || null };
+  } catch (e) { log('Entity registry:', e.message); }
+  try {
+    const ce = await haRequest({ type: 'config_entries/get', domain: 'music_assistant' });
+    out.ma = (ce || []).filter((c) => c.state === 'loaded').map((c) => c.entry_id);
+  } catch { /* Music Assistant not installed */ }
+  registryCache = out; registryAt = Date.now();
+  return out;
 }
 async function checkTimers() {
   if (!ha.connected) return;
@@ -567,12 +584,16 @@ async function handleApi(req, res, route) {
   }
 
   if (route === 'service' && req.method === 'POST') {
-    const { domain, service, data, target } = await readBody(req);
+    const { domain, service, data, target, response } = await readBody(req);
     if (!NAME.test(domain || '') || !NAME.test(service || '')) return json(res, 400, { error: 'bad service' });
-    try { await callService(domain, service, data || {}, target); return json(res, 200, { ok: true }); }
+    try { const r = await callService(domain, service, data || {}, target, !!response); return json(res, 200, { ok: true, response: response ? r?.response ?? null : undefined }); }
     catch (e) { return json(res, 502, { error: e.message }); }
   }
 
+  if (route === 'registry' && req.method === 'GET') {
+    if (!ha.connected) return json(res, 503, { error: 'not connected' });
+    return json(res, 200, await registry());
+  }
   if (route === 'icons/custom' && req.method === 'GET') return json(res, 200, { icons: await customIcons() });
   if (route === 'icons/custom' && req.method === 'POST') {
     const { name, svg } = await readBody(req, 400000);

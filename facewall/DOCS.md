@@ -136,6 +136,9 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 
 ⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura); Palm Springs, Desert Pool and Desert Dusk (breeze blocks, Avenir Next); Craftsman, Spanish Revival, Scandinavian, Art Deco, Japandi and Farmhouse. Each brings its own background pattern and title font; more styles will follow.
 
+## TV remote
+Add the TV's **media player** as a tile, then edit it → Style → **TV remote**. Swipe on the round pad (or tap its arrows) to move, tap the middle for OK. Back, Home, play/pause, volume, power and **Apps** (the TV's source list) sit underneath. Facewall works out the brand from Home Assistant (Apple TV, Roku, Android TV Remote, Android TV/Fire TV over ADB, LG webOS, Samsung, Sony Bravia, Philips) and finds the remote entity on the same device. If the arrows don't work, choose the remote in the tile's settings. Hold the tile for the full now-playing sheet.
+
 ## Time as text on analog faces
 Hold the clock → Customize on Classic, Numerals, Roman, Gradient, Starburst, Atomic or Confetti → **Time as text**. Choose a corner, Above or Below (the dial shrinks to make room), then the font (same list as the page header), size, weight, colour and whether to show the date underneath.
 

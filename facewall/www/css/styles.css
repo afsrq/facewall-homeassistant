@@ -940,3 +940,29 @@ body.theme-light .tile-badge { background: rgba(0,0,0,0.12); color: inherit; }
 .pf-sub:empty { display: none; }
 
 .cs.cs-match { width: auto; padding: 0 10px; font-size: 12px; font-weight: 600; color: var(--text, #fff); background: rgba(127,127,127,0.25); }
+
+/* ------------------------------------------------------------ TV remote */
+.remote { gap: clamp(6px, 2cqh, 12px); container-type: size; }
+.remote .card-head { align-items: center; }
+.remote .card-titles { flex: 1; min-width: 0; }
+.rm-sub { font-size: 12px; opacity: 0.55; font-weight: 600; }
+.rm-sub:empty { display: none; }
+.rm-now { font-size: clamp(12px, 3.2cqmin, 15px); font-weight: 600; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -4px; }
+.rm-btn { display: grid; place-items: center; border-radius: 50%; background: var(--t-soft); width: clamp(34px, 15cqmin, 52px); aspect-ratio: 1; font-size: clamp(18px, 6.5cqmin, 24px); transition: background 0.15s, transform 0.1s; flex: none; }
+.rm-btn:active, .rm-ok:active { background: var(--t-soft-2); transform: scale(0.94); }
+.rm-power { width: 36px; font-size: 18px; }
+.remote.on .rm-power { color: #30d158; }
+.rm-padwrap { flex: 1; min-height: 0; display: grid; place-items: center; container-type: size; }
+.rm-pad { position: relative; width: min(100cqw, 100cqh); aspect-ratio: 1; border-radius: 50%; background: var(--t-soft); touch-action: none; }
+.rm-pad .rm-btn { position: absolute; background: transparent; width: 30%; font-size: clamp(18px, 9cqmin, 30px); }
+.rm-up { top: 2%; left: 35%; } .rm-down { bottom: 2%; left: 35%; } .rm-left { left: 2%; top: 35%; } .rm-right { right: 2%; top: 35%; }
+.rm-ok { position: absolute; inset: 31%; border-radius: 50%; background: var(--t-soft-2); font-weight: 750; font-size: clamp(13px, 5cqmin, 18px); transition: background 0.15s, transform 0.1s; }
+.rm-pad[data-flash] { box-shadow: inset 0 0 0 2px var(--t-accent, #0a84ff); }
+.remote.no-nav .rm-pad, .remote.no-nav .rm-row:first-of-type .rm-btn:not(:last-child) { opacity: 0.35; pointer-events: none; }
+.rm-row { display: flex; justify-content: space-around; align-items: center; gap: 6px; }
+.rm-vol { opacity: 0.5; font-size: 18px; display: grid; }
+.app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; padding: 4px 2px 12px; }
+.app-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px; border-radius: 18px; background: var(--t-soft, rgba(127,127,127,0.15)); }
+.app-btn.sel { box-shadow: inset 0 0 0 2px #0a84ff; }
+.app-ic { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-weight: 800; font-size: 20px; background: linear-gradient(135deg, hsl(var(--hue, 230) 70% 58%), hsl(calc(var(--hue, 230) + 30) 75% 45%)); color: #fff; }
+.app-name { font-size: 13px; font-weight: 600; text-align: center; }

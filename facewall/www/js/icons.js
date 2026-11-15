@@ -43,6 +43,10 @@ const P = {
   home: '<path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/>',
   resize: '<path d="M14 20h6v-6"/><path d="M20 20l-8-8"/><path d="M10 4H4v6"/><path d="M4 4l8 8"/>',
   minus: '<path d="M5 12h14"/>',
+  left: '<path d="M15 6l-6 6 6 6"/>',
+  right: '<path d="M9 6l6 6-6 6"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/>',
+  tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
 };
 
