@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.25.0
+- **Six more house styles** in the Architectural theme group, each with its own colours, background pattern and title font: **Craftsman** (oak, olive, ochre and brick with Prairie-style squares), **Spanish Revival** (stucco, terracotta and cobalt tile), **Scandinavian** (airy whites and sage with a soft dot grid), **Art Deco** (navy and gold fans), **Japandi** (greige, wood and wave scales) and **Farmhouse** (white shiplap, black and sage).
+
 ## 1.24.0
 - **Vacuum tile** (Add tiles → Vacuums): status (cleaning, docked, going home, needs help), battery, and Clean / Pause, Dock and Find; the robot wanders while it cleans.
 - **Alarm panel** (Add tiles → Alarm): Arm Home / Away / Night and Disarm, with a keypad when your alarm needs a code. While armed, every screen gets a thin red edge; when triggered, the edges pulse red and the tile turns red.

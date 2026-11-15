@@ -134,7 +134,7 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 
 ## Architectural themes
 
-⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura), and Palm Springs, Desert Pool and Desert Dusk (breeze-block pattern, Avenir Next). Each brings its own background pattern and title font; more styles will follow.
+⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura); Palm Springs, Desert Pool and Desert Dusk (breeze blocks, Avenir Next); Craftsman, Spanish Revival, Scandinavian, Art Deco, Japandi and Farmhouse. Each brings its own background pattern and title font; more styles will follow.
 
 ## Page header
 
