@@ -136,6 +136,9 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 
 ⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura); Palm Springs, Desert Pool and Desert Dusk (breeze blocks, Avenir Next); Craftsman, Spanish Revival, Scandinavian, Art Deco, Japandi and Farmhouse. Each brings its own background pattern and title font; more styles will follow.
 
+## Music Assistant
+Needs the **Music Assistant** integration in Home Assistant (2024.12 or newer). Add a Music Assistant speaker as a tile and set its Style to **Music Assistant**. The tile shows what's playing and your favourites; star things in Music Assistant to see them there. Tap the tile (or **Browse**) to search or browse your library, play something now, play it next, add it to the queue or start a radio based on it. At the bottom you can group other speakers with this one or move the music to another room. If cover art doesn't show on the iPad, Facewall fetches it through itself.
+
 ## TV remote
 Add the TV's **media player** as a tile, then edit it → Style → **TV remote**. Swipe on the round pad (or tap its arrows) to move, tap the middle for OK. Back, Home, play/pause, volume, power and **Apps** (the TV's source list) sit underneath. Facewall works out the brand from Home Assistant (Apple TV, Roku, Android TV Remote, Android TV/Fire TV over ADB, LG webOS, Samsung, Sony Bravia, Philips) and finds the remote entity on the same device. If the arrows don't work, choose the remote in the tile's settings. Hold the tile for the full now-playing sheet.
 

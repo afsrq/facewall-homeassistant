@@ -253,6 +253,22 @@ const DEMO_TRACKS = [
   { media_title: 'Pool Light', media_artist: 'Atomic Ranch', media_album_name: 'Butterfly Roof', media_duration: 187, entity_picture: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231fa3a0'/%3E%3Cstop offset='1' stop-color='%230f4c5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Crect x='60' y='60' width='180' height='180' rx='40' fill='none' stroke='%23f28aa8' stroke-width='16'/%3E%3Ccircle cx='150' cy='150' r='40' fill='%23f28aa8'/%3E%3C/svg%3E" },
   { media_title: 'Dusk Over San Jacinto', media_artist: 'Mustard & Teal', media_album_name: 'Sunburst', media_duration: 251, entity_picture: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232b1b2e'/%3E%3Cstop offset='1' stop-color='%235a2d59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Cpath d='M40 220 Q150 40 260 220' fill='none' stroke='%23ffb38a' stroke-width='14'/%3E%3Ccircle cx='150' cy='120' r='26' fill='%23ffb38a'/%3E%3C/svg%3E" },
 ];
+// A tiny made-up Music Assistant library for the demo.
+const demoCover = (a, b, shape) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='${a}'/><stop offset='1' stop-color='${b}'/></linearGradient></defs><rect width='300' height='300' fill='url(#g)'/>${shape}</svg>`)}`;
+const SHAPES = ["<circle cx='150' cy='150' r='70' fill='white' opacity='.35'/>", "<rect x='75' y='75' width='150' height='150' rx='30' fill='none' stroke='white' stroke-width='14' opacity='.5'/>", "<path d='M40 220 Q150 40 260 220' fill='none' stroke='white' stroke-width='14' opacity='.5'/>", "<path d='M150 60 L240 230 H60Z' fill='white' opacity='.3'/>"];
+const PAL = [['#f2a65a', '#c2541f'], ['#1fa3a0', '#0f4c5c'], ['#5a2d59', '#2b1b2e'], ['#e94f64', '#7b1e3a'], ['#7bb662', '#2f5a3a'], ['#3a7bd5', '#1a2a6c'], ['#f6d365', '#fda085'], ['#a18cd1', '#5f4b8b']];
+const mk = (media_type, name, i, extra = {}) => ({ media_type, uri: `library://${media_type}/${i}`, name, image: demoCover(...PAL[i % PAL.length], SHAPES[i % SHAPES.length]), favorite: i % 3 !== 2, ...extra });
+const ART = ['The Breeze Blocks', 'Atomic Ranch', 'Mustard & Teal', 'Kidney Pool', 'Terrazzo', 'Sputnik Lights'];
+export const DEMO_MA = {
+  playlist: ['Sunday Morning', 'Dinner Party', 'Focus', 'Pool Day', 'Late Night Jazz', 'Kids’ Favourites'].map((n, i) => mk('playlist', n, i, { owner: 'You' })),
+  album: ['Palm Canyon Drive', 'Butterfly Roof', 'Sunburst', 'Breeze Block', 'Clerestory', 'Carport'].map((n, i) => mk('album', n, i + 2, { artists: [{ name: ART[i] }] })),
+  artist: ART.map((n, i) => mk('artist', n, i + 4)),
+  track: ['Desert Modern', 'Pool Light', 'Dusk Over San Jacinto', 'Walnut & Brass', 'Indian Canyons', 'Starburst', 'Eichler Afternoon', 'Low Slung'].map((n, i) => mk('track', n, i + 1, { artists: [{ name: ART[i % ART.length] }], album: { name: 'Sunburst' }, duration: 180 + i * 13 })),
+  radio: ['KCRW Eclectic', 'Jazz 24', 'Lofi Beats', 'BBC Radio 6'].map((n, i) => mk('radio', n, i + 5)),
+  podcast: ['Design Matters', 'Home Assistant Podcast'].map((n, i) => mk('podcast', n, i + 3)),
+  audiobook: [],
+};
+
 function demoStates() {
   const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes, last_changed: new Date().toISOString() });
   return [
@@ -290,6 +306,8 @@ function demoStates() {
     st('binary_sensor.doorbell', 'off', { friendly_name: 'Doorbell', device_class: 'occupancy' }),
     st('media_player.living_room_tv', 'playing', { friendly_name: 'Living Room TV', media_title: 'Nature’s Wonders', media_series_title: 'Episode 3', app_name: 'TV', source: 'TV', source_list: ['TV', 'Netflix', 'YouTube', 'Disney+', 'Prime Video', 'Plex', 'Music', 'Photos'], volume_level: 0.4, supported_features: 22463 }),
     st('remote.living_room_tv', 'on', { friendly_name: 'Living Room TV' }),
+    st('media_player.kitchen_speaker', 'idle', { friendly_name: 'Kitchen', volume_level: 0.3, supported_features: 152511, group_members: [] }),
+    st('media_player.bedroom_speaker', 'off', { friendly_name: 'Bedroom', volume_level: 0.2, supported_features: 152511, group_members: [] }),
     st('media_player.living_room_speaker', 'playing', { friendly_name: 'Living Room Speaker', ...DEMO_TRACKS[0], media_position: 74, media_position_updated_at: new Date().toISOString(),
       volume_level: 0.35, is_volume_muted: false, source: 'Spotify', source_list: ['Spotify', 'AirPlay', 'TV'], app_name: 'Spotify', supported_features: 152511 }),
     (() => { const t = new Date(); t.setHours(t.getHours() + 2, 30, 0, 0); const p = (n) => String(n).padStart(2, '0');
@@ -348,6 +366,7 @@ class DemoAdapter {
       const s = this.store.get(id); if (!s) continue;
       const d = domainOf(id);
       const on = isOn(s);
+      if (d === 'media_player' && domain === 'music_assistant') { this.maCall(id, s, service, data); continue; }
       if (d === 'media_player') { this.media(id, s, service, data); continue; }
       if (d === 'remote') { const tv = 'media_player.' + id.split('.')[1]; if (service === 'turn_off') this.set(tv, { state: 'standby' }); else if (service === 'turn_on') this.set(tv, { state: 'paused' }); continue; }
       if (d === 'vacuum') { const m = { start: 'cleaning', pause: 'paused', return_to_base: 'returning', stop: 'idle' }[service]; if (m) { this.set(id, { state: m }); if (m === 'returning') setTimeout(() => this.set(id, { state: 'docked' }), 2500); } continue; }
@@ -394,7 +413,28 @@ class DemoAdapter {
   }
 
   async registry() {
-    return { entities: { 'media_player.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'remote.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'media_player.living_room_speaker': { pl: 'music_assistant', di: 'sp1' } }, ma: ['demo'] };
+    return { entities: { 'media_player.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'remote.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'media_player.living_room_speaker': { pl: 'music_assistant', di: 'sp1' }, 'media_player.kitchen_speaker': { pl: 'music_assistant', di: 'sp2' }, 'media_player.bedroom_speaker': { pl: 'music_assistant', di: 'sp3' } }, ma: ['demo'] };
+  }
+  async ask(domain, service, data = {}, target = {}) {
+    await new Promise((r) => setTimeout(r, 150));
+    if (domain !== 'music_assistant') throw new Error('not in the demo');
+    if (service === 'get_library') {
+      let items = DEMO_MA[data.media_type] || [];
+      if (data.favorite) items = items.filter((x) => x.favorite);
+      if (data.search) items = items.filter((x) => x.name.toLowerCase().includes(data.search.toLowerCase()));
+      return { items: items.slice(data.offset || 0, (data.offset || 0) + (data.limit || 50)), media_type: data.media_type };
+    }
+    if (service === 'search') {
+      const q = (data.name || '').toLowerCase(), out = {};
+      for (const [t, list] of Object.entries(DEMO_MA)) out[t + 's'] = list.filter((x) => x.name.toLowerCase().includes(q) || x.artists?.some((a) => a.name.toLowerCase().includes(q)));
+      out.radio = out.radios; delete out.radios;
+      return out;
+    }
+    if (service === 'get_queue') {
+      const id = [].concat(target.entity_id)[0], a = this.store.get(id)?.attributes || {};
+      return { [id]: { active: true, current_item: a.media_title ? { name: a.media_title } : null, next_item: { name: DEMO_MA.track[(DEMO_MA.track.findIndex((t) => t.name === a.media_title) + 1) % DEMO_MA.track.length].name }, shuffle_enabled: false, repeat_mode: 'off' } };
+    }
+    throw new Error('not in the demo');
   }
   /** Made-up 'photos' for the demo: painted skies and hills. */
   async photos(folder) {
@@ -440,6 +480,22 @@ class DemoAdapter {
   }
 
   /** The demo media player: play/pause, tracks, volume, source, power. */
+  maCall(id, s, service, data) {
+    const now = new Date().toISOString();
+    if (service === 'play_media') {
+      const all = Object.values(DEMO_MA).flat();
+      const it = all.find((x) => x.uri === data.media_id) || all[0];
+      const track = it.media_type === 'track' ? it : DEMO_MA.track[all.indexOf(it) % DEMO_MA.track.length];
+      if (data.enqueue === 'add' || data.enqueue === 'next') return;
+      this.set(id, { state: 'playing' }, { media_title: it.media_type === 'radio' ? it.name : track.name, media_artist: it.media_type === 'radio' ? 'Live radio' : track.artists?.[0]?.name, media_album_name: it.media_type === 'album' ? it.name : 'Sunburst', entity_picture: it.image, media_duration: it.media_type === 'radio' ? null : track.duration, media_position: 0, media_position_updated_at: now });
+    } else if (service === 'transfer_queue') {
+      const src = this.store.get(data.source_player);
+      if (!src) return;
+      const keep = ['media_title', 'media_artist', 'media_album_name', 'entity_picture', 'media_duration', 'media_position'];
+      this.set(id, { state: 'playing' }, { ...Object.fromEntries(keep.map((k) => [k, src.attributes[k]])), media_position_updated_at: now });
+      this.set(data.source_player, { state: 'idle' }, { media_title: null, media_artist: null, entity_picture: null });
+    }
+  }
   media(id, s, service, data) {
     const a = s.attributes, now = new Date().toISOString();
     const pos = () => (s.state === 'playing' ? Math.min(a.media_duration || 0, (a.media_position || 0) + (Date.now() - new Date(a.media_position_updated_at).getTime()) / 1000) : a.media_position || 0);
@@ -459,6 +515,8 @@ class DemoAdapter {
       case 'volume_up': case 'volume_down': this.set(id, {}, { volume_level: Math.max(0, Math.min(1, (a.volume_level || 0) + (service === 'volume_up' ? 0.05 : -0.05))) }); break;
       case 'turn_off': this.set(id, { state: 'off' }); break;
       case 'turn_on': this.set(id, { state: 'paused' }, { media_position_updated_at: now }); break;
+      case 'join': this.set(id, {}, { group_members: [...new Set([id, ...(a.group_members || []), ...(data.group_members || [])])] }); break;
+      case 'unjoin': for (const o of this.store.list(['media_player'])) if (o.attributes.group_members?.includes(id)) this.set(o.entity_id, {}, { group_members: o.attributes.group_members.filter((x) => x !== id) }); break;
     }
   }
 

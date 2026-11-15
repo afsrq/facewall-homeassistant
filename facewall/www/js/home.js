@@ -1,7 +1,7 @@
 // The Home page: greeting, clock and tiles for Home Assistant entities.
 import { icon, domainIcon } from './icons.js';
 import { domainOf, isOn, lightRGB, formatState, cap } from './data.js';
-import { h, press, sheet, toast } from './ui.js';
+import { h, press, sheet, toast, segmented } from './ui.js';
 import { headerOf, headerContent, headerVars } from './header.js';
 import { iconSvg } from './iconlib.js';
 import { Fx, fxMode } from './fx.js';
@@ -31,7 +31,7 @@ export function stylesFor(id) {
   if (d === 'weather') return [{ v: 'daily', label: 'Daily', sub: 'Next days · tap for hourly too' }, { v: 'hourly', label: 'Hourly', sub: 'Next hours · tap for daily too' }];
   if (d === 'climate') return [{ v: 'buttons', label: 'Buttons', sub: 'Up/down buttons and modes' }, { v: 'dial', label: 'Dial', sub: 'Drag around the ring to set the temperature' }];
   if (d === 'cover') return [{ v: 'button', label: 'Button', sub: 'Tap to open or close' }, { v: 'garage', label: 'Garage door', sub: 'An animated door (tap twice to move it)' }];
-  if (d === 'media_player') return [{ v: 'player', label: 'Now playing', sub: 'Artwork, title and play controls' }, { v: 'remote', label: 'TV remote', sub: 'Arrows, OK, back, home, volume and apps (Apple TV, Roku, Android/Fire TV, LG, Samsung, Sony)' }];
+  if (d === 'media_player') return [{ v: 'player', label: 'Now playing', sub: 'Artwork, title and play controls' }, { v: 'music', label: 'Music Assistant', sub: 'Now playing plus your favourites; browse, search, queue and group speakers' }, { v: 'remote', label: 'TV remote', sub: 'Arrows, OK, back, home, volume and apps (Apple TV, Roku, Android/Fire TV, LG, Samsung, Sony)' }];
   if (d === 'sensor') return [{ v: 'value', label: 'Value', sub: 'The current reading' }, { v: 'graph', label: 'Graph', sub: 'The reading over time (choose how long below)' }, { v: 'ring', label: 'Ring', sub: 'A coloured ring: green, amber, red (great for CO₂, PM2.5, AQI)' }];
   return [];
 }
@@ -61,7 +61,7 @@ export function kindFor(item) {
   if (d === 'lock') return 'lock';
   if (d === 'light') return style === 'switch' ? 'toggle' : 'light';
   if (TOGGLES.includes(d)) return 'toggle';
-  if (d === 'media_player') return style === 'remote' ? 'remote' : 'media';
+  if (d === 'media_player') return style === 'remote' ? 'remote' : style === 'music' ? 'music' : 'media';
   if (d === 'camera') return 'camera';
   if (d === 'calendar') return 'calendar';
   if (d === 'cover') return style === 'garage' ? 'garage' : 'cover';
@@ -75,7 +75,7 @@ export function kindFor(item) {
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
   const k = kindFor(item);
-  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'remote' ? [1.5, 2] : k === 'vacuum' || k === 'alarm' ? [2, 1] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
+  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'remote' ? [1.5, 2] : k === 'music' ? [2, 1.5] : k === 'vacuum' || k === 'alarm' ? [2, 1] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -160,6 +160,35 @@ export function mediaPosition(s) {
 }
 const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`);
 const MEDIA_OFF = ['off', 'standby', 'unavailable', 'unknown'];
+
+// ------------------------------------------------------------------ Music Assistant helpers
+export const MA_TYPES = [{ v: 'fav', label: 'Favourites' }, { v: 'playlist', label: 'Playlists' }, { v: 'album', label: 'Albums' }, { v: 'artist', label: 'Artists' }, { v: 'track', label: 'Songs' }, { v: 'radio', label: 'Radio' }, { v: 'podcast', label: 'Podcasts' }, { v: 'audiobook', label: 'Audiobooks' }];
+const maImg = (it) => { const i = it?.image || it?.album?.image; return typeof i === 'string' ? i : i?.path || null; };
+const maSub = (it) => (it?.artists || []).map((a) => a.name).filter(Boolean).join(', ') || it?.owner || (it?.media_type === 'radio' ? 'Radio' : '');
+const maArgs = async (store, extra) => { const r = await store.registry(); return { ...(r.ma?.[0] ? { config_entry_id: r.ma[0] } : {}), ...extra }; };
+async function maLibrary(store, type, opts = {}) {
+  const r = await store.ask('music_assistant', 'get_library', await maArgs(store, { media_type: type, limit: opts.limit || 60, ...(opts.favorite ? { favorite: true } : {}), ...(opts.search ? { search: opts.search } : {}), order_by: opts.favorite ? 'timestamp_added_desc' : 'name' }));
+  return r?.items || [];
+}
+async function maFavourites(store, limit = 18) {
+  const lists = await Promise.all(['playlist', 'radio', 'album', 'artist'].map((t) => maLibrary(store, t, { favorite: true, limit }).catch(() => [])));
+  const out = [];
+  for (let i = 0; out.length < limit && i < limit; i++) for (const l of lists) if (l[i] && out.length < limit) out.push(l[i]);
+  return out;
+}
+const maPlay = (store, id, it, enqueue = 'play', radio = false) => store.call('music_assistant', 'play_media', { media_id: it.uri, media_type: it.media_type, enqueue, ...(radio ? { radio_mode: true } : {}) }, { entity_id: id });
+/** A cover picture: straight from Music Assistant, through Facewall if the iPad can't reach it, else initials. */
+function maCover(it, cls = 'div.ma-cover') {
+  const el = h(cls, { 'data-ini': (it?.name || '?').replace(/[^\p{L}\p{N} ]/gu, '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() });
+  const url = maImg(it);
+  if (url) {
+    const img = new Image();
+    img.onload = () => { el.style.backgroundImage = `url("${img.src}")`; el.classList.add('has-img'); };
+    img.onerror = () => { if (/imageproxy/.test(url) && !img.src.includes('api/maimg')) img.src = `api/maimg?u=${encodeURIComponent(url)}`; };
+    img.src = url;
+  }
+  return el;
+}
 
 // ------------------------------------------------------------------ camera helpers
 /** A demo "camera" picture: a front porch, with the time so you can see it refresh. */
@@ -518,7 +547,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard, vacuum: this.vacuumCard, alarm: this.alarmCard, airq: this.airqCard, remote: this.remoteCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard, vacuum: this.vacuumCard, alarm: this.alarmCard, airq: this.airqCard, remote: this.remoteCard, music: this.musicCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -1149,6 +1178,135 @@ export class HomePage {
     };
     return { id, el, update };
   }
+  // ------------------------------------------------------------------ Music Assistant
+  musicCard(id, item = { id }) {
+    const st = this.store;
+    const call = (service, data = {}) => st.call('media_player', service, data, { entity_id: id });
+    const art = h('div.mu-art'), title = h('div.mu-title'), artist = h('div.mu-artist');
+    const playBtn = h('button.media-btn.media-play', { 'aria-label': 'Play or pause', onclick: (e) => { e.stopPropagation(); call('media_play_pause'); } });
+    const favs = h('div.mu-favs');
+    const browse = h('button.pill.sm.mu-browse', { html: icon('music') + '<span>Browse</span>', onclick: (e) => { e.stopPropagation(); this.musicSheet(id, item); } });
+    const el = h('div.card.music', {},
+      h('div.card-head', {}, h('span.card-ic', { html: iconHtml(st, item, 'music') }), h('div.card-titles', {}, h('div.card-title', { text: tileName(st, item) })), browse),
+      h('div.mu-now', {}, art, h('div.mu-info', {}, title, artist,
+        h('div.mu-ctl', {},
+          h('button.media-btn', { html: icon('prev'), 'aria-label': 'Previous', onclick: (e) => { e.stopPropagation(); call('media_previous_track'); } }),
+          playBtn,
+          h('button.media-btn', { html: icon('next'), 'aria-label': 'Next', onclick: (e) => { e.stopPropagation(); call('media_next_track'); } })))),
+      favs);
+    press(el, { onTap: (e) => { if (!e.target.closest('button')) this.musicSheet(id, item); }, onLong: () => this.musicSheet(id, item) });
+    let favAt = 0;
+    const loadFavs = async () => {
+      favAt = Date.now();
+      const list = await maFavourites(st, 14).catch(() => []);
+      favs.replaceChildren(...(list.length ? list.map((it) => h('button.mu-fav', { title: it.name, onclick: (e) => { e.stopPropagation(); maPlay(st, id, it); toast(`Playing ${it.name}`); } }, maCover(it), h('span', { text: it.name })))
+        : [h('div.mu-empty', { text: 'Star some playlists, albums or stations in Music Assistant to see them here.' })]));
+    };
+    loadFavs();
+    let lastArt = null;
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const off = !s || MEDIA_OFF.includes(s.state) || (!a.media_title && s.state === 'idle');
+      const url = off ? null : mediaArt(st, id);
+      if (url !== lastArt) { art.style.backgroundImage = url ? `url("${url}")` : ''; lastArt = url; }
+      art.innerHTML = url ? '' : icon('music');
+      el.classList.toggle('on', s?.state === 'playing');
+      title.textContent = !s ? 'Missing' : off ? 'Nothing playing' : a.media_title || cap(s.state);
+      artist.textContent = off ? 'Pick something below' : [a.media_artist, a.media_album_name].filter(Boolean).join(' · ');
+      playBtn.innerHTML = icon(s?.state === 'playing' ? 'pause' : 'play');
+      if (Date.now() - favAt > 600000) loadFavs();
+    };
+    return { id, el, update };
+  }
+
+  musicSheet(id, item = { id }) {
+    const st = this.store;
+    let onEv = () => {};
+    const sh = sheet({ title: tileName(st, item), cls: 'music-sheet', onClose: () => st.removeEventListener('state', onEv) });
+    const call = (service, data = {}) => st.call('media_player', service, data, { entity_id: id });
+    // Now playing strip
+    const art = h('div.ms2-art'), title = h('div.ms2-title'), sub = h('div.ms2-sub'), next = h('div.ms2-next');
+    const playBtn = h('button.media-btn.media-play', { 'aria-label': 'Play or pause', onclick: () => call('media_play_pause') });
+    const vol = h('input.range.ms2-vol', { type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Volume' });
+    vol.addEventListener('change', () => call('volume_set', { volume_level: Number(vol.value) / 100 }));
+    const shuffle = h('button.icon-btn.sm', { text: '⤮', 'aria-label': 'Shuffle', onclick: () => call('shuffle_set', { shuffle: !st.get(id)?.attributes?.shuffle }) });
+    const nowBar = h('div.ms2-now', {}, art, h('div.ms2-info', {}, title, sub, next),
+      h('div.ms2-ctl', {}, h('button.media-btn', { html: icon('prev'), 'aria-label': 'Previous', onclick: () => call('media_previous_track') }), playBtn,
+        h('button.media-btn', { html: icon('next'), 'aria-label': 'Next', onclick: () => call('media_next_track') }), shuffle),
+      h('div.ms2-volrow', {}, h('span', { html: icon('volume') }), vol));
+    // Browse
+    let type = 'fav', query = '', seq = 0;
+    const q = h('input.text-in.ms2-search', { type: 'search', placeholder: 'Search songs, artists, albums, playlists, radio…' });
+    let qt = null;
+    q.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => { query = q.value.trim(); load(); }, 350); });
+    const tabs = h('div.ms2-tabs');
+    const grid = h('div.ms2-grid');
+    const drawTabs = () => tabs.replaceChildren(segmented(MA_TYPES, type, (v) => { type = v; query = ''; q.value = ''; drawTabs(); load(); }));
+    const tile = (it) => {
+      const menu = h('div.ma-menu', {},
+        h('button', { text: 'Play now', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it); toast(`Playing ${it.name}`); } }),
+        h('button', { text: 'Play next', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'next'); toast('Playing next'); el.classList.remove('menu'); } }),
+        h('button', { text: 'Add to queue', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'add'); toast('Added to the queue'); el.classList.remove('menu'); } }),
+        it.media_type !== 'radio' ? h('button', { text: 'Start radio', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'play', true); toast('Radio based on ' + it.name); } }) : null);
+      const more = h('button.ma-more', { text: '•••', 'aria-label': 'More', onclick: (e) => { e.stopPropagation(); grid.querySelectorAll('.menu').forEach((x) => x !== el && x.classList.remove('menu')); el.classList.toggle('menu'); } });
+      const el = h('div.ma-item' + (it.media_type === 'artist' ? '.round' : ''), { onclick: () => { maPlay(st, id, it); toast(`Playing ${it.name}`); } },
+        h('div.ma-cwrap', {}, maCover(it), more, menu), h('div.ma-name', { text: it.name }), h('div.ma-sub', { text: maSub(it) }));
+      return el;
+    };
+    const load = async () => {
+      const my = ++seq;
+      grid.replaceChildren(h('div.ma-msg', { text: 'Loading…' }));
+      let items = [];
+      try {
+        if (query) {
+          const r = await st.ask('music_assistant', 'search', await maArgs(st, { name: query, limit: 12 }));
+          const order = type === 'fav' ? ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts', 'audiobooks'] : [type === 'radio' ? 'radio' : type + 's'];
+          for (const k of order) items.push(...(r?.[k] || []));
+        } else items = type === 'fav' ? await maFavourites(st, 40) : await maLibrary(st, type);
+      } catch (e) {
+        if (my === seq) grid.replaceChildren(h('div.ma-msg', { text: 'Couldn’t reach Music Assistant: ' + (e.message || e) + '. Is the Music Assistant integration set up in Home Assistant?' }));
+        return;
+      }
+      if (my !== seq) return;
+      grid.replaceChildren(...(items.length ? items.map(tile) : [h('div.ma-msg', { text: query ? 'Nothing found.' : type === 'fav' ? 'No favourites yet. Star things in Music Assistant, or browse the other tabs.' : 'Nothing here yet.' })]));
+    };
+    // Speakers: group them with this one, or move the music over
+    const speakers = h('div.ms2-speakers');
+    const drawSpeakers = async () => {
+      const reg = await st.registry();
+      const others = st.list(['media_player']).map((s) => s.entity_id).filter((x) => x !== id && reg.entities?.[x]?.pl === 'music_assistant');
+      if (!others.length) { speakers.replaceChildren(); return; }
+      const members = st.get(id)?.attributes?.group_members || [];
+      speakers.replaceChildren(h('div.set-sub', { text: 'Other speakers' }), ...others.map((o) => {
+        const s = st.get(o), inGroup = members.includes(o);
+        return h('div.ent-row', {},
+          h('span.ent-ic', { html: icon('volume') }),
+          h('div.ent-text', {}, h('div.ent-name', { text: st.name(o) }), h('div.ent-sub', { text: s?.attributes?.media_title && s.state === 'playing' ? `Playing ${s.attributes.media_title}` : cap(s?.state || '') })),
+          h('button.pill.sm' + (inGroup ? '.primary' : ''), { text: inGroup ? 'Grouped' : 'Group', onclick: () => { if (inGroup) st.call('media_player', 'unjoin', {}, { entity_id: o }); else st.call('media_player', 'join', { group_members: [o] }, { entity_id: id }); setTimeout(drawSpeakers, 400); } }),
+          h('button.pill.sm', { text: 'Move music there', onclick: () => { st.call('music_assistant', 'transfer_queue', { source_player: id, auto_play: true }, { entity_id: o }); toast(`Moved to ${st.name(o)}`); setTimeout(drawSpeakers, 400); } }));
+      }));
+    };
+    const render = async () => {
+      const s = st.get(id), a = s?.attributes || {};
+      const off = !s || MEDIA_OFF.includes(s.state) || (!a.media_title && s.state === 'idle');
+      const url = off ? null : mediaArt(st, id);
+      art.style.backgroundImage = url ? `url("${url}")` : ''; art.innerHTML = url ? '' : icon('music');
+      title.textContent = off ? 'Nothing playing' : a.media_title || cap(s.state);
+      sub.textContent = off ? '' : [a.media_artist, a.media_album_name].filter(Boolean).join(' · ');
+      playBtn.innerHTML = icon(s?.state === 'playing' ? 'pause' : 'play');
+      shuffle.classList.toggle('on', !!a.shuffle);
+      if (document.activeElement !== vol) vol.value = Math.round((a.volume_level ?? 0) * 100);
+      try {
+        const qd = (await st.ask('music_assistant', 'get_queue', {}, { entity_id: id }))?.[id];
+        next.textContent = qd?.next_item?.name ? `Up next: ${qd.next_item.name}` : '';
+      } catch { next.textContent = ''; }
+    };
+    onEv = (e) => { const x = e.detail?.id || e.detail; if (x === id) render(); };
+    st.addEventListener('state', onEv);
+    sh.body.append(nowBar, q, tabs, grid, speakers);
+    drawTabs(); render(); load(); drawSpeakers();
+  }
+
   /** Apps / inputs to launch on a TV (its source list). */
   appsSheet(id, item = { id }) {
     const st = this.store, a = st.get(id)?.attributes || {};
@@ -1215,6 +1373,10 @@ export class HomePage {
     st.addEventListener('state', onEv);
     timer = setInterval(tick, 1000);
     render();
+    st.registry().then((reg) => {
+      if (reg.entities?.[id]?.pl !== 'music_assistant') return;
+      sh.body.querySelector('.ms-end')?.prepend(h('button.pill.sm.primary', { html: icon('music') + '<span>Browse music</span>', onclick: () => { sh.close(); this.musicSheet(id, item); } }));
+    });
   }
 
   // ------------------------------------------------------------------ weather

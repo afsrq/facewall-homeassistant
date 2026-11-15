@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.29.0';
+const VERSION = '1.30.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -533,6 +533,20 @@ async function handleApi(req, res, route) {
       // Keep it light: at most ~600 points.
       const step = Math.ceil(points.length / 600);
       return json(res, 200, { id, hours, points: step > 1 ? points.filter((_, i) => i % step === 0 || i === points.length - 1) : points });
+    } catch (e) { return json(res, 502, { error: e.message }); }
+  }
+  // Music Assistant cover art from its image proxy, for iPads that can't reach the Music Assistant server directly.
+  if (route === 'maimg' && req.method === 'GET') {
+    let u;
+    try { u = new URL(new URL(req.url, 'http://x').searchParams.get('u') || ''); } catch { return json(res, 400, { error: 'bad url' }); }
+    if (!/^https?:$/.test(u.protocol) || !u.pathname.includes('imageproxy')) return json(res, 400, { error: 'not allowed' });
+    try {
+      const r = await fetch(u, { signal: AbortSignal.timeout(15000) });
+      const type = r.headers.get('content-type') || '';
+      if (!r.ok || !type.startsWith('image/')) return json(res, 502, { error: 'no image' });
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': buf.length, 'Cache-Control': 'max-age=86400' });
+      return res.end(buf);
     } catch (e) { return json(res, 502, { error: e.message }); }
   }
   // Album art for media players: Home Assistant's picture URLs need its login, so fetch them here.

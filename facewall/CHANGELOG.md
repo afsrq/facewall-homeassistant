@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.30.0
+- **Music Assistant tile**: set a Music Assistant speaker's tile Style to **Music Assistant**. It shows what's playing with your favourite playlists, albums, artists and stations underneath; tap one to play it.
+- **Music browser** (tap the tile or Browse): search everything, or browse Favourites, Playlists, Albums, Artists, Songs, Radio, Podcasts and Audiobooks with cover art. Tap to play, or ••• for Play next, Add to queue and Start radio. Shows what's up next, plus shuffle and volume.
+- **Speakers**: group other Music Assistant speakers with this one, or move the music to another speaker.
+- Music Assistant speakers using the normal now-playing tile get a **Browse music** button in their sheet.
+
 ## 1.29.0
 - **TV remote tile**: set a media player's tile Style to **TV remote** for a round touchpad (swipe or tap the arrows, tap OK), Back, Home, play/pause, volume and power, plus an **Apps** button that opens the TV's apps and inputs. Works with Apple TV, Roku, Android TV (and Fire TV via ADB), Google TV, LG webOS, Samsung, Sony Bravia and Philips. Facewall finds the TV's matching remote on its own; you can pick a different one in the tile's settings.
 
