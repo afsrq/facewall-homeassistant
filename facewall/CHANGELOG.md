@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0
+- Free tile sizes: width and height in steps of 0.1 (e.g. 1.5 × 0.5), from 0.2 up to the page's columns / 6 rows. Sliders with − / + in Options; dragging the corner handle snaps to 0.1 (whole and half sizes are a little sticky).
+- Tile Options can move a tile earlier/later; very small tiles get compact edit controls.
+
 ## 1.6.0
 - **Weather tile** with live forecasts from your Home Assistant weather entity. It adapts to its size: current conditions, a daily or hourly forecast strip, or a day list with temperature bars on tall tiles. Tap it for the next 24 hours, the next days, and details (feels like, humidity, wind…).
 - **Name position** per tile: bottom, under the icon, or above the icon. Works with the icon top left, top right or in the middle.

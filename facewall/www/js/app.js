@@ -1,7 +1,7 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS } from './home.js';
+import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize } from './home.js';
 import { loadIcons, iconSvg, searchIcons, LIBRARIES, uploadIcons, deleteIcon, onIconsChanged } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
@@ -611,7 +611,7 @@ class App {
         list.append(h('div.ent-row', {},
           h('span.ent-ic', { html: iconHtml(this.store, item, tileIcon(id)) }),
           h('div.ent-text', {}, h('div.ent-name', { text: tileName(this.store, item) }), h('div.ent-sub', { text: sub })),
-          h('button.size-badge' + (isOpen ? '.on' : ''), { text: `${Math.min(w, cols)} × ${hh}`, 'aria-label': 'Tile options', onclick: () => { openTile = isOpen ? null : i; render(); } }),
+          h('button.size-badge' + (isOpen ? '.on' : ''), { text: `${fmtSize(Math.min(w, cols))} × ${fmtSize(hh)}`, 'aria-label': 'Tile options', onclick: () => { openTile = isOpen ? null : i; render(); } }),
           h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move up', disabled: i === 0, onclick: () => { openTile = null; upd((a) => a.splice(i - 1, 0, a.splice(i, 1)[0])); } }),
           h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move down', disabled: i === ents.length - 1, onclick: () => { openTile = null; upd((a) => a.splice(i + 1, 0, a.splice(i, 1)[0])); } }),
           h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Remove', onclick: () => { openTile = null; upd((a) => a.splice(i, 1)); } })));
@@ -687,8 +687,26 @@ class App {
       scale !== 1 ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.iconScale; }) }) : null)));
     const cols = this.roomFor(pageId)?.cols || 5;
     const [w, hh] = sizeOf(item);
-    rows.push(row('Width (columns)', segmented(Array.from({ length: Math.min(cols, 8) }, (_, k) => ({ v: k + 1, label: String(k + 1) })), Math.min(w, cols), (v) => set((it) => { it.w = v; }))));
-    rows.push(row('Height (rows)', segmented([1, 2, 3, 4].map((v) => ({ v, label: String(v) })), hh, (v) => set((it) => { it.h = v; }))));
+    // Free sizes in 0.1 steps: slider plus − / + for fine nudges.
+    const sizeCtl = (value, max, apply) => {
+      const val = h('span.range-val', { text: fmtSize(value) });
+      const slider = h('input.range', { type: 'range', min: MIN_SIZE, max, step: 0.1, value, 'aria-label': 'Size' });
+      slider.addEventListener('input', () => { val.textContent = fmtSize(slider.value); });
+      slider.addEventListener('change', () => apply(roundSize(slider.value)));
+      const nudge = (d) => apply(roundSize(Math.max(MIN_SIZE, Math.min(max, value + d))));
+      return h('div.range-ctl', {},
+        h('button.icon-btn.sm', { html: icon('minus'), 'aria-label': 'Smaller by 0.1', disabled: value <= MIN_SIZE, onclick: () => nudge(-0.1) }),
+        slider,
+        h('button.icon-btn.sm', { html: icon('plus'), 'aria-label': 'Bigger by 0.1', disabled: value >= max, onclick: () => nudge(0.1) }),
+        val);
+    };
+    const count = pageOf(this.settings, pageId).entities.length;
+    const move = (d) => { this.update((x) => { const a = pageOf(x, pageId).entities; a.splice(i + d, 0, a.splice(i, 1)[0]); }); this.roomFor(pageId)?.render(); after?.(i + d); };
+    rows.push(row('Order on the page', h('div.icon-ctl', {},
+      h('button.pill.sm', { html: icon('back') + '<span>Earlier</span>', disabled: i === 0, onclick: () => move(-1) }),
+      h('button.pill.sm.flip-ic', { html: '<span>Later</span>' + icon('back'), disabled: i >= count - 1, onclick: () => move(1) })), `Tile ${i + 1} of ${count}`));
+    rows.push(row('Width (columns)', sizeCtl(roundSize(Math.min(w, cols)), cols, (v) => set((it) => { it.w = v; })), `0.2 to ${cols}, in steps of 0.1`));
+    rows.push(row('Height (rows)', sizeCtl(roundSize(hh), MAX_H, (v) => set((it) => { it.h = v; })), `0.2 to ${MAX_H}, in steps of 0.1`));
     return rows;
   }
 
@@ -697,7 +715,8 @@ class App {
     const first = pageOf(this.settings, pageId)?.entities?.[i];
     if (!first) return;
     const sh = sheet({ title: tileName(this.store, first), cls: 'tile-sheet' });
-    const render = () => {
+    const render = (moved) => {
+      if (typeof moved === 'number') i = moved;
       const it = pageOf(this.settings, pageId)?.entities?.[i];
       if (!it) return sh.close();
       sh.setTitle(tileName(this.store, it));

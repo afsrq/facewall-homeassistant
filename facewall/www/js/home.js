@@ -33,7 +33,12 @@ export const ICON_POSITIONS = [{ v: 'tl', label: 'Top left' }, { v: 'tr', label:
 export const NAME_POSITIONS = [{ v: 'bottom', label: 'Bottom' }, { v: 'below', label: 'Under icon' }, { v: 'above', label: 'Above icon' }];
 export const styleOf = (item) => item.style || (item.timer ? 'timer' : stylesFor(item.id)[0]?.v || null);
 export const tileIcon = (id) => (id === ALL_OFF ? 'bulbOff' : domainIcon(domainOf(id)));
-export const MAX_H = 4;
+export const MAX_H = 6;
+// Tile sizes are in columns/rows with 0.1 steps; the grid has SUB fine tracks per column and per row.
+export const SUB = 10;
+export const MIN_SIZE = 0.2;
+export const roundSize = (v) => Math.round(Number(v) * SUB) / SUB;
+export const fmtSize = (v) => String(roundSize(v));
 export const pageOf = (settings, pageId) => settings?.pages?.find((p) => p.id === pageId) || null;
 
 export function kindFor(item) {
@@ -174,8 +179,9 @@ export class HomePage {
   }
 
   applySize(el, w, hgt) {
-    el.style.gridColumn = `span ${Math.min(w, this.cols || 5)}`;
-    el.style.gridRow = `span ${Math.min(hgt, MAX_H)}`;
+    const cw = Math.max(MIN_SIZE, Math.min(w, this.cols || 5)), ch = Math.max(MIN_SIZE, Math.min(hgt, MAX_H));
+    el.style.gridColumn = `span ${Math.round(cw * SUB)}`;
+    el.style.gridRow = `span ${Math.round(ch * SUB)}`;
   }
 
   /** Works out columns/rows for this screen. Returns true if the column count changed. */
@@ -187,14 +193,16 @@ export class HomePage {
     const cols = L.cols || (W >= 1050 ? 5 : W >= 760 ? 4 : 3);
     const rows = L.rows || (portrait ? 3 : 2);
     const gap = Math.round(Math.min(W, H) * (cols > 6 || rows > 3 ? 0.015 : 0.02));
+    const pad = Math.min(30, Math.max(16, W * 0.022));
     const headH = Math.round(H * 0.13) + 8;
     const reserve = this.editing ? 84 : 0; // room for the edit bar
-    const rowH = Math.max(96, Math.floor((H - headH - reserve - gap * (rows + 1)) / rows));
+    // One row = the screen height shared by `rows` (each tile keeps half a gap of margin all round).
+    const unitH = Math.max(90, (H - headH - reserve - (pad - gap / 2)) / rows);
     const changed = this.cols !== cols;
-    Object.assign(this, { cols, rows, gap, rowH });
-    this.root.style.setProperty('--cols', cols);
+    Object.assign(this, { cols, rows, gap, unitH, rowH: unitH - gap });
+    this.root.style.setProperty('--subcols', cols * SUB);
     this.root.style.setProperty('--gap', gap + 'px');
-    this.root.style.setProperty('--row-h', rowH + 'px');
+    this.root.style.setProperty('--subrow-h', (unitH / SUB).toFixed(3) + 'px');
     return changed;
   }
 
@@ -208,7 +216,7 @@ export class HomePage {
   attachEditor(el, item, index) {
     let [w, hgt] = sizeOf(item);
     w = Math.min(w, this.cols);
-    const label = h('div.eo-size', {}, h('div.eo-dims', { text: `${w} × ${hgt}` }), h('div.eo-name', { text: tileName(this.store, item) }));
+    const label = h('div.eo-size', {}, h('div.eo-dims', { text: `${fmtSize(w)} × ${fmtSize(hgt)}` }), h('div.eo-name', { text: tileName(this.store, item) }));
     const save = (fn) => { this.app.update((s) => fn(pageOf(s, this.pageId).entities)); this.render(); };
     const last = this.items.length - 1;
     const handle = h('div.eo-handle', { html: icon('resize'), 'aria-label': 'Drag to resize' });
@@ -230,18 +238,19 @@ export class HomePage {
       handle.setPointerCapture(e.pointerId);
       const cs = getComputedStyle(this.grid);
       const inner = this.grid.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      const colW = (inner - this.gap * (this.cols - 1)) / this.cols;
-      start = { x: e.clientX, y: e.clientY, w, h: hgt, cx: colW + this.gap, cy: this.rowH + this.gap };
+      start = { x: e.clientX, y: e.clientY, w, h: hgt, cx: inner / this.cols, cy: this.unitH };
       el.classList.add('resizing');
     });
     handle.addEventListener('pointermove', (e) => {
       if (!start) return;
-      const nw = Math.max(1, Math.min(this.cols, Math.round(start.w + (e.clientX - start.x) / start.cx)));
-      const nh = Math.max(1, Math.min(MAX_H, Math.round(start.h + (e.clientY - start.y) / start.cy)));
+      // 0.1 steps; whole and half sizes are a little "sticky" so they're easy to hit.
+      const snap = (v) => { const half = Math.round(v * 2) / 2; return Math.abs(v - half) < 0.06 ? half : roundSize(v); };
+      const nw = Math.max(MIN_SIZE, Math.min(this.cols, snap(start.w + (e.clientX - start.x) / start.cx)));
+      const nh = Math.max(MIN_SIZE, Math.min(MAX_H, snap(start.h + (e.clientY - start.y) / start.cy)));
       if (nw === w && nh === hgt) return;
       w = nw; hgt = nh;
       this.applySize(el, w, hgt);
-      label.firstChild.textContent = `${w} × ${hgt}`;
+      label.firstChild.textContent = `${fmtSize(w)} × ${fmtSize(hgt)}`;
     });
     const end = () => {
       if (!start) return;
@@ -540,7 +549,7 @@ export class HomePage {
       // How much forecast fits depends on the tile's size and shape.
       const r = el.getBoundingClientRect();
       const cw = r.width - 36, chh = r.height - 36;
-      const vertical = chh > 280 && cw < chh * 1.5;
+      const vertical = chh > 260 && cw < chh * 1.25;
       const room = vertical ? chh - 110 : cw;
       const n = Math.max(0, Math.min(list.length, vertical ? Math.floor(room / 44) : Math.floor(room / 66), mode === 'hourly' ? 12 : 8));
       const key = [vertical, n, JSON.stringify(list.slice(0, n)), st.settings?.general?.use24h].join('|');

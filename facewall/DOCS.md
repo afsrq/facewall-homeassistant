@@ -26,7 +26,7 @@ You can also open Facewall from the Home Assistant sidebar. That goes through yo
 | ▦ on the Home page (**Edit layout**) | Drag a tile's corner handle to make it wider or taller. Sizes snap to whole columns and rows. ‹ › move a tile, × removes it. Set **Columns** and **Rows** at the bottom to choose how fine the grid is. |
 | ⚙︎ on the Home page | Choose tiles, set exact sizes (tap the **1 × 1** badge), add a timer to any switch, grid size, 24-hour time, night dimming. |
 
-Tiles can be 1–8 columns wide and 1–4 rows tall. Bigger tiles get bigger text and icons, and small ones hide extras that won't fit.
+Tiles can be any size in steps of 0.1: from 0.2 up to the page's column count wide and 6 rows tall (e.g. 1.5 × 0.5). Bigger tiles get bigger text and icons, and small ones hide extras that won't fit.
 
 Settings are stored in the app, so every iPad or browser showing Facewall stays in sync.
 

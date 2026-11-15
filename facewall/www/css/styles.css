@@ -98,9 +98,10 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .head-right { display: flex; align-items: center; gap: 10px; }
 .home-time { font-size: clamp(24px, 3vw, 36px); font-weight: 700; font-variant-numeric: tabular-nums; margin-right: 6px; }
 .home-grid {
-  position: relative; display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
-  grid-auto-rows: var(--row-h, 260px); grid-auto-flow: dense; gap: var(--gap, 16px);
-  padding: 4px var(--pad) calc(var(--pad) + env(safe-area-inset-bottom));
+  /* 10 fine tracks per column/row so tiles can be any size in 0.1 steps; tiles keep half a gap of margin. */
+  position: relative; display: grid; grid-template-columns: repeat(var(--subcols, 50), minmax(0, 1fr));
+  grid-auto-rows: var(--subrow-h, 33px); grid-auto-flow: dense; gap: 0;
+  padding: 0 calc(var(--pad) - var(--gap, 16px) / 2) calc(var(--pad) - var(--gap, 16px) / 2 + env(safe-area-inset-bottom));
   height: calc(100% - 13vh - env(safe-area-inset-top)); overflow-y: auto; align-content: start;
 }
 .card {
@@ -112,7 +113,7 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
   transition: background 0.4s, color 0.3s, transform 0.15s, opacity 0.3s;
 }
 .card.pressing { transform: scale(0.97); }
-.home-grid > .card { container-type: size; }
+.home-grid > .card { container-type: size; margin: calc(var(--gap, 16px) / 2); }
 
 .card-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .card-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
@@ -181,7 +182,7 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .sensor-val { font-size: clamp(22px, 19cqmin, 90px); font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini-row { display: flex; gap: 6px; margin-top: 8px; }
 .mini { flex: 1; height: 34px; border-radius: 12px; display: grid; place-items: center; background: rgba(127,127,127,0.22); font-size: 18px; }
-.empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 40px; }
+.empty { grid-column: 1 / -1; grid-row: span 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 40px; }
 .empty-title { font-size: 24px; font-weight: 700; }
 .empty-sub { opacity: 0.6; margin-bottom: 8px; }
 
@@ -426,6 +427,23 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 }
 .eo-opts .ic { font-size: 15px; }
 @container (max-width: 150px) { .eo-opts span { display: none; } .eo-opts { padding: 0 10px; } }
+/* Very small tiles in Edit layout: corners only (reorder from Options). */
+@container (max-width: 150px) {
+  .eo-move, .eo-name { display: none; }
+  .eo-opts { top: 6px; right: 6px; left: auto; bottom: auto; transform: none; height: 30px; padding: 0 8px; }
+  .eo-remove { width: 26px; height: 26px; top: 6px; left: 6px; font-size: 13px; }
+  .eo-handle { width: 34px; height: 34px; font-size: 17px; right: 4px; bottom: 4px; }
+  .eo-size { inset: 38px 4px 38px 4px; }
+}
+@container (max-height: 120px) {
+  .eo-move, .eo-name { display: none; }
+  .eo-opts { top: 6px; right: 6px; left: auto; bottom: auto; transform: none; height: 30px; padding: 0 8px; }
+  .eo-opts span { display: none; }
+  .eo-remove { width: 26px; height: 26px; top: 6px; left: 6px; font-size: 13px; }
+  .eo-handle { width: 34px; height: 34px; font-size: 17px; right: 4px; bottom: 4px; }
+  .eo-size { inset: 4px 44px; }
+}
+.flip-ic .ic { transform: scaleX(-1); }
 .icon-ctl { display: flex; align-items: center; gap: 8px; }
 .icon-prev { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 24px; background: rgba(255,255,255,0.1); }
 .icon-sheet { width: min(820px, 94vw); height: 86vh; }
