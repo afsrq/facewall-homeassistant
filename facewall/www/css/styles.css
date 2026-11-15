@@ -116,7 +116,7 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 
 .card-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .card-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.card-ic { font-size: clamp(18px, 8cqmin, 30px); opacity: 0.9; margin-top: 1px; }
+.card-ic { font-size: calc(clamp(18px, 8cqmin, 30px) * var(--icon-scale, 1)); opacity: 0.9; margin-top: 1px; }
 .card-titles { min-width: 0; }
 .card-title { font-size: clamp(13px, 7cqmin, 24px); font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-sub { font-size: clamp(11px, 5cqmin, 16px); opacity: 0.6; margin-top: 1px; }
@@ -155,12 +155,12 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .timer.on { background: linear-gradient(160deg, rgba(255,150,70,0.95), rgba(236,82,44,0.9)); }
 
 /* lock */
-.lock-big { flex: 1; display: grid; place-items: center; font-size: clamp(30px, 30cqmin, 130px); min-height: 0; }
+.lock-big { flex: 1; display: grid; place-items: center; font-size: calc(clamp(30px, 30cqmin, 130px) * var(--icon-scale, 1)); min-height: 0; }
 .lock.alert { background: linear-gradient(160deg, rgba(255,190,60,0.95), rgba(240,140,20,0.9)); color: #2b1700; }
 
 /* tiles */
 .tile-top { display: flex; justify-content: space-between; }
-.tile-ic { font-size: clamp(20px, 13cqmin, 64px); }
+.tile-ic { font-size: min(calc(clamp(20px, 13cqmin, 64px) * var(--icon-scale, 1)), 46cqh, 70cqw); line-height: 0; }
 .tile-bottom { margin-top: auto; min-width: 0; }
 .tile-name { font-size: clamp(13px, 7.5cqmin, 30px); font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile-state { font-size: clamp(11px, 5.6cqmin, 20px); opacity: 0.7; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -447,6 +447,18 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .ls-ct::-webkit-slider-runnable-track { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #ffb46b, #fff4e5, #cfe0ff); }
 .ls-ct::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -8px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 .ls-ct::-moz-range-track { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #ffb46b, #fff4e5, #cfe0ff); }
+
+/* ------------------------------------------------------------ icon position & size per tile */
+.card.icon-tr .tile-top { flex-direction: row-reverse; }
+.card.icon-tr .tile-more { margin: -6px 0 0 -6px; }
+.card.icon-center .tile-top { flex: 1; min-height: 0; justify-content: center; align-items: center; }
+.card.icon-center .tile-ic { font-size: min(calc(clamp(28px, 22cqmin, 110px) * var(--icon-scale, 1)), 60cqh, 85cqw); }
+.card.icon-center .tile-bottom { margin-top: 0; }
+.card.icon-center .tile-more { position: absolute; top: 12px; right: 12px; margin: 0; }
+.card .tile-ic .ic { max-width: 100%; }
+.range-ctl { display: flex; align-items: center; gap: 10px; }
+.range { width: min(220px, 34vw); accent-color: var(--blue); }
+.range-val { min-width: 46px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------------------ tile size adaptations (keep last) */
 /* Small tiles drop the extras that don't fit (sizes are the tile's inside, without padding). */

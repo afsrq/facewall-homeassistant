@@ -1,7 +1,7 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace } from './faces.js';
-import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf } from './home.js';
+import { HomePage, TIMER_OK, ALL_OFF, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS } from './home.js';
 import { loadMdi, mdiSvg, mdiNames, mdiHas, SUGGESTED } from './mdi.js';
 import { icon, domainIcon } from './icons.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
@@ -653,6 +653,17 @@ class App {
       h('button.pill.sm', { text: 'Choose…', onclick: () => this.iconPicker(item.icon || haIcon, (name) => set((it) => { if (name) it.icon = name; else delete it.icon; })) }),
       item.icon ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.icon; }) }) : null),
     item.icon || (haIcon ? `${haIcon} (from Home Assistant)` : 'Built-in icon')));
+    if (ICON_MOVABLE.includes(kindFor(item))) {
+      rows.push(row('Icon position', segmented(ICON_POSITIONS, item.iconPos || 'tl', (v) => set((it) => { if (v === 'tl') delete it.iconPos; else it.iconPos = v; }))));
+    }
+    // Icon size: 50%–300% of normal. The label follows the slider; the tile updates when you let go.
+    const scale = item.iconScale || 1;
+    const sizeLabel = h('span.range-val', { text: `${Math.round(scale * 100)}%` });
+    const slider = h('input.range', { type: 'range', min: 50, max: 300, step: 10, value: Math.round(scale * 100), 'aria-label': 'Icon size' });
+    slider.addEventListener('input', () => { sizeLabel.textContent = `${slider.value}%`; });
+    slider.addEventListener('change', () => set((it) => { const v = Number(slider.value) / 100; if (v === 1) delete it.iconScale; else it.iconScale = v; }));
+    rows.push(row('Icon size', h('div.range-ctl', {}, slider, sizeLabel,
+      scale !== 1 ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.iconScale; }) }) : null)));
     const cols = this.roomFor(pageId)?.cols || 5;
     const [w, hh] = sizeOf(item);
     rows.push(row('Width (columns)', segmented(Array.from({ length: Math.min(cols, 8) }, (_, k) => ({ v: k + 1, label: String(k + 1) })), Math.min(w, cols), (v) => set((it) => { it.w = v; }))));

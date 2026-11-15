@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0
+- Icon position per tile: top left, top right, or in the middle.
+- Icon size per tile: 50%–300%. Icons never grow so big that they push the tile's name out of view.
+
 ## 1.4.0
 - Icons: tiles use each device's Home Assistant icon automatically, and you can pick any of 7,000+ Material Design Icons per tile (searchable). Icons are bundled, so no internet needed.
 - Add the same device more than once, e.g. a group as a quick on/off switch *and* as full controls.

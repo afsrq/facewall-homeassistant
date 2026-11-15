@@ -41,6 +41,7 @@ Tile sizes are in grid columns/rows, so set the page's **Columns** and **Rows** 
 In **Edit layout** (▦) every tile has an **Options** button (or tap a tile's size badge in ⚙︎ → Tiles):
 - **Style:** lights can be *Light* (tap on/off, hold for colour), *Quick switch* (tap on/off only), *Controls* (tap opens colour, dim, effects and scenes) or *Timer*. Switches can be *Switch* or *Timer*.
 - **Icon:** search 7,000+ Material Design Icons (the set Home Assistant uses). Without a custom icon, a tile uses the device's Home Assistant icon if it has one.
+- **Icon position:** top left, top right or the middle of the tile. **Icon size:** 50%–300%.
 - **Name:** your own label, or leave it empty to use Home Assistant's name.
 - **Add another copy:** put the same device on the page again, e.g. "All lights" once as a Quick switch and once as Controls.
 

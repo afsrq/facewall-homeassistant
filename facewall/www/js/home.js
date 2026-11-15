@@ -26,6 +26,9 @@ export function stylesFor(id) {
   if (['switch', 'input_boolean', 'fan'].includes(d)) return [{ v: 'toggle', label: 'Switch', sub: 'Tap on/off' }, { v: 'timer', label: 'Timer', sub: '15/30/45/60-minute buttons' }];
   return [];
 }
+/** Tile kinds whose icon sits in the corner and can be moved (top left / top right / middle). */
+export const ICON_MOVABLE = ['light', 'toggle', 'action', 'cover', 'sensor', 'alloff'];
+export const ICON_POSITIONS = [{ v: 'tl', label: 'Top left' }, { v: 'tr', label: 'Top right' }, { v: 'center', label: 'Middle' }];
 export const styleOf = (item) => item.style || (item.timer ? 'timer' : stylesFor(item.id)[0]?.v || null);
 export const tileIcon = (id) => (id === ALL_OFF ? 'bulbOff' : domainIcon(domainOf(id)));
 export const MAX_H = 4;
@@ -124,6 +127,9 @@ export class HomePage {
       if (!card) return;
       const [w, hgt] = sizeOf(item);
       this.applySize(card.el, w, hgt);
+      // Per-tile icon position and size.
+      card.el.classList.add('icon-' + (ICON_MOVABLE.includes(kindFor(item)) ? item.iconPos || 'tl' : 'tl'));
+      if (item.iconScale && item.iconScale !== 1) card.el.style.setProperty('--icon-scale', String(item.iconScale));
       if (this.editing) this.attachEditor(card.el, item, index);
       this.cards.push(card); this.grid.append(card.el); card.update();
     });
