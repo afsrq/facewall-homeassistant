@@ -913,3 +913,16 @@ body.theme-light .tile-badge { background: rgba(0,0,0,0.12); color: inherit; }
 @container (max-width: 200px) { .media .media-btn:not(.media-play) { display: none; } .media .card-head { display: none; } }
 @container (max-height: 170px) { .media .card-head { display: none; } .media-artist { display: none; } }
 @container (max-height: 120px) { .media-info { display: none; } .media-ctl { margin-top: auto; } }
+
+/* ------------------------------------------------------------ photo frame */
+.photo-frame { position: fixed; inset: 0; z-index: 38; background: #000; opacity: 0; transition: opacity 0.6s; cursor: none; }
+.photo-frame.in { opacity: 1; }
+.pf-img { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 1.6s ease; will-change: opacity, transform; }
+.photo-frame.fit .pf-img { background-size: contain; }
+.pf-img.on { opacity: 1; animation: pf-kb var(--pf-dur, 24s) ease-out both; }
+.photo-frame.still .pf-img.on, .photo-frame.fit .pf-img.on { animation: none; }
+@keyframes pf-kb { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.12) translate(var(--pf-x, 0), var(--pf-y, 0)); } }
+.pf-corner { position: absolute; left: calc(28px + env(safe-area-inset-left)); bottom: calc(24px + env(safe-area-inset-bottom)); color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,0.65), 0 1px 3px rgba(0,0,0,0.5); pointer-events: none; }
+.pf-time { font-size: clamp(44px, 7vw, 84px); font-weight: 650; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.pf-sub { font-size: clamp(15px, 1.8vw, 21px); font-weight: 600; opacity: 0.92; margin-top: 6px; }
+.pf-sub:empty { display: none; }

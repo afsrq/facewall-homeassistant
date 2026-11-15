@@ -115,7 +115,7 @@ export function swatches(choices, value, onchange) {
 }
 
 export function row(label, control, sub) {
-  return h('div.row', {}, h('div.row-text', {}, h('div.row-label', { text: label }), sub ? h('div.row-sub', { text: sub }) : null), control);
+  return h('div.row', {}, h('div.row-text', {}, h('div.row-label', { text: label }), sub instanceof Node ? sub : sub ? h('div.row-sub', { text: sub }) : null), control);
 }
 
 /** Native <select> of entities, grouped by domain. */

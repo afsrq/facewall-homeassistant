@@ -1,5 +1,5 @@
 name: Facewall
-version: "1.26.0"
+version: "1.27.0"
 slug: facewall
 description: Watch faces and home controls for a wall-mounted iPad
 arch:
@@ -15,6 +15,10 @@ panel_title: Facewall
 homeassistant_api: true
 map:
   - type: homeassistant_config
+    read_only: true
+  - type: media
+    read_only: true
+  - type: share
     read_only: true
 ports:
   8099/tcp: 8099

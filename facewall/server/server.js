@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.26.0';
+const VERSION = '1.27.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -24,6 +24,33 @@ const ICONS_DIR = path.join(DATA_DIR, 'icons'); // icons uploaded from Facewall
 fs.mkdirSync(ICONS_DIR, { recursive: true });
 // Home Assistant's custom_icons folder (the one hass-fontawesome uses for "fapro:" icons), read-only.
 const FOLDER_ICON_DIRS = [process.env.CUSTOM_ICONS_DIR, '/homeassistant/custom_icons', '/config/custom_icons'].filter(Boolean);
+
+// Photo frame: folders the app can read photos from (Home Assistant's media and share folders, or PHOTOS_DIR).
+const PHOTO_ROOTS = Object.fromEntries([['media', '/media'], ['share', '/share'], ['photos', process.env.PHOTOS_DIR]].filter(([, d]) => d && fs.existsSync(d)));
+const PHOTO_EXT = /\.(jpe?g|png|webp|gif|heic|avif)$/i;
+function photoPath(rel) {
+  const [root, ...rest] = String(rel || '').split('/').filter(Boolean);
+  const base = PHOTO_ROOTS[root];
+  if (!base || rest.some((x) => x === '..' || x.startsWith('.'))) return null;
+  const full = path.resolve(base, ...rest);
+  return full === base || full.startsWith(base + path.sep) ? full : null;
+}
+async function listPhotos(folder) {
+  const start = photoPath(folder);
+  if (!start) return null;
+  const out = [];
+  const walk = async (dir, depth) => {
+    let ents; try { ents = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      if (out.length >= 3000 || e.name.startsWith('.') || e.name.startsWith('@')) continue;
+      const f = path.join(dir, e.name);
+      if (e.isDirectory() && depth < 4) await walk(f, depth + 1);
+      else if (e.isFile() && PHOTO_EXT.test(e.name)) out.push(path.posix.join(folder.replace(/\/+$/, ''), path.relative(start, f).split(path.sep).join('/')));
+    }
+  };
+  await walk(start, 0);
+  return out.sort();
+}
 
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 const HA_URL = (process.env.HA_URL || '').replace(/\/+$/, '');
@@ -431,6 +458,27 @@ async function handleApi(req, res, route) {
       Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res);
       return;
     } catch (e) { if (!res.headersSent) return json(res, 502, { error: e.message }); return res.end(); }
+  }
+  // Photo frame: the folders on offer, the photos in one (with sub-folders), and one photo.
+  if (route === 'photos' && req.method === 'GET') {
+    const folder = new URL(req.url, 'http://x').searchParams.get('folder') || '';
+    const roots = Object.keys(PHOTO_ROOTS);
+    if (!folder) return json(res, 200, { roots, files: [] });
+    const files = await listPhotos(folder);
+    if (!files) return json(res, 404, { roots, error: 'folder not found', files: [] });
+    return json(res, 200, { roots, files });
+  }
+  if (route === 'photo' && req.method === 'GET') {
+    const f = photoPath(new URL(req.url, 'http://x').searchParams.get('f'));
+    if (!f || !PHOTO_EXT.test(f)) return json(res, 404, { error: 'not found' });
+    try {
+      const st = await fsp.stat(f);
+      const ext = path.extname(f).slice(1).toLowerCase();
+      const type = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', avif: 'image/avif' }[ext];
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': st.size, 'Cache-Control': 'max-age=3600' });
+      fs.createReadStream(f).on('error', () => res.end()).pipe(res);
+      return;
+    } catch { return json(res, 404, { error: 'not found' }); }
   }
   // Calendar events for calendar tiles (Home Assistant's calendar REST API).
   if (route === 'calendar' && req.method === 'GET') {

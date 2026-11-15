@@ -17,6 +17,7 @@ Watch faces for a wall-mounted iPad, with your Home Assistant devices one swipe 
 - **Page header**: pick what shows under each page's title (greeting, date, weather, high/low, wind, rain, sunrise/sunset, storm and hurricane warnings, sensors, your own text), with your choice of font, size and colour.
 - **Themes**: 18 themes (dark, pastel and electric) with a live preview picker; use one for the whole house or a different one per iPad.
 - **Living backgrounds**: gentle rain, snow, clouds, fog or stars behind the tiles that match the weather outside, plus seasonal blossoms, leaves and snow.
+- **Photo frame**: after a while on the clock, a slideshow from your Home Assistant media folder with the time in the corner.
 - **Your layout**: give each tile its own width and height in grid columns/rows (drag to resize in Edit layout mode), and choose how many columns and rows fit on the screen.
 - **Screen care**: screen off when the room is empty and wake on motion, a night theme per iPad, and burn-in protection.
 - Live updates, settings shared across every screen, night dimming, return-to-clock after idle.
@@ -63,6 +64,7 @@ docker run -d --name facewall --restart unless-stopped -p 8099:8099 \
 ```
 
 Or with Node 22+ directly: `HA_URL=… HA_TOKEN=… node server/server.js`.
+For the photo frame outside Home Assistant, also mount a photo folder and set `PHOTOS_DIR` (e.g. `-v ~/Pictures:/photos:ro -e PHOTOS_DIR=/photos`).
 
 ## How it works
 

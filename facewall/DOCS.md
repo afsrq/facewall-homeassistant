@@ -139,6 +139,13 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 ## Living backgrounds
 Settings → Appearance → **Weather in the background** draws gentle rain, snow, clouds, fog, wind streaks or twinkling stars in the background, matching your weather entity (the header's, or your first one); thunderstorms add the odd soft flash. **Seasonal touches** add blossoms in April and May, falling leaves in October and November, and light snow in December and January when the weather is calm. **How much** sets the density. It only animates on the page you're looking at and stops while the screen sleeps.
 
+## Photo frame
+Settings → **Photo frame (this iPad)** → Show photos. After the time you choose on the clock with nobody touching the screen, the iPad shows a slideshow of your photos with a slow pan and zoom, and the time (plus the date and temperature, if you like) in the corner. Tap anywhere to go back to the clock. The screen-off timer, the doorbell and motion still work as usual.
+
+**Where the photos come from:** Facewall can read Home Assistant's **media** and **share** folders (read-only). The easiest way: in Home Assistant open **Media → My media**, make a folder (e.g. `photos`) and upload pictures, then set the Folder to `media/photos`. Photos in sub-folders are included. JPEG, PNG, WebP, GIF, HEIC and AVIF work. Running Facewall outside Home Assistant? Set `PHOTOS_DIR` and use `photos/…` as the folder.
+
+The first time after updating, Home Assistant may ask you to restart the app so it can see the media folder.
+
 ## Page header
 
 Everything under a page's title is yours to choose: ⚙︎ → *Appearance* → *Page header* → **Change…**, or just **hold the title** on any page (right-click on a computer).

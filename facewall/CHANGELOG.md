@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.27.0
+- **Photo frame** (Settings → Photo frame, per iPad): after a while on the clock, show a slideshow from a folder in Home Assistant's media (e.g. upload to Media → My media → photos) with a slow pan and zoom and the time, date and temperature in the corner. Choose how long each photo stays, shuffle or by name, fill the screen or show the whole photo. Tap to go back.
+- The app now has read-only access to Home Assistant's media and share folders (for the photo frame).
+
 ## 1.26.0
 - **Living backgrounds**: subtle animated weather behind the tiles that matches outside: rain (with the odd lightning flash in storms), snow, drifting clouds, fog, wind streaks, stars on clear nights and a warm glow when it's sunny. Settings → Appearance → Weather in the background.
 - **Seasonal touches**: spring blossoms, autumn leaves and December snow when the weather is calm. Each can be turned off, and **How much** sets the density.

@@ -91,6 +91,8 @@ export class Store extends EventTarget {
 
   startTimer(id, minutes) { return this.adapter.startTimer(id, minutes); }
   /** Calendar events between two dates: [{ summary, location, start, end, allDay }]. */
+  photos(folder) { return this.adapter.photos ? this.adapter.photos(folder) : Promise.resolve({ roots: [], files: [] }); }
+  photoUrl(f) { return this.adapter.photoUrl ? this.adapter.photoUrl(f) : ''; }
   events(id, start, end) { return this.adapter.events ? this.adapter.events(id, start, end) : Promise.resolve([]); }
   /** A sensor's recent history: [[epoch ms, number], ...]. */
   history(id, hours = 24) { return this.adapter.history ? this.adapter.history(id, hours) : Promise.resolve([]); }
@@ -204,6 +206,10 @@ class ServerAdapter {
     try { await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target }) }); }
     catch (e) { this.store.dispatchEvent(new CustomEvent('error', { detail: e.message })); }
   }
+  async photos(folder) {
+    try { return await fetchJSON(`api/photos?folder=${encodeURIComponent(folder || '')}`, {}, 30000); } catch (e) { return { roots: [], files: [], error: e.message }; }
+  }
+  photoUrl(f) { return `api/photo?f=${encodeURIComponent(f)}`; }
   async events(id, start, end) {
     try { return (await fetchJSON(`api/calendar?id=${encodeURIComponent(id)}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`, {}, 20000)).events || []; } catch { return []; }
   }
@@ -373,6 +379,17 @@ class DemoAdapter {
     }
   }
 
+  /** Made-up 'photos' for the demo: painted skies and hills. */
+  async photos(folder) {
+    if (!folder) return { roots: ['media', 'share'], files: [] };
+    return { roots: ['media', 'share'], files: Array.from({ length: 6 }, (_, i) => `demo/${i}`) };
+  }
+  photoUrl(f) {
+    const i = Number(f.split('/').pop()) || 0;
+    const P = [['#ff9a8b', '#ff6a88', '#3a1c71', '#2d1b4e'], ['#a1c4fd', '#c2e9fb', '#4b7f52', '#2f5a3a'], ['#f6d365', '#fda085', '#7a4b2a', '#4a2c17'], ['#0f2027', '#2c5364', '#16222a', '#0b1116'], ['#ffecd2', '#fcb69f', '#5d8a8a', '#33585a'], ['#89f7fe', '#66a6ff', '#e0c3fc', '#8ec5fc']][i % 6];
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000'><defs><linearGradient id='s' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${P[0]}'/><stop offset='1' stop-color='${P[1]}'/></linearGradient></defs><rect width='1600' height='1000' fill='url(%23s)'/><circle cx='${400 + i * 170}' cy='${300 + (i % 3) * 60}' r='90' fill='white' opacity='.55'/><path d='M0 700 Q400 ${520 + i * 20} 800 680 T1600 640 V1000 H0Z' fill='${P[2]}'/><path d='M0 820 Q500 ${700 + i * 15} 1000 800 T1600 780 V1000 H0Z' fill='${P[3]}'/></svg>`;
+    return 'data:image/svg+xml;utf8,' + svg.replace(/#/g, '%23').replace(/%23s\)/g, '%23s)');
+  }
   /** Made-up events for the demo calendars. */
   async events(id, start, end) {
     const day = (n, hh, mm) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); if (hh != null) d.setHours(hh, mm || 0); return d; };

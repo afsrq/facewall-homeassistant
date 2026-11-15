@@ -744,7 +744,27 @@ class App {
         row('Save a backup', h('button.pill.sm', { html: icon('download') + '<span>Download</span>', onclick: () => this.downloadBackup() }), 'Every page, tile, theme, header, screen and doorbell setting, plus your uploaded icons, in one file'),
         row('Restore a backup', h('button.pill.sm', { html: icon('upload') + '<span>Choose file…</span>', onclick: () => restoreIn.click() }), 'Replaces the current setup on every screen'),
         restoreIn);
-      sh.body.append(appearanceSec, screenSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, backupSec, aboutSec);
+      // ---------------- Photo frame (this iPad)
+      const pf = sc.photos || {};
+      const updPf = (fn, re = true) => { this.updateScreen((x) => { x.photos ||= {}; fn(x.photos); }); if (re) render(); };
+      const pfStatus = h('div.row-sub', { text: 'Looking…' });
+      const folderIn = h('input.text-in.wide-in', { value: pf.folder || '', placeholder: 'media/photos', onchange: (e) => { updPf((p) => { p.folder = e.target.value.trim().replace(/^\/+|\/+$/g, ''); }); } });
+      const photoSec = section('Photo frame (this iPad)',
+        row('Show photos', toggle(!!pf.on, (v) => updPf((p) => { p.on = v; if (v && !p.folder) p.folder = 'media'; })), 'After a while on the clock, show a slideshow of your photos with the time in the corner. Tap to go back.'),
+        pf.on ? row('Folder', folderIn, pfStatus) : null,
+        pf.on ? row('Start after', segmented([{ v: 0.5, label: '30s' }, { v: 2, label: '2 min' }, { v: 5, label: '5 min' }, { v: 15, label: '15 min' }, { v: 30, label: '30 min' }], pf.after ?? 5, (v) => updPf((p) => { p.after = v; })), 'on the clock, with nobody touching the screen') : null,
+        pf.on ? row('Each photo for', segmented([{ v: 10, label: '10s' }, { v: 20, label: '20s' }, { v: 30, label: '30s' }, { v: 60, label: '1m' }, { v: 300, label: '5m' }], pf.every || 20, (v) => updPf((p) => { p.every = v; }))) : null,
+        pf.on ? row('Order', segmented([{ v: 'shuffle', label: 'Shuffle' }, { v: 'name', label: 'By name' }], pf.order || 'shuffle', (v) => updPf((p) => { p.order = v; }))) : null,
+        pf.on ? row('Photos', segmented([{ v: 'fill', label: 'Fill the screen' }, { v: 'fit', label: 'Show whole photo' }], pf.fit || 'fill', (v) => updPf((p) => { p.fit = v; }))) : null,
+        pf.on ? row('Slow zoom', toggle(pf.zoom !== false, (v) => updPf((p) => { p.zoom = v; })), 'A gentle pan and zoom, like a documentary') : null,
+        pf.on ? row('Time in the corner', segmented([{ v: 'time', label: 'Time' }, { v: 'full', label: 'Time, date and weather' }, { v: 'none', label: 'Nothing' }], pf.clock || 'full', (v) => updPf((p) => { p.clock = v; }))) : null,
+        pf.on ? row('Try it', h('button.pill.sm.primary', { text: 'Start now', onclick: () => { sh.close(); this.goTo(0, true); this.startFrame(); } })) : null);
+      if (pf.on) this.store.photos(pf.folder || 'media').then((r) => {
+        const roots = (r.roots || []).map((x) => x + '/').join(', ');
+        pfStatus.textContent = r.files?.length ? `${r.files.length} photo${r.files.length === 1 ? '' : 's'} found (sub-folders too).` : `No photos found there. ${roots ? 'Start with ' + roots + ' e.g. media/photos. In Home Assistant, upload to Media → My media.' : 'Facewall can’t see any photo folders.'}`;
+      });
+
+      sh.body.append(appearanceSec, screenSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, backupSec, aboutSec);
     };
     render();
   }
@@ -1071,12 +1091,74 @@ class App {
     if (!!this.sleeping === on) return;
     this.sleeping = on;
     this.sleepCover.classList.toggle('on', on);
+    if (on) this.stopFrame();
     if (on) return;
     this.lastActivity = Date.now();
     this.wake(true);
     const to = this.screen.wakeTo || 'clock';
     if (to === 'clock') this.goTo(0, true);
     else if (to === 'page') this.goTo(this.startIndex(), true);
+  }
+  // ------------------------------------------------------------------ photo frame
+  frameCheck(idle, anyOverlay) {
+    const pf = this.screen.photos;
+    if (!pf?.on || this.frame || this.sleeping || this.bell || anyOverlay || this.page !== 0) return;
+    if (idle >= Math.max(20, (pf.after ?? 5) * 60)) this.startFrame();
+  }
+  async startFrame() {
+    const pf = this.screen.photos || {};
+    if (this.frame) return;
+    const r = await this.store.photos(pf.folder || 'media');
+    let files = r.files || [];
+    if (!files.length) { this.lastActivity = Date.now(); if (!this._pfWarned) { this._pfWarned = true; toast('Photo frame: no photos found in “' + (pf.folder || 'media') + '”'); } return; }
+    if ((pf.order || 'shuffle') === 'shuffle') files = files.map((f) => [Math.random(), f]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+    const A = h('div.pf-img'), B = h('div.pf-img');
+    const time = h('div.pf-time'), sub = h('div.pf-sub');
+    const corner = h('div.pf-corner', {}, time, sub);
+    const el = h('div.photo-frame' + (pf.fit === 'fit' ? '.fit' : '') + (pf.zoom === false ? '.still' : ''), { onpointerdown: (e) => { e.preventDefault(); e.stopPropagation(); this.stopFrame(); } }, A, B, (pf.clock || 'full') !== 'none' ? corner : null);
+    document.body.append(el);
+    let i = 0, front = A;
+    const show = () => {
+      const f = files[i++ % files.length];
+      if (i % files.length === 0 && (pf.order || 'shuffle') === 'shuffle') files.sort(() => Math.random() - 0.5);
+      const url = this.store.photoUrl(f);
+      const img = new Image();
+      img.onload = img.onerror = () => {
+        if (!this.frame) return;
+        if (!img.naturalWidth) return; // skip photos the iPad can't show
+        const back = front === A ? B : A;
+        back.style.backgroundImage = `url("${url.replace(/"/g, '%22')}")`;
+        back.style.setProperty('--pf-x', (Math.random() * 6 - 3).toFixed(1) + '%');
+        back.style.setProperty('--pf-y', (Math.random() * 6 - 3).toFixed(1) + '%');
+        back.style.setProperty('--pf-dur', ((pf.every || 20) + 4) + 's');
+        back.classList.remove('on'); void back.offsetWidth; back.classList.add('on');
+        front.classList.remove('on');
+        front = back;
+      };
+      img.src = url;
+    };
+    const tickClock = () => {
+      const now = new Date(), use24h = this.settings.general.use24h;
+      time.textContent = now.toLocaleTimeString(undefined, { hour: use24h ? '2-digit' : 'numeric', minute: '2-digit', hour12: !use24h });
+      if ((pf.clock || 'full') === 'full') {
+        const wid = this.settings.header?.weather || this.store.list(['weather'])[0]?.entity_id;
+        const w = wid ? this.store.get(wid) : null;
+        const temp = w?.attributes?.temperature != null ? ` · ${Math.round(w.attributes.temperature)}°` : '';
+        sub.textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) + temp;
+      } else sub.textContent = '';
+    };
+    tickClock(); show();
+    this.frame = { el, timers: [setInterval(show, (pf.every || 20) * 1000), setInterval(tickClock, 5000)] };
+    requestAnimationFrame(() => el.classList.add('in'));
+  }
+  stopFrame() {
+    if (!this.frame) return;
+    const { el, timers } = this.frame;
+    this.frame = null;
+    timers.forEach(clearInterval);
+    this.lastActivity = Date.now();
+    el.classList.remove('in');
+    setTimeout(() => el.remove(), 600);
   }
   /** Go black after the chosen minutes without touches or motion (motion sensor optional). */
   sleepCheck() {
@@ -1153,6 +1235,7 @@ class App {
     this.wake(true);
     if (this.sleeping) { this.sleeping = false; this.sleepCover.classList.remove('on'); }
     this.dim.style.opacity = 0;
+    this.stopFrame();
     this.bell = this.cameraView(db.camera || null, { title: 'Someone’s at the door', doorbell: true, lock: db.lock, seconds: db.seconds || 60, onClose: () => { this.bell = null; this.applyDim(); } });
   }
 
@@ -1455,7 +1538,7 @@ class App {
   idleCheck() {
     const idle = (Date.now() - this.lastActivity) / 1000;
     const limit = this.settings.general.idleSec;
-    if (!limit) return this.sleepCheck();
+    if (!limit) { this.frameCheck(idle, document.querySelector('.overlay, .sheet-backdrop')); return this.sleepCheck(); }
     const anyOverlay = document.querySelector('.overlay, .sheet-backdrop');
     if (anyOverlay && idle > Math.max(limit, 120)) {
       document.querySelectorAll('.sheet-backdrop').forEach((b) => b.remove());
@@ -1464,6 +1547,7 @@ class App {
       this.closePicker();
     }
     if (this.page >= 1 && !anyOverlay && !this.rooms.some((r) => r.editing) && idle > limit) this.goTo(0);
+    this.frameCheck(idle, anyOverlay);
     this.sleepCheck();
   }
   applyDim() {
