@@ -1,6 +1,6 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
-import { FACES, FACE_ORDER, mountFace } from './faces.js';
+import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS } from './faces.js';
 import { HomePage, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
@@ -469,6 +469,30 @@ class App {
       else if (o.type === 'choice') ctl = segmented(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }));
       else ctl = toggle(val, (v) => change(() => { work.opts[o.key] = v; }));
       opts.append(o.type === 'bool' ? row(o.label, ctl) : h('div.cz-section', {}, h('div.cz-label', { text: o.label }), ctl));
+    }
+    if (TIME_FACES.has(face.type)) {
+      const tm = () => (work.time ||= {});
+      const sel = (choices, val, on) => { const x = h('select.select'); for (const c of choices) x.append(h('option', { value: c.v, text: c.label })); x.value = val; x.onchange = () => on(x.value); return x; };
+      const timeBox = h('div');
+      const drawTime = () => {
+        const t = work.time || {};
+        timeBox.replaceChildren(
+          h('div.cz-group', { text: 'Time as text' }),
+          row('Show the time', sel(TIME_POS, t.pos || '', (v) => { change(() => { if (v) tm().pos = v; else delete work.time; }); drawTime(); }), 'In a corner, or above or below the dial'),
+          ...(t.pos ? [
+            row('Font', (() => { const x = sel(FONTS.map((f) => ({ v: f.v, label: f.label })), t.font || 'system', (v) => change(() => { tm().font = v; })); for (const o of x.options) o.style.fontFamily = FONTS.find((f) => f.v === o.value).css; return x; })()),
+            h('div.cz-section', {}, h('div.cz-label', { text: 'Size' }), segmented([{ v: 's', label: 'Small' }, { v: 'm', label: 'Medium' }, { v: 'l', label: 'Large' }], t.size || 'm', (v) => change(() => { tm().size = v; }))),
+            h('div.cz-section', {}, h('div.cz-label', { text: 'Weight' }), segmented([{ v: 300, label: 'Light' }, { v: 450, label: 'Regular' }, { v: 600, label: 'Semibold' }, { v: 800, label: 'Heavy' }], t.weight || 600, (v) => change(() => { tm().weight = v; }))),
+            h('div.cz-section', {}, h('div.cz-label', { text: 'Colour' }), h('div.cs-row', {},
+              h('button.cs.cs-match' + (!t.color ? '.sel' : ''), { text: 'Dial', title: 'Match the dial', onclick: () => { change(() => { delete tm().color; }); drawTime(); } }),
+              ['#ffffff', '#111111', '#ff9f0a', '#ff453a', '#ffd60a', '#30d158', '#64d2ff', '#0a84ff', '#bf5af2', '#e8d6b5'].map((c) => h('button.cs' + (t.color === c ? '.sel' : ''), { style: { background: c }, 'aria-label': c, onclick: () => { change(() => { tm().color = c; }); drawTime(); } })),
+              h('label.cs.cs-custom', { title: 'Any colour' }, h('span', { html: icon('plus') }), (() => { const i = h('input', { type: 'color', value: t.color || '#ffffff' }); i.addEventListener('change', () => { change(() => { tm().color = i.value; }); drawTime(); }); return i; })()))),
+            row('Date underneath', toggle(!!t.date, (v) => change(() => { tm().date = v; }))),
+            this.settings.general.use24h ? null : row('Show AM/PM', toggle(t.ampm !== false, (v) => change(() => { tm().ampm = v; }))),
+          ] : []));
+      };
+      drawTime();
+      opts.append(timeBox);
     }
     opts.append(h('div.cz-group', { text: 'Home Assistant' }));
     const tapGroups = def.needsTap ? TAP_GROUPS.slice(0, 2) : TAP_GROUPS;

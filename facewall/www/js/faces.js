@@ -1,6 +1,7 @@
 // Watch faces. Each face draws into an SVG sized to the full screen (w × h CSS px);
 // previews reuse the same drawing scaled down via viewBox, so everything stays crisp.
 import { lightRGB, isOn, formatState } from './data.js';
+import { FONTS } from './header.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 let uid = 0;
@@ -36,6 +37,24 @@ function luminance(hex) {
   const n = parseInt(hex.replace('#', ''), 16);
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Hands-only faces can show the time as text too, in a corner or above/below the dial. */
+export const TIME_FACES = new Set(['classic', 'numerals', 'roman', 'gradient', 'starburst', 'atomic', 'confetti']);
+export const TIME_POS = [{ v: '', label: 'Off' }, { v: 'tl', label: 'Top left' }, { v: 'tr', label: 'Top right' }, { v: 'top', label: 'Above' }, { v: 'bottom', label: 'Below' }, { v: 'bl', label: 'Bottom left' }, { v: 'br', label: 'Bottom right' }];
+const TIME_SIZE = { s: 0.07, m: 0.1, l: 0.14 };
+/** Where the dial sits: centred, or nudged and shrunk to leave room for the time above or below it. */
+function dialBox(w, h, k, ctx = {}, wk = 1) {
+  const pos = ctx.face?.time?.pos;
+  if ((pos === 'top' || pos === 'bottom') && TIME_FACES.has(ctx.face?.type)) {
+    const sz = TIME_SIZE[ctx.face.time.size || 'm'] * Math.min(w, h);
+    const band = sz * (ctx.face.time.date ? 1.75 : 1.25) + Math.min(w, h) * 0.05;
+    const avail = h - band;
+    const R = Math.min(Math.min(w * wk, h) * k, Math.min(w * wk, avail) * k);
+    const cy = pos === 'top' ? band + avail / 2 : avail / 2;
+    return { cx: w / 2, cy, R };
+  }
+  return { cx: w / 2, cy: h / 2, R: Math.min(w * wk, h) * k };
 }
 
 export const FONT = {
@@ -79,7 +98,7 @@ const classic = {
     const dial = pick(CLASSIC_DIALS, o.dial), accent = pick(ACCENTS, o.accent).color;
     const svg = makeSvg(root, w, h);
     el('rect', { width: w, height: h, fill: dial.color }, svg);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.46;
+    const { cx, cy, R } = dialBox(w, h, 0.46, arguments[2]);
     const ticks = el('g', { stroke: dial.ink, 'stroke-linecap': 'round' }, svg);
     for (let i = 0; i < 60; i++) {
       const hr = i % 5 === 0;
@@ -165,7 +184,7 @@ const numerals = {
     const f = el('filter', { id: id + 's', x: '-50%', y: '-50%', width: '200%', height: '200%' }, defs);
     el('feDropShadow', { dx: 0, dy: h * 0.004, stdDeviation: h * 0.006, 'flood-color': '#000', 'flood-opacity': 0.35 }, f);
     el('rect', { width: w, height: h, fill: bg }, svg);
-    const cx = w / 2, cy = h / 2, S = Math.min(h, w * 0.75);
+    const { cx, cy, R: S } = dialBox(w, h, 1, arguments[2], 0.75);
     const size = S * 0.42, off = Math.min(w * 0.31, S * 0.62);
     const t = { 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': size, 'font-family': FONT[o.font] || FONT.rounded, 'font-weight': o.weight, fill: ink, opacity: dark ? 0.9 : 0.95 };
     el('text', { ...t, x: cx, y: cy - S * 0.29 }, svg, '12');
@@ -312,7 +331,7 @@ const roman = {
     el('feDropShadow', { dx: 0, dy: h * 0.004, stdDeviation: h * 0.005, 'flood-color': '#000', 'flood-opacity': 0.4 }, sh);
 
     el('rect', { width: w, height: h, fill: `url(#${id}bg)` }, svg);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.44;
+    const { cx, cy, R } = dialBox(w, h, 0.44, arguments[2]);
     el('circle', { cx, cy, r: R * 1.045, fill: `url(#${id}c)` }, svg);
     el('circle', { cx, cy, r: R, fill: `url(#${id}d)` }, svg);
     // sunburst texture
@@ -568,7 +587,7 @@ const gradient = {
     root.appendChild(vign);
     const svg = makeSvg(root, w, h);
     svg.style.position = 'absolute'; svg.style.inset = '0';
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.45;
+    const { cx, cy, R } = dialBox(w, h, 0.45, arguments[2]);
     if (o.ticks) for (let i = 0; i < 12; i++) {
       const [x1, y1] = polar(cx, cy, R * 0.88, i * 30), [x2, y2] = polar(cx, cy, R, i * 30);
       el('line', { x1, y1, x2, y2, stroke: '#fff', 'stroke-width': R * (i % 3 ? 0.012 : 0.022), 'stroke-linecap': 'round', opacity: 0.9 }, svg);
@@ -736,7 +755,7 @@ const starburst = {
     const d = pick(MCM_DIALS, o.dial);
     const svg = makeSvg(root, w, h);
     dialBg(svg, w, h, d);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.47;
+    const { cx, cy, R } = dialBox(w, h, 0.47, arguments[2]);
     const rays = el('g', { fill: d.metal }, svg);
     for (let i = 0; i < 48; i++) {
       const hour = i % 4 === 0;
@@ -788,7 +807,7 @@ const atomic = {
     const d = pick(MCM_DIALS, o.dial), acc = MCM_PAL[Number(o.accent) || 0];
     const svg = makeSvg(root, w, h);
     dialBg(svg, w, h, d);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.45;
+    const { cx, cy, R } = dialBox(w, h, 0.45, arguments[2]);
     if (o.scatter) {
       const bg = el('g', {}, svg);
       let seed = 7; const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
@@ -844,7 +863,7 @@ const confetti = {
     const d = pick(MCM_DIALS, o.dial);
     const svg = makeSvg(root, w, h);
     dialBg(svg, w, h, d);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.46;
+    const { cx, cy, R } = dialBox(w, h, 0.46, arguments[2]);
     const g = el('g', {}, svg);
     const r = o.size === 'small' ? R * 0.055 : R * 0.085;
     for (let i = 0; i < 12; i++) {
@@ -895,6 +914,7 @@ function loop() {
   const newSecond = sec !== lastSecond; lastSecond = sec;
   for (const f of live) {
     if (f.paused) continue;
+    if (newSecond) f.tickTime?.(now);
     if (f.smooth) f.inst.update(now, true);
     else if (newSecond || f.dirty) { f.dirty = false; f.inst.update(now, false); }
   }
@@ -921,13 +941,49 @@ export function mountFace(container, face, ctx) {
   container.appendChild(host);
 
   const inst = def.create(layer, opts, { ...ctx, face });
+  // Time as text, for the hands-only faces.
+  const tm = face.time || {};
+  let timeEl = null, timeT = null, timeD = null;
+  if (tm.pos && TIME_FACES.has(face.type)) {
+    timeEl = document.createElement('div');
+    timeEl.className = 'face-time ft-' + tm.pos;
+    timeEl.style.fontFamily = (FONTS.find((f) => f.v === tm.font) || FONTS[0]).css;
+    timeEl.style.fontWeight = tm.weight || 600;
+    timeEl.style.setProperty('--ft-size', (TIME_SIZE[tm.size || 'm'] * 100) + 'cqmin');
+    timeEl.style.color = tm.color || def.ink(opts);
+    timeT = document.createElement('div'); timeT.className = 'ft-time';
+    timeEl.append(timeT);
+    if (tm.date) { timeD = document.createElement('div'); timeD.className = 'ft-date'; timeEl.append(timeD); }
+    host.appendChild(timeEl);
+    host.style.setProperty('--ft-push', `calc(var(--ft-size, 0px) * ${tm.date ? 1.6 : 1.2} + 2cqmin)`);
+    timeEl.style.setProperty('--ft-size', (TIME_SIZE[tm.size || 'm'] * 100) + 'cqmin');
+    host.style.setProperty('--ft-size', (TIME_SIZE[tm.size || 'm'] * 100) + 'cqmin');
+  }
+  // In a corner beside a round dial, shrink the text until it fits the space next to the dial.
+  const fitTime = () => {
+    if (!timeEl || !['tl', 'tr', 'bl', 'br'].includes(tm.pos)) return;
+    const W = host.clientWidth, H = host.clientHeight;
+    if (!W) return;
+    const side = W > H * 1.05 ? (W - Math.min(W, H) * 0.94) / 2 - Math.min(W, H) * 0.06 : W * 0.46;
+    timeT.style.fontSize = '';
+    const wNow = timeT.scrollWidth;
+    if (wNow > side && side > 0) timeT.style.fontSize = `calc(var(--ft-size) * ${Math.max(0.35, side / wNow).toFixed(3)})`;
+  };
+  const tickTime = (now) => {
+    if (!timeEl) return;
+    const h24 = ctx.use24h;
+    let t = now.toLocaleTimeString(undefined, { hour: h24 ? '2-digit' : 'numeric', minute: '2-digit', hour12: !h24 });
+    if (!h24 && tm.ampm === false) t = t.replace(/\s?[AP]\.?M\.?$/i, '');
+    if (timeT.textContent !== t) { timeT.textContent = t; fitTime(); }
+    if (timeD) { const d = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); if (timeD.textContent !== d) timeD.textContent = d; }
+  };
   const renderComps = () => {
     comps.innerHTML = '';
     for (const slot of ['tl', 'tr', 'bl', 'br']) {
       const id = face[slot];
       if (!id || !ctx.store) continue;
       const c = document.createElement('div');
-      c.className = 'comp comp-' + slot;
+      c.className = 'comp comp-' + slot + (timeEl && tm.pos === slot ? ' pushed' : '');
       const v = compValue(ctx.store, id);
       c.innerHTML = `<div class="comp-label"></div><div class="comp-value"></div>`;
       c.firstChild.textContent = ctx.store.name(id);
@@ -948,13 +1004,20 @@ export function mountFace(container, face, ctx) {
     face, def, inst, host, smooth: !ctx.preview, paused: false, dirty: true,
     destroy() {
       live.delete(api);
+      ro?.disconnect();
       ctx.store?.removeEventListener('state', onState);
       ctx.store?.removeEventListener('snapshot', onState);
       inst.destroy?.();
       host.remove();
     },
   };
+  api.tickTime = tickTime;
   inst.update(new Date(), !ctx.preview);
+  tickTime(new Date());
+  requestAnimationFrame(fitTime);
+  document.fonts?.ready?.then(fitTime);
+  const ro = timeEl && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => fitTime()) : null;
+  ro?.observe(host);
   live.add(api);
   return api;
 }

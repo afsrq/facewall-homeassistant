@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.28.0
+- **Time as text on the hands-only faces** (Classic, Numerals, Roman, Gradient, Starburst, Atomic, Confetti): customize a face → Time as text. Put it in any corner, above or below the dial (the dial shrinks to make room), and pick the font, size, weight, colour, date underneath and AM/PM. In a corner it shrinks to fit beside the dial, and an info complication in the same corner moves out of its way.
+
 ## 1.27.0
 - **Photo frame** (Settings → Photo frame, per iPad): after a while on the clock, show a slideshow from a folder in Home Assistant's media (e.g. upload to Media → My media → photos) with a slow pan and zoom and the time, date and temperature in the corner. Choose how long each photo stays, shuffle or by name, fill the screen or show the whole photo. Tap to go back.
 - The app now has read-only access to Home Assistant's media and share folders (for the photo frame).

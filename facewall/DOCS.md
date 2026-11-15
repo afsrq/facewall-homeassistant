@@ -136,6 +136,9 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 
 ⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura); Palm Springs, Desert Pool and Desert Dusk (breeze blocks, Avenir Next); Craftsman, Spanish Revival, Scandinavian, Art Deco, Japandi and Farmhouse. Each brings its own background pattern and title font; more styles will follow.
 
+## Time as text on analog faces
+Hold the clock → Customize on Classic, Numerals, Roman, Gradient, Starburst, Atomic or Confetti → **Time as text**. Choose a corner, Above or Below (the dial shrinks to make room), then the font (same list as the page header), size, weight, colour and whether to show the date underneath.
+
 ## Living backgrounds
 Settings → Appearance → **Weather in the background** draws gentle rain, snow, clouds, fog, wind streaks or twinkling stars in the background, matching your weather entity (the header's, or your first one); thunderstorms add the odd soft flash. **Seasonal touches** add blossoms in April and May, falling leaves in October and November, and light snow in December and January when the weather is calm. **How much** sets the density. It only animates on the page you're looking at and stops while the screen sleeps.
 
