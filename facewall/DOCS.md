@@ -111,6 +111,15 @@ Everything under a page's title is yours to choose: ⚙︎ → *Appearance* → 
 
 These settings apply to every page and every screen. The preview at the top of the editor shows the result as you go.
 
+## Screen care
+
+- **Screen off after** (⚙︎ → *This screen*): the screen goes black when nobody touches it or moves in the room for the time you choose. Tap it to wake it.
+- **Wake on motion**: pick a motion or presence sensor in that room; the screen wakes when someone comes in and stays on while they're there. *When it wakes* chooses the clock, this iPad's page, or where it was. A doorbell ring always wakes it.
+- **Night theme** (⚙︎ → *Appearance*): give an iPad a second theme for night, switched at sunset and sunrise or at set times.
+- **Burn-in protection** (⚙︎ → *Clock*): on by default; moves everything by a few pixels every few minutes.
+
+Tip: for a wall iPad, turn off Auto-Lock (Settings → Display & Brightness) and use Guided Access, and let Facewall black out the screen instead.
+
 ## Faces
 
 Classic, Numerals, Hourglow, Roman, Digital, Flip, and **Lamp**, a pendant bulb that glows in the real colour and brightness of a light you choose. Tap it to switch the light.

@@ -96,7 +96,8 @@ class App {
     else { const m = clone(this.store.settings); if (migrate(m)) this.store.saveSettings(m); }
     if (this.store.mode === 'demo') document.body.classList.add('demo');
     this.screenId = this.resolveScreen();
-    applyTheme(this.themeId());
+    this.appliedTheme = applyTheme(this.themeId()).id;
+    setTimeout(() => { this.syncTheme(); this.shiftPixels(true); }, 2500);
     setHaKiosk(!!this.screen.hideHa);
     this.buildShell();
     this.renderFace();
@@ -109,12 +110,12 @@ class App {
 
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
-      if (!this.themePreviewing) applyTheme(this.themeId());
+      if (!this.themePreviewing) this.appliedTheme = applyTheme(this.themeId()).id;
       setHaKiosk(!!this.screen.hideHa);
       this.renderFace(); this.renderRooms();
     });
-    this.store.addEventListener('status', () => this.showStatus());
-    this.store.addEventListener('state', (e) => this.checkDoorbell(e.detail));
+    this.store.addEventListener('status', () => { this.showStatus(); this.syncTheme(); });
+    this.store.addEventListener('state', (e) => { this.checkDoorbell(e.detail); this.checkMotion(e.detail); if (e.detail === 'sun.sun') this.syncTheme(); });
     this.store.addEventListener('error', (e) => toast(e.detail, 'error'));
     this.showStatus();
 
@@ -130,7 +131,7 @@ class App {
     document.addEventListener('keydown', (e) => this.onKey(e));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.wake(true); });
     setInterval(() => this.idleCheck(), 2000);
-    setInterval(() => this.applyDim(), 20000);
+    setInterval(() => { this.applyDim(); this.syncTheme(); this.shiftPixels(); }, 20000);
     this.applyDim();
   }
 
@@ -147,7 +148,21 @@ class App {
   }
   get screen() { return this.settings.screens?.[this.screenId] || {}; }
   /** This screen's theme: its own choice, else the house theme. */
-  themeId() { return this.screen.theme || this.settings.general?.theme || DEFAULT_THEME; }
+  baseThemeId() { return this.screen.theme || this.settings.general?.theme || DEFAULT_THEME; }
+  /** The theme to show now: this iPad's night theme after dark, otherwise its own or the house theme. */
+  themeId() { const n = this.screen.night; return n?.theme && this.isNight(n) ? n.theme : this.baseThemeId(); }
+  isNight(n) {
+    const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
+    if (n.mode === 'times') {
+      const toMin = (t) => { const [a, b] = (t || '0:0').split(':').map(Number); return a * 60 + b; };
+      const from = toMin(n.from || '20:00'), to = toMin(n.to || '07:00');
+      return from <= to ? m >= from && m < to : m >= from || m < to;
+    }
+    const sun = this.store.get('sun.sun');
+    return sun ? sun.state === 'below_horizon' : m >= 19 * 60 || m < 7 * 60;
+  }
+  /** Switch between the day and night theme when it's time. */
+  syncTheme() { if (this.themePreviewing) return; const t = this.themeId(); if (t !== this.appliedTheme) { applyTheme(t); this.appliedTheme = t; } }
   updateScreen(fn) {
     this.update((s) => { s.screens ||= {}; const sc = s.screens[this.screenId] ||= {}; fn(sc); sc.seen = Date.now(); });
   }
@@ -159,7 +174,7 @@ class App {
   }
   update(mut) {
     const s = clone(this.settings); mut(s); this.store.saveSettings(s);
-    if (!this.themePreviewing) applyTheme(this.themeId());
+    if (!this.themePreviewing) this.appliedTheme = applyTheme(this.themeId()).id;
     setHaKiosk(!!this.screen.hideHa);
     return s;
   }
@@ -173,6 +188,7 @@ class App {
     this.rooms = [];
     this.dots = h('div.pager-dots');
     this.dim = h('div.dim');
+    this.sleepCover = h('div.sleep-cover', { onpointerdown: (e) => { e.preventDefault(); e.stopPropagation(); this.setSleep(false); } });
     this.faceToast = h('div.face-toast');
     this.facePage.append(this.faceToast);
     this.statusPill = h('div.status-pill');
@@ -183,7 +199,7 @@ class App {
       h('button.pill', { html: icon('sliders') + '<span>Customize</span>', onclick: () => this.openCustomize(this.activeFace(), 'edit') }),
       h('button.pill', { html: icon('home') + '<span>Pages</span>', onclick: () => this.goTo(1) }),
       h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.openSettings() }));
-    app.append(this.pager, this.dots, this.navPrev, this.navNext, this.clockBar, this.dim, this.statusPill);
+    app.append(this.pager, this.dots, this.navPrev, this.navNext, this.clockBar, this.dim, this.sleepCover, this.statusPill);
     this.pager.addEventListener('scroll', () => {
       const p = Math.round(this.pager.scrollLeft / Math.max(1, this.pager.clientWidth));
       if (p !== this.page) { this.page = p; this.onPage(); }
@@ -528,11 +544,24 @@ class App {
       sh.body.innerHTML = '';
 
       // ---------------- Appearance
-      const th = themeById(this.themeId());
+      const th = themeById(this.baseThemeId());
       const appearanceSec = section('Appearance',
         row('Theme', h('div.icon-ctl', {}, this.themeSwatch(th, { small: true }), h('div.row-value', { text: th.name }),
           h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.openThemePicker(render) })),
         this.screen.theme ? 'Only on this iPad (the other screens use ' + themeById(s.general?.theme || DEFAULT_THEME).name + ')' : 'Used on every screen'),
+        row('Night theme on this iPad', (() => {
+          const sel = h('select.select');
+          sel.append(h('option', { value: '', text: 'None (same day and night)' }));
+          for (const g of THEME_GROUPS) { const og = h('optgroup', { label: g }); for (const t of THEMES.filter((x) => x.group === g)) og.append(h('option', { value: t.id, text: t.name })); sel.append(og); }
+          sel.value = this.screen.night?.theme || '';
+          sel.onchange = () => { this.updateScreen((x) => { if (sel.value) x.night = { mode: 'sun', ...(x.night || {}), theme: sel.value }; else delete x.night; }); this.syncTheme(); render(); };
+          return sel;
+        })(), 'Switches by itself after dark, e.g. Walnut or Desert Dusk at night'),
+        this.screen.night?.theme ? row('Switch', segmented([{ v: 'sun', label: 'At sunset and sunrise' }, { v: 'times', label: 'At set times' }], this.screen.night.mode || 'sun', (v) => { this.updateScreen((x) => { x.night.mode = v; }); this.syncTheme(); render(); })) : null,
+        this.screen.night?.theme && this.screen.night.mode === 'times' ? row('Night from', h('div.icon-ctl', {},
+          h('input.time-in', { type: 'time', value: this.screen.night.from || '20:00', onchange: (e) => { this.updateScreen((x) => { x.night.from = e.target.value; }); this.syncTheme(); } }),
+          h('span', { text: 'to' }),
+          h('input.time-in', { type: 'time', value: this.screen.night.to || '07:00', onchange: (e) => { this.updateScreen((x) => { x.night.to = e.target.value; }); this.syncTheme(); } }))) : null,
         row('Page header', h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.headerEditor(render) }), 'Title font and size, and what the line under the title shows: greeting, date, weather, warnings… Tip: hold the title on a page.'));
 
       // ---------------- Doorbell
@@ -567,6 +596,11 @@ class App {
           sel.onchange = () => this.updateScreen((x) => { x.clockTap = sel.value; });
           return sel;
         })(), 'A quick way to this iPad’s room without swiping'),
+        row('Screen off after', segmented([{ v: 0, label: 'Never' }, { v: 5, label: '5 min' }, { v: 15, label: '15 min' }, { v: 30, label: '30 min' }, { v: 60, label: '1 hour' }], sc.sleepMin || 0, (v) => { this.updateScreen((x) => { if (v) x.sleepMin = v; else delete x.sleepMin; }); render(); }),
+          'The screen goes black when nobody touches it or moves in the room. Tap it to wake it.'),
+        row('Wake on motion', entitySelect(this.store, sc.motion, [['Motion and presence', ['binary_sensor']]], (v) => { this.updateScreen((x) => { if (v) x.motion = v; else delete x.motion; }); render(); }, 'No sensor'),
+          'A motion or presence sensor in this room wakes the screen and keeps it on while someone is there'),
+        sc.sleepMin || sc.motion ? row('When it wakes', segmented([{ v: 'clock', label: 'Clock' }, { v: 'page', label: 'This iPad’s page' }, { v: 'stay', label: 'Where it was' }], sc.wakeTo || 'clock', (v) => this.updateScreen((x) => { x.wakeTo = v; }))) : null,
         row('Hide Home Assistant’s sidebar and top bar', toggle(!!sc.hideHa, (v) => { this.updateScreen((x) => { if (v) x.hideHa = true; else delete x.hideHa; }); render(); }),
           inHaPanel ? 'Full screen inside Home Assistant on this iPad' : 'For when Facewall is opened inside Home Assistant (its sidebar or the app)'),
         inHaPanel && sc.hideHa ? row('Home Assistant menu', h('button.pill.sm', { text: 'Open', onclick: () => { openHaMenu(); } }), 'Opens Home Assistant’s sidebar over Facewall') : null,
@@ -671,6 +705,7 @@ class App {
       // ---------------- Everywhere
       const g = s.general;
       const clockSec = section('Clock (all screens)',
+        row('Burn-in protection', toggle(g.shift !== false, (v) => { this.update((x) => { x.general.shift = v; }); this.shiftPixels(true); }), 'Moves everything by a few pixels every few minutes, so nothing stays in one spot'),
         row('24-hour time', toggle(g.use24h, (v) => { this.update((x) => { x.general.use24h = v; }); this.renderFace(); this.rooms.forEach((r) => r.tick()); })),
         row('Go back to the clock after', segmented([{ v: 0, label: 'Never' }, { v: 30, label: '30s' }, { v: 60, label: '1m' }, { v: 120, label: '2m' }, { v: 300, label: '5m' }], g.idleSec, (v) => this.update((x) => { x.general.idleSec = v; })), 'when nobody touches the screen'),
         row('Timer buttons (minutes)', h('input.text-in', { value: (s.dashboard?.timerMinutes || []).join(', '), inputmode: 'numeric', onchange: (e) => {
@@ -927,6 +962,43 @@ class App {
     if (document.body.classList.contains('mouse')) setTimeout(() => search.focus(), 60);
   }
 
+  // ------------------------------------------------------------------ screen care
+  /** Black out the screen (on) or wake it (off). Waking goes where this iPad is set to. */
+  setSleep(on) {
+    if (!!this.sleeping === on) return;
+    this.sleeping = on;
+    this.sleepCover.classList.toggle('on', on);
+    if (on) return;
+    this.lastActivity = Date.now();
+    this.wake(true);
+    const to = this.screen.wakeTo || 'clock';
+    if (to === 'clock') this.goTo(0, true);
+    else if (to === 'page') this.goTo(this.startIndex(), true);
+  }
+  /** Go black after the chosen minutes without touches or motion (motion sensor optional). */
+  sleepCheck() {
+    const after = this.screen.sleepMin;
+    if (!after || this.sleeping || this.bell || document.querySelector('.sheet-backdrop') || this.rooms.some((r) => r.editing)) return;
+    const m = this.screen.motion ? this.store.get(this.screen.motion) : null;
+    if (m && m.state === 'on') return;
+    const moved = Math.max(this.lastActivity, this.lastMotion || 0, m?.last_changed ? new Date(m.last_changed).getTime() : 0);
+    if (Date.now() - moved > after * 60000) this.setSleep(true);
+  }
+  /** Someone walked in: wake up. */
+  checkMotion(id) {
+    if (!this.screen.motion || id !== this.screen.motion) return;
+    if (this.store.get(id)?.state === 'on') { this.lastMotion = Date.now(); if (this.sleeping) this.setSleep(false); }
+  }
+  /** Burn-in protection: move everything by a few pixels every few minutes. */
+  shiftPixels(force) {
+    const app = document.getElementById('app');
+    if (this.settings?.general?.shift === false) { app.style.transform = ''; return; }
+    if (!force && Date.now() - (this.lastShift || 0) < 180000) return;
+    this.lastShift = Date.now();
+    const r = () => Math.round(Math.random() * 6 - 3);
+    app.style.transform = `translate(${r()}px, ${r()}px)`;
+  }
+
   // ------------------------------------------------------------------ cameras and the doorbell
   /** Full-screen camera view. For the doorbell: a title, an Unlock button and closing by itself. */
   cameraView(id, { title, doorbell = false, lock = null, seconds = 0, onClose } = {}) {
@@ -976,6 +1048,7 @@ class App {
     if (this.bell) { this.bell.restart?.(); return; }
     this.lastActivity = Date.now();
     this.wake(true);
+    if (this.sleeping) { this.sleeping = false; this.sleepCover.classList.remove('on'); }
     this.dim.style.opacity = 0;
     this.bell = this.cameraView(db.camera || null, { title: 'Someone’s at the door', doorbell: true, lock: db.lock, seconds: db.seconds || 60, onClose: () => { this.bell = null; this.applyDim(); } });
   }
@@ -1155,7 +1228,7 @@ class App {
   }
 
   openThemePicker(after) {
-    const current = this.themeId();
+    const current = this.baseThemeId();
     let selected = current, tryOn = false, done = false;
     this.themePreviewing = false;
     const restore = () => { this.themePreviewing = false; applyTheme(this.themeId()); };
@@ -1279,7 +1352,7 @@ class App {
   idleCheck() {
     const idle = (Date.now() - this.lastActivity) / 1000;
     const limit = this.settings.general.idleSec;
-    if (!limit) return;
+    if (!limit) return this.sleepCheck();
     const anyOverlay = document.querySelector('.overlay, .sheet-backdrop');
     if (anyOverlay && idle > Math.max(limit, 120)) {
       document.querySelectorAll('.sheet-backdrop').forEach((b) => b.remove());
@@ -1288,6 +1361,7 @@ class App {
       this.closePicker();
     }
     if (this.page >= 1 && !anyOverlay && !this.rooms.some((r) => r.editing) && idle > limit) this.goTo(0);
+    this.sleepCheck();
   }
   applyDim() {
     const d = this.settings.general.dim || {};

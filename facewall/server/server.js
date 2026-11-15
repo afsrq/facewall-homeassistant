@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.14.0';
+const VERSION = '1.15.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -222,6 +222,11 @@ function watchedEntities() {
   for (const list of lists) for (const e of list) set.add(typeof e === 'string' ? e : e.id);
   for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr']) if (f[k]) set.add(f[k]);
   for (const id of Object.keys(timers)) set.add(id);
+  // Screens: motion sensors that wake them, and the sun for night themes.
+  for (const sc of Object.values(s.screens || {})) {
+    if (sc?.motion) set.add(sc.motion);
+    if (sc?.night?.theme && sc.night.mode !== 'times') set.add('sun.sun');
+  }
   // The doorbell pop-up: its trigger, camera and lock.
   for (const k of ['trigger', 'camera', 'lock']) if (s.doorbell?.[k]) set.add(s.doorbell[k]);
   // The page header: its weather entity, the sun, sensors and alert sensors.

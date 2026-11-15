@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.15.0
+- **Screen off and wake on motion** (⚙︎ → This screen): the screen goes black after 5 min – 1 hour with nobody touching it or moving in the room, and a Home Assistant motion or presence sensor wakes it (it also stays on while the sensor sees someone). Tap to wake; choose whether it wakes to the clock, this iPad's page, or where it was. The doorbell wakes it too.
+- **Night theme per iPad** (⚙︎ → Appearance): switch to another theme (e.g. Walnut or Desert Dusk) at sunset and back at sunrise, or at set times.
+- **Burn-in protection** (on by default): everything moves by a few pixels every few minutes, so nothing stays in one spot on a screen that's on all day.
+
 ## 1.14.0
 - **Camera tile**: a snapshot that refreshes every 10 seconds while it's on screen; tap for the live view.
 - **Doorbell pop-up** (⚙︎ → Doorbell pop-up): when your doorbell button, event or sensor rings, every iPad wakes, leaves the clock and shows the camera full screen with **Unlock the door** (tap twice) and **Dismiss**. It closes by itself after the time you choose; turn it off per iPad. *Try it* shows the pop-up without anyone ringing.

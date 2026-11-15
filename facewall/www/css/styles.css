@@ -50,6 +50,9 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .pager-dots.show { opacity: 1; }
 .pager-dots > * { width: 6px; height: 6px; padding: 0; border-radius: 3px; background: var(--t-dot); transition: width 0.3s, background 0.3s; }
 .pager-dots > .on { width: 16px; background: var(--t-dot-on); }
+.sleep-cover { position: fixed; inset: -10px; background: #000; opacity: 0; pointer-events: none; transition: opacity 1.5s; z-index: 45; }
+.sleep-cover.on { opacity: 1; pointer-events: auto; }
+#app { transition: transform 2s; }
 .dim { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 2s; z-index: 40; }
 .status-pill {
   position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translate(-50%, -8px);

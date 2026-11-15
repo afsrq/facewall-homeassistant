@@ -16,6 +16,7 @@ Watch faces for a wall-mounted iPad, with your Home Assistant devices one swipe 
 - **Page header**: pick what shows under each page's title (greeting, date, weather, high/low, wind, rain, sunrise/sunset, storm and hurricane warnings, sensors, your own text), with your choice of font, size and colour.
 - **Themes**: 18 themes (dark, pastel and electric) with a live preview picker; use one for the whole house or a different one per iPad.
 - **Your layout**: give each tile its own width and height in grid columns/rows (drag to resize in Edit layout mode), and choose how many columns and rows fit on the screen.
+- **Screen care**: screen off when the room is empty and wake on motion, a night theme per iPad, and burn-in protection.
 - Live updates, settings shared across every screen, night dimming, return-to-clock after idle.
 
 ---

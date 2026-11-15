@@ -251,6 +251,7 @@ function demoStates() {
     (() => { const d = new Date(), rise = new Date(d), set = new Date(d); rise.setHours(6, 52, 0, 0); set.setHours(16, 58, 0, 0); if (rise < d) rise.setDate(rise.getDate() + 1); if (set < d) set.setDate(set.getDate() + 1);
       return st('sun.sun', set < rise ? 'above_horizon' : 'below_horizon', { friendly_name: 'Sun', next_rising: rise.toISOString(), next_setting: set.toISOString() }); })(),
     st('camera.front_door', 'idle', { friendly_name: 'Front Door Camera' }),
+    st('binary_sensor.living_room_motion', 'off', { friendly_name: 'Living Room Motion', device_class: 'motion' }),
     st('binary_sensor.doorbell', 'off', { friendly_name: 'Doorbell', device_class: 'occupancy' }),
     st('media_player.living_room_speaker', 'playing', { friendly_name: 'Living Room Speaker', ...DEMO_TRACKS[0], media_position: 74, media_position_updated_at: new Date().toISOString(),
       volume_level: 0.35, is_volume_muted: false, source: 'Spotify', source_list: ['Spotify', 'AirPlay', 'TV'], app_name: 'Spotify', supported_features: 152511 }),
