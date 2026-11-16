@@ -5,7 +5,7 @@ import { HomePage, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileNa
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
-import { inHaPanel, setHaKiosk, openHaMenu } from './hapanel.js';
+import { inHaPanel, setHaKiosk, openHaMenu, setHaFill, canFill } from './hapanel.js';
 import { FONTS, WEIGHTS, SEPARATORS, PARTS, DATE_FORMATS, fmtDate, defaultHeader, headerOf, headerSegments, headerContent, headerVars, weatherEntity } from './header.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
@@ -98,7 +98,7 @@ class App {
     this.screenId = this.resolveScreen();
     this.appliedTheme = applyTheme(this.themeId()).id;
     setTimeout(() => { this.syncTheme(); this.shiftPixels(true); }, 2500);
-    setHaKiosk(!!this.screen.hideHa);
+    this.applyHa();
     this.buildShell();
     this.renderFace();
     this.renderRooms();
@@ -111,7 +111,7 @@ class App {
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
       if (!this.themePreviewing) this.appliedTheme = applyTheme(this.themeId()).id;
-      setHaKiosk(!!this.screen.hideHa);
+      this.applyHa();
       this.renderFace(); this.renderRooms();
     });
     this.store.addEventListener('status', () => { this.showStatus(); this.syncTheme(); });
@@ -175,7 +175,7 @@ class App {
   update(mut) {
     const s = clone(this.settings); mut(s); this.store.saveSettings(s);
     if (!this.themePreviewing) this.appliedTheme = applyTheme(this.themeId()).id;
-    setHaKiosk(!!this.screen.hideHa);
+    this.applyHa();
     return s;
   }
 
@@ -263,6 +263,12 @@ class App {
     if (this.picker) return this.closePicker();
     const ed = this.rooms.find((r) => r.editing);
     if (ed) ed.setEditing(false);
+  }
+  /** Inside Home Assistant: hide its sidebar and top bar, and (by default) fill the whole screen. */
+  applyHa() {
+    const hide = !!this.screen.hideHa;
+    setHaKiosk(hide);
+    setHaFill(hide && this.screen.edge !== false);
   }
   roomFor(pageId) { const id = String(pageId || '').split('~')[0]; return this.rooms.find((r) => r.pageId === id); }
   get currentRoom() { return this.rooms[this.page - 1] || null; }
@@ -641,6 +647,8 @@ class App {
         sc.sleepMin || sc.motion ? row('When it wakes', segmented([{ v: 'clock', label: 'Clock' }, { v: 'page', label: 'This iPad’s page' }, { v: 'stay', label: 'Where it was' }], sc.wakeTo || 'clock', (v) => this.updateScreen((x) => { x.wakeTo = v; }))) : null,
         row('Hide Home Assistant’s sidebar and top bar', toggle(!!sc.hideHa, (v) => { this.updateScreen((x) => { if (v) x.hideHa = true; else delete x.hideHa; }); render(); }),
           inHaPanel ? 'Full screen inside Home Assistant on this iPad' : 'For when Facewall is opened inside Home Assistant (its sidebar or the app)'),
+        inHaPanel && sc.hideHa && canFill() ? row('Edge to edge', toggle(sc.edge !== false, (v) => { this.updateScreen((x) => { if (v) delete x.edge; else x.edge = false; }); render(); }),
+          'Also cover the strips at the top and bottom that the Home Assistant app keeps for the iPad’s status bar and home bar. In the app’s Kiosk mode, also turn on “Hide status bar” and move the settings button to a top corner.') : null,
         inHaPanel && sc.hideHa ? row('Home Assistant menu', h('button.pill.sm', { text: 'Open', onclick: () => { openHaMenu(); } }), 'Opens Home Assistant’s sidebar over Facewall') : null,
         h('div.about.small', { text: 'To keep these even if Safari’s data is cleared, add this address to the iPad’s Home Screen:' }),
         h('div.copy-row', {}, h('code.addr', { text: link }), h('button.pill.sm', { text: 'Copy', onclick: async () => {

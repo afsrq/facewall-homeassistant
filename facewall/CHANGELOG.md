@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.33.0
+- **Edge to edge in the Home Assistant app**: with "Hide Home Assistant's sidebar and top bar" on, Facewall now also stretches over the strips at the top and bottom that Home Assistant keeps for the iPad's status bar and home bar (they showed Home Assistant's own blue and white). It's on by default; turn it off with Settings → Edge to edge. Pair it with the companion app's Kiosk mode "Hide status bar" for a truly full screen.
+
 ## 1.32.0
 - **Sections**: a menu down the left side of a page, each section with its own tiles, so one room can have Lights, Climate and Media screens. Add them from Edit layout → **Sections**, or Settings → Tiles → Add sections.
 - One-tap ready-made sections (**Lights, Climate, Media, Security, Blinds**) fill themselves from the page's room: lights, switches and scenes; thermostats (as a dial), fans and temperature, humidity and air-quality sensors; speakers and TVs (TVs as a remote). Pages not named after a room use the whole house, or pick the room.

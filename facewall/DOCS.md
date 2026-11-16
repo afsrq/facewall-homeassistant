@@ -136,6 +136,11 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 
 ⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura); Palm Springs, Desert Pool and Desert Dusk (breeze blocks, Avenir Next); Craftsman, Spanish Revival, Scandinavian, Art Deco, Japandi and Farmhouse. Each brings its own background pattern and title font; more styles will follow.
 
+## Full screen in the Home Assistant app (iPad)
+1. In Facewall: Settings → turn on **Hide Home Assistant's sidebar and top bar**. **Edge to edge** (on by default) then covers the strips Home Assistant keeps for the status bar and home bar.
+2. In the Home Assistant app: Settings → Companion app → **Kiosk mode** → turn on **Hide status bar** (works when the app runs full screen, not in Split View). Under **Configuration access**, move the small settings button to a top corner, where it's less in the way.
+3. Optional: iPad Settings → Accessibility → **Guided Access** keeps the iPad in the app.
+
 ## Sections (menu down the left)
 Give a page its own menu: open the page, tap Edit layout → **Sections** (or Settings → Tiles on the page → Add sections). Tap **Lights**, **Climate**, **Media**, **Security** or **Blinds** to add a ready-made section filled from the page's room. A page named like a Home Assistant area uses that area; otherwise pick the **Room**, or leave it as Whole house. **Blank** adds an empty one. The page's own tiles are the first item ("All"); rename it and pick an icon like any other section. In each section, Edit layout, Add tiles and tile options work just like on a page.
 

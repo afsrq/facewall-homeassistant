@@ -424,7 +424,7 @@ export class HomePage {
     const titles = this.root.querySelector('.head-titles');
     const headPx = Math.max(base, titles ? Math.ceil(titles.scrollHeight) + 14 : 0);
     const head = this.root.querySelector('.home-head');
-    if (head) head.style.height = `calc(${headPx}px + env(safe-area-inset-top))`;
+    if (head) head.style.height = `calc(${headPx}px + var(--sa-top, env(safe-area-inset-top)))`;
     const headH = headPx + 8;
     const reserve = this.editing ? 84 : 0; // room for the edit bar
     // One row = the screen height shared by `rows` (each tile keeps half a gap of margin all round).
