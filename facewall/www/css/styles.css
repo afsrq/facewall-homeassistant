@@ -216,7 +216,7 @@ input, select { font: inherit; -webkit-user-select: text; user-select: text; }
 .light.on {
   background:
     radial-gradient(90% 70% at 70% 55%, rgba(255,255,255,0.28), transparent 60%),
-    radial-gradient(130% 110% at 20% 0%, rgba(var(--lc), var(--la)) 0%, rgba(var(--lc), calc(var(--la) * 0.82)) 55%, rgba(var(--lc), calc(var(--la) * 0.6)) 100%);
+    radial-gradient(130% 110% at 20% 0%, rgba(var(--lc), calc(var(--la) * var(--tile-alpha, 1))) 0%, rgba(var(--lc), calc(var(--la) * 0.82 * var(--tile-alpha, 1))) 55%, rgba(var(--lc), calc(var(--la) * 0.6 * var(--tile-alpha, 1))) 100%);
   box-shadow: 0 10px 40px rgba(var(--lc), 0.25);
 }
 .light.on .tile-ic { color: #fff; filter: drop-shadow(0 0 8px rgba(255,255,255,0.6)); }
@@ -1048,3 +1048,86 @@ body.theme-light .tile-badge { background: rgba(0,0,0,0.12); color: inherit; }
 .rail-pick.big { width: 46px; height: 46px; font-size: 22px; }
 .rail-pick.sel { box-shadow: inset 0 0 0 2px #0a84ff; background: rgba(10,132,255,0.18); }
 .rail-icons { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 12px; border-bottom: 1px solid var(--line); }
+
+/* ============================================================ STYLES (looks) */
+/* Your own transparency, blur and corners (Settings → Style), on top of any style. */
+body.tile-alpha { --t-card: color-mix(in srgb, var(--t-card-base) calc(var(--tile-alpha) * 100%), transparent); --t-on-bg: color-mix(in srgb, var(--t-on-base) calc(var(--tile-alpha) * 85% + 15%), transparent); }
+body.tile-blur .card { -webkit-backdrop-filter: blur(var(--tile-blur)) saturate(160%); backdrop-filter: blur(var(--tile-blur)) saturate(160%); }
+body.tile-r .home-grid > .card { border-radius: var(--tile-r); }
+
+/* ---- Material You (Android) */
+body[data-look="material"] {
+  --font: "Google Sans", "Product Sans", Roboto, -apple-system, system-ui, sans-serif;
+  --m-surface: color-mix(in srgb, var(--t-accent) 9%, var(--t-card-base));
+  --m-tonal: color-mix(in srgb, var(--t-accent) 26%, var(--t-card-base));
+}
+body[data-look="material"]:not(.tile-alpha) { --t-card: var(--m-surface); }
+body[data-look="material"] .home-grid > .card { border-radius: clamp(24px, 3vw, 34px); border: 0; box-shadow: none; }
+body[data-look="material"] .tile-name, body[data-look="material"] .card-title { font-weight: 550; letter-spacing: 0.005em; }
+body[data-look="material"] .tile-ic { display: inline-grid; place-items: center; background: color-mix(in srgb, var(--t-accent) 16%, transparent); color: var(--t-accent); border-radius: 50%; padding: 0.3em; font-size: min(calc(clamp(20px, 12cqmin, 56px) * var(--icon-scale, 1)), 36cqh, 56cqw); }
+body[data-look="material"] .card.icon-center .tile-ic { padding: 0.25em; }
+body[data-look="material"] :is(.toggle.on, .cover.on):not(.tc-on) { background: var(--m-tonal); color: var(--t-text); }
+body[data-look="material"] :is(.toggle.on, .cover.on, .climate.on):not(.tc-on) .tile-ic { background: var(--t-accent); color: #fff; }
+body[data-look="material"] .light.on:not(.tc-on) { background: color-mix(in srgb, rgb(var(--lc)) calc(30% * var(--tile-alpha, 1) + 6%), var(--t-card-base)); box-shadow: none; color: var(--t-text); }
+body[data-look="material"] .light.on:not(.tc-on) .tile-ic { background: rgb(var(--lc)); color: #1c1b1f; filter: none; }
+body[data-look="material"] .card:not(.climate):not(.weather) :is(.round-btn, .chip) { background: color-mix(in srgb, var(--t-accent) 14%, transparent); }
+body[data-look="material"] .home-rail { border-radius: 30px; box-shadow: none; border: 0; background: var(--m-surface); }
+body[data-look="material"] .rail-btn.on { background: transparent; box-shadow: none; color: var(--t-text); }
+body[data-look="material"] .rail-btn.on .rail-ic { background: var(--m-tonal); color: var(--t-text); border-radius: 99px; padding: 4px 16px; }
+
+/* ---- Liquid glass */
+body[data-look="glass"] {
+  --g-fill: rgba(255,255,255,0.13); --g-edge: rgba(255,255,255,0.42); --g-on: rgba(255,255,255,0.34);
+}
+body[data-look="glass"].theme-light { --g-fill: rgba(255,255,255,0.42); --g-edge: rgba(255,255,255,0.85); --g-on: rgba(255,255,255,0.78); }
+body[data-look="glass"]:not(.tile-alpha) { --t-card: var(--g-fill); }
+body[data-look="glass"] .home-bg {
+  background:
+    radial-gradient(60% 55% at 15% 20%, color-mix(in srgb, var(--t-accent) 55%, transparent), transparent 70%),
+    radial-gradient(55% 60% at 85% 80%, color-mix(in srgb, var(--t-date) 45%, transparent), transparent 70%),
+    conic-gradient(from 210deg at 70% 30%, color-mix(in srgb, var(--t-accent) 30%, transparent), transparent 25%, color-mix(in srgb, var(--t-accent) 22%, transparent) 50%, transparent 75%),
+    var(--t-pattern, none), var(--t-bg);
+}
+body[data-look="glass"] .home-grid > .card {
+  border: 1px solid var(--g-edge); border-right-color: color-mix(in srgb, var(--g-edge) 40%, transparent); border-bottom-color: color-mix(in srgb, var(--g-edge) 30%, transparent);
+  box-shadow: inset 0 1px 0 var(--g-edge), inset 0 0 24px rgba(255,255,255,0.06), 0 12px 34px rgba(0,0,0,0.18);
+}
+body[data-look="glass"]:not(.tile-blur) .home-grid > .card { -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); }
+body[data-look="glass"] :is(.toggle.on, .cover.on):not(.tc-on) { background: var(--g-on); color: var(--t-text); }
+body[data-look="glass"] :is(.toggle.on, .cover.on):not(.tc-on) .tile-ic { color: var(--t-accent); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--t-accent) 70%, transparent)); }
+body[data-look="glass"] .light.on:not(.tc-on) { background: linear-gradient(160deg, rgba(var(--lc), calc(0.55 * var(--tile-alpha, 1))), rgba(var(--lc), calc(0.22 * var(--tile-alpha, 1)))); color: #fff; }
+body[data-look="glass"] .light.on:not(.tc-on) .tile-ic { color: #fff; filter: drop-shadow(0 0 12px rgba(var(--lc), 0.9)); }
+body[data-look="glass"] :is(.round-btn, .mode, .chip) { background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.22); }
+body[data-look="glass"] .home-rail { background: var(--g-fill); border: 1px solid var(--g-edge); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); }
+
+/* ---- Facewall Bold */
+body[data-look="bold"] .home-grid > .card { border-radius: clamp(14px, 1.6vw, 20px); border: 2px solid var(--t-soft-2); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+body[data-look="bold"]:not(.tile-alpha) { --t-card: transparent; }
+body[data-look="bold"] .tile-name { font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; font-size: clamp(11px, 6cqmin, 22px); }
+body[data-look="bold"] .tile-state { font-weight: 600; opacity: 0.8; }
+body[data-look="bold"] :is(.toggle.on, .cover.on):not(.tc-on) { background: var(--t-accent); border-color: var(--t-accent); color: #fff; }
+body[data-look="bold"] :is(.toggle.on, .cover.on):not(.tc-on) .tile-ic { color: #fff; }
+body[data-look="bold"] .light.on:not(.tc-on) { background: rgba(var(--lc), calc(0.9 * var(--tile-alpha, 1))); border-color: rgb(var(--lc)); box-shadow: none; }
+body[data-look="bold"] .light.on:not(.tc-on) .tile-ic { filter: none; }
+body[data-look="bold"] :is(.round-btn, .chip) { background: transparent; border: 2px solid var(--t-soft-2); }
+body[data-look="bold"] .home-rail { border-radius: 18px; box-shadow: none; border: 2px solid var(--t-soft-2); background: var(--t-bg); }
+body[data-look="bold"] .rail-btn.on { background: var(--t-accent); color: #fff; box-shadow: none; }
+body[data-look="bold"] .rail-btn.on .rail-ic { color: #fff; }
+/* Style picker in Settings */
+.look-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 6px 0 4px; }
+.look-card { display: flex; flex-direction: column; gap: 6px; align-items: stretch; padding: 8px; border-radius: 16px; background: rgba(127,127,127,0.12); }
+.look-card.sel { box-shadow: inset 0 0 0 2px #0a84ff; }
+.look-name { font-size: 12.5px; font-weight: 650; text-align: center; }
+.look-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 7px; border-radius: 10px; aspect-ratio: 1.4; background: var(--t-bg); }
+.look-mini i { border-radius: 9px; background: var(--t-card-base); }
+.look-mini i.on { background: var(--t-on-base); }
+[data-look-preview="material"] .look-mini i { border-radius: 12px; background: color-mix(in srgb, var(--t-accent) 16%, var(--t-card-base)); }
+[data-look-preview="material"] .look-mini { background: color-mix(in srgb, var(--t-accent) 5%, var(--t-bg)); }
+[data-look-preview="material"] .look-mini i.on { background: color-mix(in srgb, var(--t-accent) 30%, var(--t-card-base)); }
+[data-look-preview="glass"] .look-mini { background: radial-gradient(70% 70% at 20% 20%, var(--t-accent), transparent 70%), radial-gradient(70% 70% at 90% 90%, var(--t-date), transparent 70%), var(--t-bg); }
+[data-look-preview="glass"] .look-mini i { background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.5); }
+[data-look-preview="glass"] .look-mini i.on { background: rgba(255,255,255,0.45); }
+[data-look-preview="bold"] .look-mini i { border-radius: 5px; background: transparent; border: 2px solid var(--t-soft-2); }
+[data-look-preview="bold"] .look-mini i.on { background: var(--t-accent); border-color: var(--t-accent); }
+.look-sub { padding: 2px 0 6px; }
+body[data-look="glass"].theme-light .light.on:not(.tc-on), body[data-look="glass"].theme-light .light.on:not(.tc-on) .tile-ic { color: var(--t-text); }

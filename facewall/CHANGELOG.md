@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.34.0
+- **Styles**, separate from themes: pick how the tiles are drawn, then pick a theme for the colours. Settings → Appearance:
+  - **Apple Home**: the look so far; switched-on tiles turn bright.
+  - **Material You**: Android style, with tonal tiles tinted by the theme, bigger rounded corners and icons in coloured circles. Lights fill with their own colour.
+  - **Liquid glass**: frosted see-through tiles with bright edges over a colourful background made from the theme.
+  - **Facewall Bold**: flat outlined tiles that fill with the theme colour when on, and bold uppercase names.
+- **Tile transparency** slider (solid to 90% see-through), **Blur behind tiles** (Auto, None, Light, Strong) and **Corners** (Auto, Square, Rounded, Round), on top of any style and theme.
+
 ## 1.33.0
 - **Edge to edge in the Home Assistant app**: with "Hide Home Assistant's sidebar and top bar" on, Facewall now also stretches over the strips at the top and bottom that Home Assistant keeps for the iPad's status bar and home bar (they showed Home Assistant's own blue and white). It's on by default; turn it off with Settings → Edge to edge. Pair it with the companion app's Kiosk mode "Hide status bar" for a truly full screen.
 

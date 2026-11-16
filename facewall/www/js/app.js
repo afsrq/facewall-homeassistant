@@ -2,7 +2,7 @@
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS } from './faces.js';
 import { HomePage, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
-import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
+import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme, LOOKS, applyLook } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { inHaPanel, setHaKiosk, openHaMenu, setHaFill, canFill } from './hapanel.js';
@@ -96,7 +96,7 @@ class App {
     else { const m = clone(this.store.settings); if (migrate(m)) this.store.saveSettings(m); }
     if (this.store.mode === 'demo') document.body.classList.add('demo');
     this.screenId = this.resolveScreen();
-    this.appliedTheme = applyTheme(this.themeId()).id;
+    { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
     setTimeout(() => { this.syncTheme(); this.shiftPixels(true); }, 2500);
     this.applyHa();
     this.buildShell();
@@ -110,7 +110,7 @@ class App {
 
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
-      if (!this.themePreviewing) this.appliedTheme = applyTheme(this.themeId()).id;
+      if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
       this.applyHa();
       this.renderFace(); this.renderRooms();
     });
@@ -174,7 +174,7 @@ class App {
   }
   update(mut) {
     const s = clone(this.settings); mut(s); this.store.saveSettings(s);
-    if (!this.themePreviewing) this.appliedTheme = applyTheme(this.themeId()).id;
+    if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
     this.applyHa();
     return s;
   }
@@ -587,6 +587,23 @@ class App {
       // ---------------- Appearance
       const th = themeById(this.baseThemeId());
       const appearanceSec = section('Appearance',
+        ...(() => {
+          const lk = s.general.look || {};
+          const setLook = (fn) => { this.update((x) => { x.general.look = { ...(x.general.look || {}) }; fn(x.general.look); for (const k of Object.keys(x.general.look)) if (x.general.look[k] == null) delete x.general.look[k]; }); render(); };
+          const cur = LOOKS.find((l) => l.id === lk.style) || LOOKS[0];
+          const alpha = h('input.range', { type: 'range', min: 10, max: 100, step: 5, value: lk.alpha ?? 100, 'aria-label': 'Tile opacity' });
+          const alphaVal = h('span.row-value', { text: lk.alpha == null || lk.alpha >= 100 ? 'Solid' : `${100 - lk.alpha}% see-through` });
+          alpha.addEventListener('input', () => { const v = Number(alpha.value); alphaVal.textContent = v >= 100 ? 'Solid' : `${100 - v}% see-through`; applyLook({ ...(this.settings.general.look || {}), alpha: v >= 100 ? null : v }); });
+          alpha.addEventListener('change', () => { const v = Number(alpha.value); setLook((L) => { L.alpha = v >= 100 ? null : v; }); });
+          return [
+            h('div.look-pick', {}, ...LOOKS.map((l) => h('button.look-card' + (l.id === cur.id ? '.sel' : ''), { 'data-look-preview': l.id, onclick: () => setLook((L) => { L.style = l.id === 'apple' ? null : l.id; }) },
+              h('div.look-mini', {}, h('i.lm-a'), h('i.lm-b.on'), h('i.lm-c'), h('i.lm-d.on')), h('div.look-name', { text: l.name })))),
+            h('div.row-sub.look-sub', { text: cur.sub + '. Your theme below sets the colours.' }),
+            row('Tile transparency', h('div.icon-ctl', {}, alpha, alphaVal), 'Let the background show through the tiles'),
+            row('Blur behind tiles', segmented([{ v: null, label: 'Auto' }, { v: 0, label: 'None' }, { v: 12, label: 'Light' }, { v: 30, label: 'Strong' }], lk.blur ?? null, (v) => setLook((L) => { L.blur = v; }))),
+            row('Corners', segmented([{ v: null, label: 'Auto' }, { v: 6, label: 'Square' }, { v: 18, label: 'Rounded' }, { v: 34, label: 'Round' }], lk.radius ?? null, (v) => setLook((L) => { L.radius = v; }))),
+          ];
+        })(),
         row('Theme', h('div.icon-ctl', {}, this.themeSwatch(th, { small: true }), h('div.row-value', { text: th.name }),
           h('button.pill.sm.primary', { text: 'Change…', onclick: () => this.openThemePicker(render) })),
         this.screen.theme ? 'Only on this iPad (the other screens use ' + themeById(s.general?.theme || DEFAULT_THEME).name + ')' : 'Used on every screen'),
@@ -1574,7 +1591,7 @@ class App {
     const current = this.baseThemeId();
     let selected = current, tryOn = false, done = false;
     this.themePreviewing = false;
-    const restore = () => { this.themePreviewing = false; applyTheme(this.themeId()); };
+    const restore = () => { this.themePreviewing = false; applyTheme(this.themeId()); applyLook(this.settings.general.look); };
     const sh = sheet({ title: 'Theme', cls: 'theme-sheet', onClose: () => { if (!done) restore(); } });
     const preview = h('div.th-preview.home-page');
     const grid = h('div.th-groups');

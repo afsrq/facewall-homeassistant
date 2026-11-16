@@ -82,10 +82,13 @@ export function themeVars(t) {
     '--t-glow2': t.glow?.[1] || 'transparent',
     '--t-glow3': t.glow?.[2] || 'transparent',
     '--t-card': t.card,
+    '--t-card-base': t.card,
+    '--t-on-base': t.on,
     '--t-card-border': t.dark ? 'rgba(255,255,255,0.08)' : `rgba(${tx},0.07)`,
     '--t-card-shadow': t.dark ? '0 10px 30px rgba(0,0,0,0.25)' : `0 6px 18px rgba(${tx},0.07)`,
     '--t-card-blur': t.glass ? 'blur(28px) saturate(150%)' : 'none',
     '--t-text': t.text,
+    '--t-accent': t.accent,
     '--t-date': t.date || t.accent,
     '--t-soft': `rgba(${tx},${t.dark ? 0.14 : 0.07})`,
     '--t-soft-2': `rgba(${tx},${t.dark ? 0.28 : 0.15})`,
@@ -96,6 +99,26 @@ export function themeVars(t) {
     '--t-dot': `rgba(${tx},0.4)`,
     '--t-dot-on': t.text,
   };
+}
+
+// Styles: how tiles are drawn (shape, depth, how "on" looks), separate from the theme's colours.
+export const LOOKS = [
+  { id: 'apple', name: 'Apple Home', sub: 'Soft rounded tiles; switched-on tiles turn bright' },
+  { id: 'material', name: 'Material You', sub: 'Android style: tonal colours, big rounded corners, icons in circles' },
+  { id: 'glass', name: 'Liquid glass', sub: 'Frosted see-through tiles with bright edges over a colourful background' },
+  { id: 'bold', name: 'Facewall Bold', sub: 'Flat and crisp: outlined tiles, solid colour when on' },
+];
+/** Apply a style and the tile transparency/blur/corner settings (general.look). */
+export function applyLook(look = {}) {
+  const b = document.body, st = document.documentElement.style;
+  b.dataset.look = LOOKS.some((l) => l.id === look.style) ? look.style : 'apple';
+  const alpha = look.alpha == null ? null : Math.max(0, Math.min(100, look.alpha)) / 100;
+  b.classList.toggle('tile-alpha', alpha != null && alpha < 1);
+  if (alpha != null) st.setProperty('--tile-alpha', String(alpha)); else st.removeProperty('--tile-alpha');
+  if (look.blur != null) st.setProperty('--tile-blur', look.blur + 'px'); else st.removeProperty('--tile-blur');
+  b.classList.toggle('tile-blur', look.blur != null);
+  if (look.radius != null) st.setProperty('--tile-r', look.radius + 'px'); else st.removeProperty('--tile-r');
+  b.classList.toggle('tile-r', look.radius != null);
 }
 
 /** Apply a theme to an element (the whole app by default). */
