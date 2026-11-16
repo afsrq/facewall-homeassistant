@@ -846,6 +846,25 @@ class App {
     const set = (fn) => { this.update((x) => { const it = pageOf(x, pageId)?.entities?.[i]; if (it) fn(it); }); this.roomFor(pageId)?.render(); after?.(); };
     const rows = [];
     rows.push(row('Name', h('input.text-in.wide-in', { value: item.name || '', placeholder: tileName(this.store, { id: item.id }), onchange: (e) => set((it) => { const v = e.target.value.trim(); if (v) it.name = v; else delete it.name; }) }), 'Leave empty to use the name from Home Assistant'));
+    if (!item.id.startsWith('_')) {
+      // Swap what the tile shows/controls, keeping its size, style, icon, colours and name.
+      const dom = item.id.split('.')[0];
+      const NAMES = { light: 'Lights', switch: 'Switches', input_boolean: 'Toggles', fan: 'Fans', cover: 'Blinds, doors & covers', lock: 'Locks', climate: 'Climate', media_player: 'Media players', sensor: 'Sensors', binary_sensor: 'Binary sensors', camera: 'Cameras', scene: 'Scenes', script: 'Scripts', weather: 'Weather', calendar: 'Calendars', vacuum: 'Vacuums', alarm_control_panel: 'Alarms', person: 'People', device_tracker: 'Trackers', timer: 'Timers', button: 'Buttons', input_button: 'Buttons', input_number: 'Numbers', input_select: 'Choices', select: 'Choices', number: 'Numbers', remote: 'Remotes', humidifier: 'Humidifiers', water_heater: 'Water heaters', valve: 'Valves', lawn_mower: 'Mowers' };
+      const domains = [...new Set(this.store.list().map((x) => x.entity_id.split('.')[0]))].filter((d) => d !== dom).sort((a, b) => (NAMES[a] || a).localeCompare(NAMES[b] || b));
+      const groups = [[`Same kind: ${NAMES[dom] || dom}`, [dom]], ...domains.map((d) => [NAMES[d] || d.replace(/_/g, ' '), [d]])];
+      const pick = entitySelect(this.store, item.id, groups, (v) => {
+        if (!v || v === item.id) return;
+        set((it) => {
+          it.id = v;
+          if (it.style && !stylesFor(v).some((x) => x.v === it.style)) delete it.style;
+          delete it.timer;
+        });
+        toast(`Now showing ${this.store.name(v)}`);
+      }, 'Choose…');
+      if (!this.store.get(item.id)) pick.prepend(h('option', { value: item.id, text: `${item.id} (missing)` }));
+      pick.value = item.id;
+      rows.push(row('Entity', pick, item.id));
+    }
     const styles = stylesFor(item.id);
     if (styles.length) {
       const cur = styleOf(item);

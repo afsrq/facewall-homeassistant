@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.31.0
+- **Change a tile's entity**: every tile's settings now have an **Entity** picker. Swap the light, sensor, TV or anything else a tile shows without rebuilding it; its size, place, icon, colours and name stay. Entities of the same kind are listed first. A tile whose entity has gone missing shows it as "(missing)" so you can point it at the new one.
+
 ## 1.30.0
 - **Music Assistant tile**: set a Music Assistant speaker's tile Style to **Music Assistant**. It shows what's playing with your favourite playlists, albums, artists and stations underneath; tap one to play it.
 - **Music browser** (tap the tile or Browse): search everything, or browse Favourites, Playlists, Albums, Artists, Songs, Radio, Podcasts and Audiobooks with cover art. Tap to play, or ••• for Play next, Add to queue and Start radio. Shows what's up next, plus shuffle and volume.
