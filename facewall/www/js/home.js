@@ -47,7 +47,21 @@ export const SUB = 10;
 export const MIN_SIZE = 0.2;
 export const roundSize = (v) => Math.round(Number(v) * SUB) / SUB;
 export const fmtSize = (v) => String(roundSize(v));
-export const pageOf = (settings, pageId) => settings?.pages?.find((p) => p.id === pageId) || null;
+/** A page, or one of its sections when the id is "pageId~sectionId" (sections have their own tiles). */
+export const pageOf = (settings, pageId) => {
+  if (!pageId) return null;
+  const [pid, sid] = String(pageId).split('~');
+  const p = settings?.pages?.find((x) => x.id === pid) || null;
+  return sid && p ? p.sections?.find((x) => x.id === sid) || null : p;
+};
+/** Ready-made sections, each filled from the page's room (area) with the right kinds of device. */
+export const SECTION_PRESETS = [
+  { key: 'lights', name: 'Lights', icon: 'bulb', domains: ['light', 'switch', 'fan', 'scene', 'script'] },
+  { key: 'climate', name: 'Climate', icon: 'thermo', domains: ['climate', 'fan', 'humidifier', 'sensor', 'weather', 'water_heater'] },
+  { key: 'media', name: 'Media', icon: 'tv', domains: ['media_player'] },
+  { key: 'security', name: 'Security', icon: 'lock', domains: ['lock', 'alarm_control_panel', 'camera', 'cover', 'binary_sensor'] },
+  { key: 'blinds', name: 'Blinds', icon: 'blinds', domains: ['cover'] },
+];
 
 export function kindFor(item) {
   if (item.id === ALL_OFF) return 'alloff';
@@ -301,7 +315,21 @@ export class HomePage {
   }
 
   get page() { return pageOf(this.store.settings, this.pageId); }
-  get items() { return this.page?.entities || []; }
+  /** The section on show (its id), or null for the page's main tiles. */
+  get vid() { return this.view && this.page?.sections?.some((x) => x.id === this.view) ? `${this.pageId}~${this.view}` : this.pageId; }
+  get items() { return pageOf(this.store.settings, this.vid)?.entities || []; }
+  showSection(id) { this.view = id || null; this.grid && (this.grid.scrollTop = 0); this.render(); }
+  rail() {
+    const pg = this.page, secs = pg?.sections || [];
+    if (!secs.length) return null;
+    const cur = this.vid === this.pageId ? null : this.view;
+    const btn = (id, name, ic) => h('button.rail-btn' + (cur === id ? '.on' : ''), { 'aria-label': name, onclick: () => this.showSection(id) },
+      h('span.rail-ic', { html: icon(ic || 'grid') }), h('span.rail-name', { text: name }));
+    return h('nav.home-rail', {},
+      btn(null, pg.mainName || 'All', pg.mainIcon || 'home'),
+      ...secs.map((x) => btn(x.id, x.name, x.icon)),
+      this.editing ? h('button.rail-btn.rail-add', { 'aria-label': 'Sections', onclick: () => this.app.sectionsEditor(this.pageId) }, h('span.rail-ic', { html: icon('sliders') }), h('span.rail-name', { text: 'Sections' })) : null);
+  }
   /** The first page called "Home" keeps the greeting as its title; room pages show their name. */
   get isHome() { return !this.page || /^home$/i.test(this.page.name || ''); }
 
@@ -331,7 +359,10 @@ export class HomePage {
     this.fxCanvas ||= h('canvas.home-fx', { 'aria-hidden': 'true' });
     this.fx ||= new Fx(this.fxCanvas, () => this.fxNow, () => this.store.settings?.general?.fx?.amount || 'some');
     this.fxNow = fxMode(this.store, this.store.settings);
-    this.root.append(h('div.home-bg'), this.fxCanvas, head, this.grid);
+    const rail = this.rail();
+    this.root.classList.toggle('has-rail', !!rail);
+    if (this.app.currentRoom === this) document.body.classList.toggle('rail-page', !!rail);
+    this.root.append(h('div.home-bg'), this.fxCanvas, head, this.grid, ...(rail ? [rail] : []));
     this.fx.start();
     this.layout();
 
@@ -354,10 +385,11 @@ export class HomePage {
       this.grid.append(h('div.empty', {},
         h('div.empty-title', { text: 'No tiles yet' }),
         h('div.empty-sub', { text: 'Pick the devices you want on this page.' }),
-        h('button.pill.primary', { text: 'Choose devices', onclick: () => this.app.entityBrowser(this.pageId, () => this.render()) })));
+        h('button.pill.primary', { text: 'Choose devices', onclick: () => this.app.entityBrowser(this.vid, () => this.render()) })));
     }
     if (this.editing) this.root.append(this.editBar());
     this.grid.scrollTop = scroll;
+    this.root.scrollTop = 0;
     this.tick();
   }
 
@@ -416,7 +448,7 @@ export class HomePage {
     let [w, hgt] = sizeOf(item);
     w = Math.min(w, this.cols);
     const label = h('div.eo-size', {}, h('div.eo-dims', { text: `${fmtSize(w)} × ${fmtSize(hgt)}` }), h('div.eo-name', { text: tileName(this.store, item) }));
-    const save = (fn) => { this.app.update((s) => fn(pageOf(s, this.pageId).entities)); this.render(); };
+    const save = (fn) => { this.app.update((s) => fn(pageOf(s, this.vid).entities)); this.render(); };
     const last = this.items.length - 1;
     const handle = h('div.eo-handle', { html: icon('resize'), 'aria-label': 'Drag to resize' });
     const ov = h('div.edit-ov', {},
@@ -425,7 +457,7 @@ export class HomePage {
         h('button', { 'aria-label': 'Move earlier', html: icon('back'), disabled: index === 0, onclick: () => save((a) => a.splice(index - 1, 0, a.splice(index, 1)[0])) }),
         h('button.flip', { 'aria-label': 'Move later', html: icon('back'), disabled: index === last, onclick: () => save((a) => a.splice(index + 1, 0, a.splice(index, 1)[0])) })),
       label,
-      h('button.eo-opts', { html: icon('sliders') + '<span>Options</span>', 'aria-label': 'Tile options (style, icon, name)', onclick: () => this.app.tileOptions(this.pageId, index) }),
+      h('button.eo-opts', { html: icon('sliders') + '<span>Options</span>', 'aria-label': 'Tile options (style, icon, name)', onclick: () => this.app.tileOptions(this.vid, index) }),
       handle);
     // Keep taps from reaching the tile underneath.
     for (const t of ['pointerdown', 'pointerup', 'click', 'contextmenu']) ov.addEventListener(t, (e) => e.stopPropagation());
@@ -472,7 +504,8 @@ export class HomePage {
     return h('div.edit-bar', {},
       stepper('Columns', this.cols, 2, 8, 'cols'),
       stepper('Rows', this.rows, 2, 6, 'rows'),
-      h('button.pill', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.app.entityBrowser(this.pageId, () => this.render()) }),
+      h('button.pill', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.app.entityBrowser(this.vid, () => this.render()) }),
+      h('button.pill', { html: icon('sliders') + '<span>Sections</span>', onclick: () => this.app.sectionsEditor(this.pageId) }),
       h('button.pill.primary', { text: 'Done', onclick: () => this.setEditing(false) }));
   }
 

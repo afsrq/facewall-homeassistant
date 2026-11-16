@@ -136,6 +136,9 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 
 ⚙︎ → *Appearance* → *Theme* has an **Architectural** group that matches the style of the house: Mid-century, Walnut and Atomic (atomic starbursts, Futura); Palm Springs, Desert Pool and Desert Dusk (breeze blocks, Avenir Next); Craftsman, Spanish Revival, Scandinavian, Art Deco, Japandi and Farmhouse. Each brings its own background pattern and title font; more styles will follow.
 
+## Sections (menu down the left)
+Give a page its own menu: open the page, tap Edit layout → **Sections** (or Settings → Tiles on the page → Add sections). Tap **Lights**, **Climate**, **Media**, **Security** or **Blinds** to add a ready-made section filled from the page's room. A page named like a Home Assistant area uses that area; otherwise pick the **Room**, or leave it as Whole house. **Blank** adds an empty one. The page's own tiles are the first item ("All"); rename it and pick an icon like any other section. In each section, Edit layout, Add tiles and tile options work just like on a page.
+
 ## Music Assistant
 Needs the **Music Assistant** integration in Home Assistant (2024.12 or newer). Add a Music Assistant speaker as a tile and set its Style to **Music Assistant**. The tile shows what's playing and your favourites; star things in Music Assistant to see them there. Tap the tile (or **Browse**) to search or browse your library, play something now, play it next, add it to the queue or start a radio based on it. At the bottom you can group other speakers with this one or move the music to another room. If cover art doesn't show on the iPad, Facewall fetches it through itself.
 

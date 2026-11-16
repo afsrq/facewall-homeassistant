@@ -18,6 +18,7 @@ Watch faces for a wall-mounted iPad, with your Home Assistant devices one swipe 
 - **Themes**: 18 themes (dark, pastel and electric) with a live preview picker; use one for the whole house or a different one per iPad.
 - **Living backgrounds**: gentle rain, snow, clouds, fog or stars behind the tiles that match the weather outside, plus seasonal blossoms, leaves and snow.
 - **TV remote and Music Assistant**: a touchpad remote for Apple TV, Roku, Android/Fire TV, LG, Samsung and Sony, and a Music Assistant tile to browse, search, queue and group speakers.
+- **Sections**: a menu down the left of a page (Lights, Climate, Media…), each with its own tiles, filled from the room in one tap.
 - **Photo frame**: after a while on the clock, a slideshow from your Home Assistant media folder with the time in the corner.
 - **Your layout**: give each tile its own width and height in grid columns/rows (drag to resize in Edit layout mode), and choose how many columns and rows fit on the screen.
 - **Screen care**: screen off when the room is empty and wake on motion, a night theme per iPad, and burn-in protection.

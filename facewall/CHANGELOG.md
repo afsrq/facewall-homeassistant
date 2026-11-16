@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.32.0
+- **Sections**: a menu down the left side of a page, each section with its own tiles, so one room can have Lights, Climate and Media screens. Add them from Edit layout → **Sections**, or Settings → Tiles → Add sections.
+- One-tap ready-made sections (**Lights, Climate, Media, Security, Blinds**) fill themselves from the page's room: lights, switches and scenes; thermostats (as a dial), fans and temperature, humidity and air-quality sensors; speakers and TVs (TVs as a remote). Pages not named after a room use the whole house, or pick the room.
+- Rename sections, choose their icons, reorder or delete them, and rename the page's own first section (it's called "All" until you do). Edit layout, Add tiles and tile options all work on the section you're looking at.
+- The weather backgrounds now update live even when the header doesn't show the weather.
+
 ## 1.31.0
 - **Change a tile's entity**: every tile's settings now have an **Entity** picker. Swap the light, sensor, TV or anything else a tile shows without rebuilding it; its size, place, icon, colours and name stay. Entities of the same kind are listed first. A tile whose entity has gone missing shows it as "(missing)" so you can point it at the new one.
 

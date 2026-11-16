@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.31.0';
+const VERSION = '1.32.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -245,12 +245,14 @@ function watchedEntities() {
   const s = store.settings;
   if (!s) return null;
   const set = new Set();
-  const lists = [...(s.pages || []).map((p) => p.entities || []), s.dashboard?.entities || []];
+  // Every page's tiles, and the tiles in each of its sections.
+  const pageLists = (s.pages || []).flatMap((p) => [p.entities || [], ...(p.sections || []).map((x) => x.entities || [])]);
+  const lists = [...pageLists, s.dashboard?.entities || []];
   for (const list of lists) for (const e of list) set.add(typeof e === 'string' ? e : e.id);
   for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr']) if (f[k]) set.add(f[k]);
   for (const id of Object.keys(timers)) set.add(id);
   // Tiles' show-when rules and badges.
-  for (const p of s.pages || []) for (const e of p.entities || []) {
+  for (const list of pageLists) for (const e of list) {
     if (!e || typeof e !== 'object') continue;
     if (e.showWhen?.id) set.add(e.showWhen.id);
     if (e.badge?.k === 'entity' && e.badge.id) set.add(e.badge.id);
@@ -270,7 +272,7 @@ function watchedEntities() {
   // The page header: its weather entity, the sun, sensors and alert sensors.
   const WEATHER_PARTS = new Set(['now', 'highlow', 'feels', 'rain', 'wind', 'humidity', 'alerts']);
   const on = (s.header?.parts || [{ k: 'greeting', on: true }, { k: 'date', on: true }]).filter((p) => p && p.on);
-  if (on.some((p) => WEATHER_PARTS.has(p.k))) {
+  if (on.some((p) => WEATHER_PARTS.has(p.k)) || s.general?.fx?.weather !== false) {
     const w = s.header?.weather && ha.states.has(s.header.weather) ? s.header.weather : [...ha.states.keys()].find((id) => id.startsWith('weather.'));
     if (w) set.add(w);
   }

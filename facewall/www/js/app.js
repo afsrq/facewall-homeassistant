@@ -1,7 +1,7 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS } from './faces.js';
-import { HomePage, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
+import { HomePage, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
@@ -264,9 +264,16 @@ class App {
     const ed = this.rooms.find((r) => r.editing);
     if (ed) ed.setEditing(false);
   }
-  roomFor(pageId) { return this.rooms.find((r) => r.pageId === pageId); }
+  roomFor(pageId) { const id = String(pageId || '').split('~')[0]; return this.rooms.find((r) => r.pageId === id); }
   get currentRoom() { return this.rooms[this.page - 1] || null; }
-  goToRoom(pageId) { const i = this.settings.pages.findIndex((p) => p.id === pageId); if (i >= 0) this.goTo(i + 1); }
+  goToRoom(pageId) {
+    const [id, sec] = String(pageId || '').split('~');
+    const i = this.settings.pages.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    const r = this.roomFor(id);
+    if (r && (r.view || null) !== (sec || null)) r.showSection(sec || null);
+    this.goTo(i + 1);
+  }
 
   goTo(p, instant) {
     this.page = p;
@@ -279,6 +286,7 @@ class App {
     if (this.face) this.face.paused = this.page !== 0;
     document.body.classList.toggle('on-clock', this.page === 0);
     if (this.navPrev) { this.navPrev.hidden = this.page === 0; this.navNext.hidden = this.page >= this.pageCount - 1; }
+    document.body.classList.toggle('rail-page', !!this.currentRoom?.root.classList.contains('has-rail'));
     this.rooms?.forEach((r, i) => { if (r.editing && i + 1 !== this.page) r.setEditing(false); });
   }
 
@@ -565,8 +573,9 @@ class App {
 
     const render = () => {
       const s = this.settings;
-      if (!pageOf(s, editPage)) editPage = s.pages[0]?.id;
+      if (!pageOf(s, editPage)) editPage = pageOf(s, String(editPage).split('~')[0]) ? String(editPage).split('~')[0] : s.pages[0]?.id;
       const pg = pageOf(s, editPage);
+      const base = String(editPage).split('~')[0], basePg = pageOf(s, base);
       sh.body.innerHTML = '';
 
       // ---------------- Appearance
@@ -656,14 +665,14 @@ class App {
           });
           this.renderRooms(); render();
         };
-        pagesList.append(h('div.ent-row' + (p.id === editPage ? '.sel' : ''), {},
+        pagesList.append(h('div.ent-row' + (p.id === base ? '.sel' : ''), {},
           h('span.ent-ic', { html: icon(i === 0 ? 'home' : 'grid') }),
           h('input.text-in.name-in', { value: p.name, 'aria-label': 'Page name', onchange: (e) => {
             const v = e.target.value.trim(); if (!v) return;
             this.update((x) => { pageOf(x, p.id).name = v; }); this.renderRooms(); render();
           } }),
-          h('span.ent-sub.count', { text: `${p.entities.length} tile${p.entities.length === 1 ? '' : 's'}` }),
-          h('button.pill.sm' + (p.id === editPage ? '.primary' : ''), { text: p.id === editPage ? 'Editing' : 'Edit', onclick: () => { editPage = p.id; openTile = null; render(); } }),
+          h('span.ent-sub.count', { text: `${p.entities.length} tile${p.entities.length === 1 ? '' : 's'}${p.sections?.length ? ` · ${p.sections.length + 1} sections` : ''}` }),
+          h('button.pill.sm' + (p.id === base ? '.primary' : ''), { text: p.id === base ? 'Editing' : 'Edit', onclick: () => { editPage = p.id; openTile = null; render(); } }),
           h('button.icon-btn.sm', { html: icon('copy'), 'aria-label': 'Copy this page', onclick: () => {
             const id = 'p-' + uid();
             this.update((x) => { const src = pageOf(x, p.id); x.pages.splice(i + 1, 0, { ...structuredClone(src), id, name: `${src.name} copy` }); });
@@ -703,7 +712,7 @@ class App {
 
       // ---------------- Tiles on the page being edited
       const list = h('div.ent-list');
-      const L = pg.layout || {};
+      const L = basePg.layout || {};
       const cols = this.roomFor(editPage)?.cols || 5;
       const ents = pg.entities;
       const upd = (fn) => { this.update((x) => fn(pageOf(x, editPage).entities)); render(); refreshRoom(); };
@@ -725,7 +734,10 @@ class App {
       });
       if (!ents.length) list.append(h('div.ent-empty', { text: 'No tiles on this page yet.' }));
       const hasAllOff = ents.some((e) => e.id === ALL_OFF);
-      const tilesSec = section(`Tiles on “${pg.name}”`,
+      const secs = basePg.sections || [];
+      const tilesSec = section(`Tiles on “${basePg.name}${base !== editPage ? ' › ' + pg.name : ''}”`,
+        secs.length ? row('Section', segmented([{ v: base, label: basePg.mainName || 'All' }, ...secs.map((x) => ({ v: `${base}~${x.id}`, label: x.name }))], editPage, (v) => { editPage = v; openTile = null; render(); })) : null,
+        row('Sections', h('button.pill.sm', { html: icon('sliders') + '<span>' + (secs.length ? 'Edit sections' : 'Add sections') + '</span>', onclick: () => this.sectionsEditor(base, () => render()) }), 'A menu down the left of the page, e.g. Lights, Climate and Media, each with its own tiles'),
         h('button.pill.wide.primary', { html: icon('grid') + '<span>Edit layout on screen</span>', onclick: () => { sh.close(); this.goToRoom(editPage); this.roomFor(editPage)?.setEditing(true); } }),
         list,
         h('button.pill.wide', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.entityBrowser(editPage, () => { render(); refreshRoom(); }) }),
@@ -735,8 +747,8 @@ class App {
           toast('Added a scenes row. Choose its buttons in the tile’s Options.');
         } }), 'One tile with a row of one-tap scene and script buttons'),
         row('“All lights off” tile', toggle(hasAllOff, (v) => upd((a) => { const k = a.findIndex((e) => e.id === ALL_OFF); if (v && k < 0) a.push({ id: ALL_OFF }); if (!v && k >= 0) a.splice(k, 1); })), 'Turns off every light on this page'));
-      const setL = (k, v) => { this.update((x) => { const p2 = pageOf(x, editPage); p2.layout = { ...(p2.layout || {}), [k]: v }; }); refreshRoom(); render(); };
-      const layoutSec = section(`Grid on “${pg.name}”`,
+      const setL = (k, v) => { this.update((x) => { const p2 = pageOf(x, base); p2.layout = { ...(p2.layout || {}), [k]: v }; }); refreshRoom(); render(); };
+      const layoutSec = section(`Grid on “${basePg.name}”`,
         row('Columns across', segmented([{ v: null, label: 'Auto' }, ...[3, 4, 5, 6, 7, 8].map((v) => ({ v, label: String(v) }))], L.cols ?? null, (v) => setL('cols', v)), 'More columns = smaller tiles'),
         row('Rows per screen', segmented([{ v: null, label: 'Auto' }, ...[2, 3, 4, 5, 6].map((v) => ({ v, label: String(v) }))], L.rows ?? null, (v) => setL('rows', v)), 'Taller tiles can span several rows'));
 
@@ -966,6 +978,99 @@ class App {
     rows.push(row('Width (columns)', sizeCtl(roundSize(Math.min(w, cols)), cols, (v) => set((it) => { it.w = v; })), `0.2 to ${cols}, in steps of 0.1`));
     rows.push(row('Height (rows)', sizeCtl(roundSize(hh), MAX_H, (v) => set((it) => { it.h = v; })), `0.2 to ${MAX_H}, in steps of 0.1`));
     return rows;
+  }
+
+  /** The page's area in Home Assistant: one you chose, or one named like the page. None means the whole house. */
+  pageArea(pg) {
+    const areas = new Set(Object.values(this.store.areas || {}));
+    if (pg.area && areas.has(pg.area)) return pg.area;
+    const byName = [...areas].find((a) => a.toLowerCase() === (pg.name || '').toLowerCase());
+    return byName || null;
+  }
+  /** Tiles for a ready-made section: matching devices in the page's room, else matching tiles already on the page. */
+  sectionTiles(pg, preset) {
+    const doms = new Set(preset.domains);
+    const area = this.pageArea(pg);
+    const okSensor = (st) => preset.key !== 'climate' || ['temperature', 'humidity', 'carbon_dioxide', 'pm25', 'pm10', 'aqi', 'volatile_organic_compounds', 'pressure'].includes(st.attributes?.device_class);
+    const okBinary = (st) => preset.key !== 'security' || ['door', 'window', 'garage_door', 'motion', 'occupancy', 'smoke', 'moisture'].includes(st.attributes?.device_class);
+    const fits = (st) => { const d = domainOf(st.entity_id); return doms.has(d) && (d !== 'sensor' || okSensor(st)) && (d !== 'binary_sensor' || okBinary(st)) && st.state !== 'unavailable'; };
+    let ids = area ? this.store.list([...doms]).filter((st) => this.store.area(st.entity_id) === area && fits(st)).map((st) => st.entity_id) : [];
+    if (!area) {
+      // Whole house: what's on the page first, then everything else that fits.
+      const onPage = (pg.entities || []).map((e) => e.id).filter((id) => this.store.get(id) && fits(this.store.get(id)));
+      ids = [...new Set([...onPage, ...this.store.list([...doms]).filter(fits).map((st) => st.entity_id)])];
+    }
+    ids.sort((a, b) => preset.domains.indexOf(domainOf(a)) - preset.domains.indexOf(domainOf(b)));
+    const tiles = ids.slice(0, 16).map((id) => {
+      const t = { id };
+      if (preset.key === 'climate' && domainOf(id) === 'climate') t.style = 'dial';
+      if (preset.key === 'media' && domainOf(id) === 'media_player' && /tv|apple|roku|shield|chromecast|fire|android/i.test(id + this.store.name(id))) t.style = 'remote';
+      return t;
+    });
+    if (preset.key === 'lights' && tiles.filter((t) => domainOf(t.id) === 'light').length >= 2) tiles.push({ id: ALL_OFF });
+    return tiles;
+  }
+  /** The menu down the left of a page: its sections, each with its own tiles. */
+  sectionsEditor(pageId, after) {
+    const base = String(pageId).split('~')[0];
+    const RAIL_ICONS = ['home', 'grid', 'bulb', 'thermo', 'fan', 'drop', 'snow', 'sun', 'tv', 'music', 'volume', 'lock', 'door', 'blinds', 'bell', 'gauge', 'power', 'calendar', 'sparkles', 'clock', 'toggle', 'flame'];
+    const sh = sheet({ title: 'Sections', cls: 'sections-sheet', onClose: () => after?.() });
+    const refresh = () => { this.roomFor(base)?.render(); render(); };
+    const upd = (fn) => { this.update((x) => { const p = pageOf(x, base); if (p) fn(p); }); refresh(); };
+    const iconChoice = (cur, on) => {
+      const wrap = h('div.rail-icons');
+      for (const n of RAIL_ICONS) wrap.append(h('button.rail-pick' + (n === cur ? '.sel' : ''), { html: icon(n), 'aria-label': n, onclick: () => on(n) }));
+      return wrap;
+    };
+    let openIc = null;
+    const render = () => {
+      const pg = pageOf(this.settings, base);
+      if (!pg) return sh.close();
+      const secs = pg.sections || [];
+      const line = (key, name, ic, count, extra, onName, onIcon) => {
+        const r = h('div.sec-row', {},
+          h('button.rail-pick.big' + (openIc === key ? '.sel' : ''), { html: icon(ic), 'aria-label': 'Change icon', onclick: () => { openIc = openIc === key ? null : key; render(); } }),
+          h('input.text-in.name-in', { value: name, 'aria-label': 'Section name', onchange: (e) => { const v = e.target.value.trim(); if (v) onName(v); } }),
+          h('span.ent-sub.count', { text: `${count} tile${count === 1 ? '' : 's'}` }),
+          ...extra);
+        return openIc === key ? [r, iconChoice(ic, (n) => { openIc = null; onIcon(n); })] : [r];
+      };
+      const rows = [
+        ...line('_main', pg.mainName || 'All', pg.mainIcon || 'home', pg.entities.length, [h('span.sec-tag', { text: 'The page’s own tiles' })],
+          (v) => upd((p) => { p.mainName = v; }), (n) => upd((p) => { p.mainIcon = n; })),
+        ...secs.flatMap((x, i) => line(x.id, x.name, x.icon || 'grid', (x.entities || []).length, [
+          h('button.pill.sm', { text: 'Tiles', onclick: () => { sh.close(); this.goToRoom(`${base}~${x.id}`); this.roomFor(base)?.setEditing(true); } }),
+          h('button.icon-btn.sm', { html: icon('up'), 'aria-label': 'Move up', disabled: i === 0, onclick: () => upd((p) => { p.sections.splice(i - 1, 0, p.sections.splice(i, 1)[0]); }) }),
+          h('button.icon-btn.sm', { html: icon('down'), 'aria-label': 'Move down', disabled: i === secs.length - 1, onclick: () => upd((p) => { p.sections.splice(i + 1, 0, p.sections.splice(i, 1)[0]); }) }),
+          h('button.icon-btn.sm.danger', { html: icon('trash'), 'aria-label': 'Delete section', onclick: () => { if (!confirmDel[x.id]) { confirmDel[x.id] = true; toast('Tap again to delete this section and its tiles'); setTimeout(() => { delete confirmDel[x.id]; }, 3000); return; } upd((p) => { p.sections.splice(i, 1); if (!p.sections.length) delete p.sections; }); } }),
+        ], (v) => upd((p) => { p.sections[i].name = v; }), (n) => upd((p) => { p.sections[i].icon = n; }))),
+      ];
+      const area = this.pageArea(pg);
+      const add = (preset) => {
+        const id = 's-' + uid();
+        const tiles = preset ? this.sectionTiles(pg, preset) : [];
+        upd((p) => { (p.sections ||= []).push({ id, name: preset?.name || 'New section', icon: preset?.icon || 'grid', entities: tiles }); });
+        toast(preset ? `Added ${preset.name} with ${tiles.length} tile${tiles.length === 1 ? '' : 's'}${area && tiles.length ? ` from ${area}` : ''}` : 'Added a section. Rename it and add tiles.');
+      };
+      const used = new Set(secs.map((x) => x.name));
+      sh.body.replaceChildren(
+        h('div.about.small', { text: 'Sections put a menu down the left side of this page. Each one has its own tiles, so one room can have Lights, Climate and Media screens. Tap an icon to change it.' }),
+        h('div.ent-list', {}, ...rows),
+        h('div.set-sub', { text: area ? `Add a section (filled from ${area})` : 'Add a section (filled from the whole house)' }),
+        h('div.add-page-row', {},
+          ...SECTION_PRESETS.filter((p) => !used.has(p.name)).map((p) => h('button.pill', { html: icon(p.icon) + `<span>${p.name}</span>`, onclick: () => add(p) })),
+          h('button.pill', { html: icon('plus') + '<span>Blank</span>', onclick: () => add(null) })),
+        row('Room', (() => {
+          const sel = h('select.select');
+          sel.append(h('option', { value: '', text: 'Whole house' }));
+          for (const a of [...new Set(Object.values(this.store.areas || {}))].sort()) sel.append(h('option', { value: a, text: a }));
+          sel.value = pg.area || '';
+          sel.onchange = () => upd((p) => { if (sel.value) p.area = sel.value; else delete p.area; });
+          return sel;
+        })(), area && !pg.area ? `Using ${area}, because the page has the same name` : 'Which Home Assistant area ready-made sections take their devices from'));
+    };
+    const confirmDel = {};
+    render();
   }
 
   /** A panel with one tile's options (opened from Edit layout). */
