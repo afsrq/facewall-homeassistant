@@ -140,7 +140,7 @@ For a wall iPad you can also skip Home Assistant's page completely: open `http:/
 Settings → Appearance. **Style** decides the shape and feel of the tiles (Apple Home, Material You, Liquid glass or Facewall Bold). **Theme** decides the colours, so any style works with any theme. Fine-tune with **Tile transparency**, **Blur behind tiles** and **Corners**. Tiles you gave their own on/off colours keep them in every style.
 
 ## Full screen in the Home Assistant app (iPad)
-1. In Facewall: Settings → turn on **Hide Home Assistant's sidebar and top bar**. **Edge to edge** (on by default) then covers the strips Home Assistant keeps for the status bar and home bar.
+1. In Facewall: Settings → turn on **Hide Home Assistant's sidebar and top bar**. **Edge to edge** (on by default) colours the app's own strips (behind the status bar and around the page) to match what's on screen, and stretches Facewall over the rest.
 2. In the Home Assistant app: Settings → Companion app → **Kiosk mode** → turn on **Hide status bar** (works when the app runs full screen, not in Split View). Under **Configuration access**, move the small settings button to a top corner, where it's less in the way.
 3. Optional: iPad Settings → Accessibility → **Guided Access** keeps the iPad in the app.
 

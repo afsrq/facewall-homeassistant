@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.35.0
+- **Fixed the bars in the Home Assistant iPad app.** The strip behind the status bar and the strip at the bottom aren't part of the web page: the app draws them itself in colours it reads from Home Assistant's theme. Facewall now sets those colours to whatever is on screen (the clock face's own colour, the page background, or black when the screen sleeps) and tells the app to repaint, so the strips blend in and follow you as you switch faces and pages. Home Assistant's colours come back as soon as you leave Facewall. Settings → Edge to edge (on by default; it no longer needs the sidebar hidden).
+
 ## 1.34.1
 - Fixed: **Add tiles** didn't list media players (Apple TV, speakers…), cameras, calendars, people, vacuums or alarm panels, so their filters said nothing matched. They're all there now.
 

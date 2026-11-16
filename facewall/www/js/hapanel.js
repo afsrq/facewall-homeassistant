@@ -76,3 +76,27 @@ export function setHaFill(on) {
 }
 /** True when we can stretch over the whole screen (inside Home Assistant on the same address). */
 export const canFill = () => inHaPanel && !!frameEl();
+
+// ------------------------------------------------------------------ the app's own strips
+// The Home Assistant app paints the strip behind the iPad's status bar and the area around the web page
+// itself, in colours it reads from Home Assistant's theme (--app-header-background-color, --app-theme-color,
+// --primary-background-color) whenever the page fires "settheme". Facewall sets those to the colours on its
+// screen and fires the event, so the strips blend in. Put back when Facewall is closed.
+let chromeKey = '';
+export function setHaChrome(top, bottom) {
+  if (!inHaPanel) return;
+  let d;
+  try { d = window.parent.document; } catch { return; }
+  const key = top && bottom ? top + '|' + bottom : '';
+  if (key === chromeKey) return;
+  chromeKey = key;
+  let st = d.getElementById('facewall-chrome');
+  if (!key) { st?.remove(); }
+  else {
+    if (!st) { st = d.createElement('style'); st.id = 'facewall-chrome'; d.head.appendChild(st); }
+    st.textContent = `html, body, home-assistant { --app-header-background-color: ${top} !important; --app-theme-color: ${top} !important; --primary-background-color: ${bottom} !important; }`;
+    d.querySelector('meta[name="theme-color"]')?.setAttribute('content', top);
+  }
+  try { window.parent.dispatchEvent(new Event('settheme')); } catch { /* ignore */ }
+}
+if (inHaPanel) addEventListener('pagehide', () => setHaChrome(null, null));

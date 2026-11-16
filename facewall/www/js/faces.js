@@ -926,6 +926,33 @@ requestAnimationFrame(loop);
  * Mount a face into `container`.
  * ctx: { store, w, h, use24h, preview }
  */
+/** The colours at the top and bottom edges of a mounted face, e.g. to paint the strips around it. */
+export function faceEdgeColors(host) {
+  const svg = host?.querySelector('.face-layer svg');
+  const solid = (c) => c && c !== 'none' && !/^rgba\(.*,\s*0\)$/.test(c) && c !== 'transparent';
+  if (svg) {
+    const W = Number(svg.getAttribute('width')) || svg.clientWidth;
+    for (const r of svg.querySelectorAll(':scope > rect')) {
+      if (r.getAttribute('x') || r.getAttribute('y') || Number(r.getAttribute('width')) < W * 0.98) continue;
+      const fill = r.getAttribute('fill') || '';
+      const m = fill.match(/url\(#([^)]+)\)/);
+      if (!m) { if (solid(fill)) return [fill, fill]; continue; }
+      const g = svg.querySelector('#' + CSS.escape(m[1]));
+      const stops = g ? [...g.querySelectorAll('stop')].map((x) => x.getAttribute('stop-color') || x.style.stopColor) : [];
+      if (!stops.length) continue;
+      if (g.tagName.toLowerCase() === 'radialgradient') return [stops.at(-1), stops.at(-1)];
+      const y1 = parseFloat(g.getAttribute('y1') || '0'), y2 = parseFloat(g.getAttribute('y2') || '0');
+      return y2 > y1 ? [stops[0], stops.at(-1)] : y2 < y1 ? [stops.at(-1), stops[0]] : [stops[0], stops.at(-1)];
+    }
+  }
+  for (const el of [host?.querySelector('.face-layer > *'), host?.querySelector('.face-layer'), host]) {
+    if (!el) continue;
+    const c = getComputedStyle(el).backgroundColor;
+    if (solid(c)) return [c, c];
+  }
+  return ['#000', '#000'];
+}
+
 export function mountFace(container, face, ctx) {
   const def = FACES[face.type] || classic;
   const opts = { ...def.defaults, ...(face.opts || {}) };

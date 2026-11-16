@@ -1,11 +1,11 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn } from './data.js';
-import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS } from './faces.js';
+import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS, faceEdgeColors } from './faces.js';
 import { HomePage, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme, LOOKS, applyLook } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
-import { inHaPanel, setHaKiosk, openHaMenu, setHaFill, canFill } from './hapanel.js';
+import { inHaPanel, setHaKiosk, openHaMenu, setHaFill, canFill, setHaChrome } from './hapanel.js';
 import { FONTS, WEIGHTS, SEPARATORS, PARTS, DATE_FORMATS, fmtDate, defaultHeader, headerOf, headerSegments, headerContent, headerVars, weatherEntity } from './header.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
@@ -269,6 +269,18 @@ class App {
     const hide = !!this.screen.hideHa;
     setHaKiosk(hide);
     setHaFill(hide && this.screen.edge !== false);
+    if (inHaPanel && !this._chromeTimer) this._chromeTimer = setInterval(() => this.syncHaChrome(), 1500);
+    this.syncHaChrome();
+  }
+  /** Colour the Home Assistant app's own strips (status bar, edges) to match what's on screen. */
+  syncHaChrome() {
+    if (!inHaPanel) return;
+    if (this.screen.edge === false) return setHaChrome(null, null);
+    let c;
+    if (this.sleeping || this.frame) c = ['rgb(0, 0, 0)', 'rgb(0, 0, 0)'];
+    else if (this.page === 0) c = faceEdgeColors(this.facePage?.querySelector('.face-host'));
+    else { const bg = getComputedStyle(document.documentElement).getPropertyValue('--t-bg').trim() || '#000'; c = [bg, bg]; }
+    setHaChrome(c[0], c[1]);
   }
   roomFor(pageId) { const id = String(pageId || '').split('~')[0]; return this.rooms.find((r) => r.pageId === id); }
   get currentRoom() { return this.rooms[this.page - 1] || null; }
@@ -293,6 +305,7 @@ class App {
     document.body.classList.toggle('on-clock', this.page === 0);
     if (this.navPrev) { this.navPrev.hidden = this.page === 0; this.navNext.hidden = this.page >= this.pageCount - 1; }
     document.body.classList.toggle('rail-page', !!this.currentRoom?.root.classList.contains('has-rail'));
+    setTimeout(() => this.syncHaChrome(), 50);
     this.rooms?.forEach((r, i) => { if (r.editing && i + 1 !== this.page) r.setEditing(false); });
   }
 
@@ -664,8 +677,8 @@ class App {
         sc.sleepMin || sc.motion ? row('When it wakes', segmented([{ v: 'clock', label: 'Clock' }, { v: 'page', label: 'This iPad’s page' }, { v: 'stay', label: 'Where it was' }], sc.wakeTo || 'clock', (v) => this.updateScreen((x) => { x.wakeTo = v; }))) : null,
         row('Hide Home Assistant’s sidebar and top bar', toggle(!!sc.hideHa, (v) => { this.updateScreen((x) => { if (v) x.hideHa = true; else delete x.hideHa; }); render(); }),
           inHaPanel ? 'Full screen inside Home Assistant on this iPad' : 'For when Facewall is opened inside Home Assistant (its sidebar or the app)'),
-        inHaPanel && sc.hideHa && canFill() ? row('Edge to edge', toggle(sc.edge !== false, (v) => { this.updateScreen((x) => { if (v) delete x.edge; else x.edge = false; }); render(); }),
-          'Also cover the strips at the top and bottom that the Home Assistant app keeps for the iPad’s status bar and home bar. In the app’s Kiosk mode, also turn on “Hide status bar” and move the settings button to a top corner.') : null,
+        inHaPanel ? row('Edge to edge', toggle(sc.edge !== false, (v) => { this.updateScreen((x) => { if (v) delete x.edge; else x.edge = false; }); render(); }),
+          'Colours the Home Assistant app’s own strips (behind the status bar and around the page) to match the screen, and covers them when the sidebar is hidden. In the app’s Kiosk mode, also turn on “Hide status bar”.') : null,
         inHaPanel && sc.hideHa ? row('Home Assistant menu', h('button.pill.sm', { text: 'Open', onclick: () => { openHaMenu(); } }), 'Opens Home Assistant’s sidebar over Facewall') : null,
         h('div.about.small', { text: 'To keep these even if Safari’s data is cleared, add this address to the iPad’s Home Screen:' }),
         h('div.copy-row', {}, h('code.addr', { text: link }), h('button.pill.sm', { text: 'Copy', onclick: async () => {
