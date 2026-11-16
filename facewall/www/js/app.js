@@ -18,7 +18,7 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage
 const slug = (t) => String(t || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 // What a room page made from a Home Assistant area starts with, in this order.
 const AREA_ORDER = ['climate', 'water_heater', 'lock', 'light', 'switch', 'fan', 'input_boolean', 'cover', 'sensor'];
-const TILE_DOMAINS = ['weather', 'light', 'climate', 'water_heater', 'lock', 'switch', 'input_boolean', 'fan', 'cover', 'scene', 'script', 'button', 'sensor', 'binary_sensor', 'automation'];
+const TILE_DOMAINS = ['weather', 'light', 'climate', 'water_heater', 'lock', 'switch', 'input_boolean', 'fan', 'cover', 'scene', 'script', 'button', 'input_button', 'sensor', 'binary_sensor', 'automation', 'media_player', 'camera', 'calendar', 'person', 'device_tracker', 'vacuum', 'alarm_control_panel'];
 
 function defaultSettings(store) {
   const ids = (d, n) => store.list([d]).slice(0, n).map((s) => s.entity_id);

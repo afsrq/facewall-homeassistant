@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.34.1
+- Fixed: **Add tiles** didn't list media players (Apple TV, speakers…), cameras, calendars, people, vacuums or alarm panels, so their filters said nothing matched. They're all there now.
+
 ## 1.34.0
 - **Styles**, separate from themes: pick how the tiles are drawn, then pick a theme for the colours. Settings → Appearance:
   - **Apple Home**: the look so far; switched-on tiles turn bright.
