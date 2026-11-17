@@ -1260,3 +1260,9 @@ body[data-look="retro"] .side-item.on .side-ic { color: #031003; }
   opacity: 0; transition: opacity 1.5s, transform 1.5s; }
 .np-note.on { opacity: 0.9; transform: translateX(-50%); }
 @media (prefers-reduced-motion: reduce) { .np-glow > div { animation: none; } }
+/* Departure board flaps */
+.flap { position: relative; display: grid; place-items: center; border-radius: 4px; font-weight: 700; line-height: 1; box-shadow: inset 0 -1px 0 rgba(255,255,255,0.04), 0 2px 4px rgba(0,0,0,0.5); overflow: hidden; font-variant-numeric: tabular-nums; }
+.flap::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(0,0,0,0.75); box-shadow: 0 1px 0 rgba(255,255,255,0.05); }
+.flap::before { content: ''; position: absolute; inset: 0 0 50% 0; background: linear-gradient(rgba(255,255,255,0.05), rgba(0,0,0,0.12)); pointer-events: none; }
+.flap.flip { animation: flapdown 0.12s ease-in; }
+@keyframes flapdown { 0% { transform: scaleY(1); } 50% { transform: scaleY(0.82); filter: brightness(0.75); } 100% { transform: scaleY(1); } }

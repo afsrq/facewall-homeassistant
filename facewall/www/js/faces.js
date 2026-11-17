@@ -1207,6 +1207,126 @@ const sky = {
   },
 };
 
+// ------------------------------------------------------------------ departure board (split-flap)
+const FLAP_CHARS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:.,°-/!?&+%#';
+const BOARD_COL = [
+  { v: 'classic', label: 'Airport yellow', ink: '#f6c945', bg: '#0d0d0f', tile: '#1c1c20' },
+  { v: 'white', label: 'Station white', ink: '#f2f2f2', bg: '#0a0c10', tile: '#1a1d24' },
+  { v: 'amber', label: 'Amber', ink: '#ffae42', bg: '#100b06', tile: '#22180e' },
+  { v: 'green', label: 'Green', ink: '#7ee08a', bg: '#06100a', tile: '#0f2116' },
+];
+const board = {
+  name: 'Departure board', blurb: 'A split-flap board: the time, weather, your next events, sunset and countdowns, clattering into place.', category: 'Fun',
+  options: [
+    { key: 'col', label: 'Colours', type: 'swatch', choices: BOARD_COL.map((c) => ({ v: c.v, label: c.label, color: c.ink })) },
+    { key: 'sound', label: 'Flap sound', type: 'bool' },
+  ],
+  defaults: { col: 'classic', sound: false },
+  ink: (o) => pick(BOARD_COL, o.col).ink,
+  create(root, o, ctx) {
+    const { w, h, store } = ctx;
+    const C = pick(BOARD_COL, o.col);
+    const portrait = h > w * 1.1;
+    const COLS = portrait ? 16 : 28, ROWS = 6;
+    const cw = Math.min((w * 0.92) / COLS, (h * 0.8) / (ROWS + 2.6) / 1.35);
+    root.style.cssText = `position:absolute;inset:0;background:${C.bg};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:${cw * 0.5}px;font-family:'Helvetica Neue',Arial,${FONT.sans}`;
+    const mkRow = (n, size, cls = '') => {
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;gap:${size * 0.08}px`;
+      const cells = [];
+      for (let i = 0; i < n; i++) {
+        const c = document.createElement('div');
+        c.className = 'flap ' + cls;
+        c.style.cssText = `width:${size}px;height:${size * 1.35}px;font-size:${size * 1.02}px;color:${C.ink};background:${C.tile}`;
+        c.textContent = ' ';
+        row.appendChild(c); cells.push({ el: c, cur: ' ', target: ' ', next: 0 });
+      }
+      root.appendChild(row);
+      return cells;
+    };
+    const head = document.createElement('div');
+    head.style.cssText = `width:${cw * COLS + cw * 0.08 * (COLS - 1)}px;display:flex;justify-content:space-between;color:${C.ink};opacity:.7;font-size:${cw * 0.42}px;font-weight:700;letter-spacing:.18em`;
+    head.innerHTML = '<span>✈ DEPARTURES</span><span class="bd-date"></span>';
+    const clock = mkRow(portrait ? 8 : 8, cw * (portrait ? 1.7 : 1.9), 'big');
+    root.appendChild(head);
+    const rows = Array.from({ length: ROWS }, () => mkRow(COLS, cw));
+    const all = [...clock, ...rows.flat()];
+    const dateEl = head.querySelector('.bd-date');
+    // Content: weather now, next events, sun, countdowns.
+    let events = [], loadedAt = 0, lastMin = -1, lastStep = 0;
+    const loadEvents = async () => {
+      loadedAt = Date.now();
+      const cals = store?.list?.(['calendar']) || [];
+      const start = new Date(), end = new Date(Date.now() + 2 * 86400000);
+      const lists = await Promise.all(cals.map((c) => store.events(c.entity_id, start, end).catch(() => [])));
+      events = lists.flat().filter((e) => !e.allDay && new Date(e.start) > new Date(Date.now() - 15 * 60000)).sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 4);
+      lastMin = -1; // redraw with them
+    };
+    const pad = (s, n) => { s = String(s).toUpperCase().replace(/[’']/g, '').normalize('NFD').replace(/[̀-ͯ]/g, ''); s = [...s].map((ch) => (FLAP_CHARS.includes(ch) ? ch : ' ')).join(''); return s.length > n ? s.slice(0, n) : s + ' '.repeat(n - s.length); };
+    const line = (left, mid, right = '') => {
+      const L = 6, R = portrait || !right ? 0 : 9;
+      return pad(left, L) + pad(mid, COLS - L - R) + (R ? pad(right.padStart(R), R) : '');
+    };
+    const hm = (d) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: !ctx.use24h }).replace(/\s?([AP])\.?M\.?$/i, '$1');
+    const content = (now) => {
+      const out = [];
+      const wid = store?.settings?.header?.weather && store.get(store.settings.header.weather) ? store.settings.header.weather : store?.list?.(['weather'])?.[0]?.entity_id;
+      const wx = wid && store.get(wid);
+      if (wx) out.push(line('NOW', `${wx.attributes?.temperature != null ? Math.round(wx.attributes.temperature) + '° ' : ''}${WX_TEXT[wx.state] || wx.state}`));
+      for (const e of events) {
+        const st = new Date(e.start), soon = st - now < 3600000 && st > now, past = st <= now;
+        out.push(line(hm(st), e.summary, past ? 'NOW' : soon ? 'BOARDING' : st.toDateString() === now.toDateString() ? 'ON TIME' : 'TOMORROW'));
+      }
+      const sun = store?.get('sun.sun')?.attributes;
+      if (sun) { const rs = new Date(sun.next_rising), ss = new Date(sun.next_setting); const sunset = ss < rs; out.push(line(hm(sunset ? ss : rs), sunset ? 'SUNSET' : 'SUNRISE')); }
+      for (const c of (store?.list?.(['countdown']) || []).filter((x) => Number(x.state) >= 0).sort((a, b) => a.state - b.state)) out.push(line(c.state === '0' ? 'TODAY' : `${c.state}D`, `${c.state === '0' ? '' : 'TO '}${c.attributes.friendly_name}`));
+      while (out.length < ROWS) out.push(' '.repeat(COLS));
+      return out.slice(0, ROWS);
+    };
+    let audio = null;
+    const click = () => {
+      if (!o.sound || ctx.preview) return;
+      try {
+        audio ||= new (window.AudioContext || window.webkitAudioContext)();
+        const n = audio.createBufferSource(), buf = audio.createBuffer(1, 600, audio.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 6) * 0.25;
+        n.buffer = buf; n.connect(audio.destination); n.start();
+      } catch { /* no sound */ }
+    };
+    return {
+      update(now) {
+        const t = now.getTime();
+        if (Date.now() - loadedAt > 600000) loadEvents();
+        const mnt = now.getHours() * 60 + now.getMinutes();
+        if (mnt !== lastMin) {
+          lastMin = mnt;
+          const tm = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: !ctx.use24h }).replace(/\s?([AP])\.?M\.?$/i, ' $1M').replace(/^0/, ' ');
+          const big = pad(tm.padStart(8), 8);
+          [...big].forEach((ch, i) => { clock[i].target = ch; });
+          content(now).forEach((ln, r) => [...ln].forEach((ch, i) => { rows[r][i].target = ch; }));
+          dateEl.textContent = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+        }
+        // Each flap steps through the characters until it lands on its target.
+        if (t - lastStep < 55) return;
+        lastStep = t;
+        let moved = 0;
+        for (const c of all) {
+          if (c.cur === c.target) continue;
+          const i = FLAP_CHARS.indexOf(c.cur), j = FLAP_CHARS.indexOf(c.target);
+          const dist = (j - i + FLAP_CHARS.length) % FLAP_CHARS.length;
+          c.cur = dist > 6 && Math.random() < 0.5 ? FLAP_CHARS[(i + 3) % FLAP_CHARS.length] : FLAP_CHARS[(i + 1) % FLAP_CHARS.length];
+          if (ctx.preview) c.cur = c.target;
+          c.el.textContent = c.cur;
+          c.el.classList.remove('flip'); void c.el.offsetWidth; c.el.classList.add('flip');
+          moved++;
+        }
+        if (moved) click();
+      },
+      destroy() { try { audio?.close(); } catch { /* ignore */ } },
+    };
+  },
+};
+
 // ------------------------------------------------------------------ countdown
 const CD_BG = [
   { v: 'night', label: 'Night', color: '#101828', c2: '#2b2350', ink: '#fff' },
@@ -1255,8 +1375,8 @@ const countdown = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock, sky };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'sky', 'flip', 'lamp'];
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock, sky, board };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'sky', 'board', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };

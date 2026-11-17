@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.46.0
+- **Departure board face**: an airport split-flap board. A big flap clock sits above rows for the weather now, your next calendar events (ON TIME, BOARDING when they're within the hour, TOMORROW), sunset or sunrise, and your countdowns. Changed letters clatter through the alphabet into place. Airport yellow, Station white, Amber or Green, with an optional flap sound.
+
 ## 1.45.0
 - **Weather sky face**: the whole screen becomes the sky outside. Its colour follows your real sunrise and sunset (dawn, day, golden hour, dusk, night), with the sun moving across the sky by day and the moon and twinkling stars at night. Drifting clouds, rain, snow, fog and lightning match your weather, and the time, temperature and date sit on top (bottom left or centred).
 
