@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.47.0
+- **Lava lamp face**: glowing goo that heats at the bottom, rises, stretches, merges and sinks again, inside a classic chrome lamp or across the whole screen. Red and orange, Purple and pink, Teal and lime, or Mustard and teal, at slow or normal speed, with the time and date.
+- **Aquarium face**: fish drifting past swaying plants, with light rays from the surface and rising bubbles. Tropical or Deep sea, a few fish or lots.
+
 ## 1.46.0
 - **Departure board face**: an airport split-flap board. A big flap clock sits above rows for the weather now, your next calendar events (ON TIME, BOARDING when they're within the hour, TOMORROW), sunset or sunrise, and your countdowns. Changed letters clatter through the alphabet into place. Airport yellow, Station white, Amber or Green, with an optional flap sound.
 

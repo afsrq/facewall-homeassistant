@@ -1327,6 +1327,203 @@ const board = {
   },
 };
 
+// ------------------------------------------------------------------ lava lamp & aquarium
+const LAVA = [
+  { v: 'red', label: 'Red & orange', bg: ['#2a0710', '#4a0f10'], blob: [[255, 80, 40], [255, 170, 60]], glow: 'rgba(255,90,40,0.35)' },
+  { v: 'purple', label: 'Purple & pink', bg: ['#14062a', '#2b0b3d'], blob: [[190, 70, 255], [255, 110, 190]], glow: 'rgba(200,80,255,0.3)' },
+  { v: 'teal', label: 'Teal & lime', bg: ['#04201f', '#073535'], blob: [[40, 220, 190], [190, 255, 90]], glow: 'rgba(60,230,190,0.28)' },
+  { v: 'mcm', label: 'Mustard & teal', bg: ['#10302e', '#1f5f5b'], blob: [[232, 177, 58], [242, 140, 60]], glow: 'rgba(232,177,58,0.3)' },
+];
+/** A small canvas that runs at ~30 frames a second, scaled up smoothly. */
+function slowCanvas(root, w, h) {
+  const cv = document.createElement('canvas');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+  root.appendChild(cv);
+  const g = cv.getContext('2d'); g.scale(dpr, dpr);
+  return g;
+}
+function timeOverlay(root, css, size) {
+  const d = document.createElement('div');
+  d.style.cssText = `position:absolute;color:#fff;font-family:${FONT.sans};text-shadow:0 2px 20px rgba(0,0,0,.45);${css}`;
+  d.innerHTML = `<div style="font-size:${size}vmin;font-weight:250;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums"></div><div style="font-size:${size * 0.17}vmin;font-weight:600;opacity:.75;margin-top:1vmin"></div>`;
+  root.appendChild(d);
+  let last = '';
+  return (now, use24h) => {
+    const t = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: !use24h }).replace(/\s?[AP]\.?M\.?$/i, '');
+    const dt = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    if (t + dt !== last) { last = t + dt; d.children[0].textContent = t; d.children[1].textContent = dt; }
+  };
+}
+const lava = {
+  name: 'Lava lamp', blurb: 'Slow, glowing blobs that rise, stretch and merge. Calming at night.', category: 'Fun',
+  options: [
+    { key: 'pal', label: 'Colours', type: 'swatch', choices: LAVA.map((p) => ({ v: p.v, label: p.label, color: `rgb(${p.blob[0].join(',')})` })) },
+    { key: 'shape', label: 'Shape', type: 'choice', choices: [{ v: 'lamp', label: 'Lamp' }, { v: 'full', label: 'Whole screen' }] },
+    { key: 'speed', label: 'Speed', type: 'choice', choices: [{ v: 'slow', label: 'Slow' }, { v: 'normal', label: 'Normal' }] },
+  ],
+  defaults: { pal: 'red', shape: 'lamp', speed: 'slow' },
+  ink: () => '#fff',
+  create(root, o, ctx) {
+    const { w, h } = ctx;
+    const P = pick(LAVA, o.pal);
+    root.style.cssText = `position:absolute;inset:0;overflow:hidden;background:radial-gradient(90% 90% at 50% 60%, ${P.bg[1]}, ${P.bg[0]})`;
+    const g = slowCanvas(root, w, h);
+    const lamp = o.shape !== 'full';
+    // Where the goo lives: the lamp's glass, or the whole screen.
+    const L = lamp ? (() => { const lh = h * 0.82, lw = Math.min(w * 0.36, lh * 0.42); return { x: (w - lw) / 2, y: h * 0.06, w: lw, h: lh * 0.72 }; })() : { x: 0, y: 0, w, h };
+    // The goo is worked out on a small grid, then drawn big and soft.
+    const S = lamp ? 3 : 5;
+    const gw = Math.max(20, Math.round(L.w / S)), gh = Math.max(20, Math.round(L.h / S));
+    const off = document.createElement('canvas'); off.width = gw; off.height = gh;
+    const og = off.getContext('2d'), img = og.createImageData(gw, gh);
+    const R = Math.random, N = lamp ? 7 : 11;
+    const blobs = Array.from({ length: N }, (_, i) => ({ x: R() * gw, y: R() * gh, r: (lamp ? 0.13 : 0.09) * Math.min(gw * (lamp ? 1.6 : 1), gh) * (0.7 + R() * 0.7), vy: 0, heat: R(), ph: R() * 6 }));
+    const spd = o.speed === 'normal' ? 1.8 : 1;
+    const glass = (gg) => {
+      const { x, y, w: lw, h: lh } = L, top = lw * 0.28;
+      gg.beginPath(); gg.moveTo(x + (lw - top) / 2, y); gg.lineTo(x + (lw + top) / 2, y);
+      gg.quadraticCurveTo(x + lw * 1.02, y + lh * 0.55, x + lw * 0.9, y + lh); gg.lineTo(x + lw * 0.1, y + lh);
+      gg.quadraticCurveTo(x - lw * 0.02, y + lh * 0.55, x + (lw - top) / 2, y); gg.closePath();
+    };
+    const tick = timeOverlay(root, lamp ? (w > h ? 'left:6vmin;bottom:6vmin' : 'left:0;right:0;bottom:4vmin;text-align:center') : 'left:6vmin;bottom:6vmin', lamp && w > h ? 16 : 18);
+    let last = 0;
+    return {
+      update(now) {
+        tick(now, ctx.use24h);
+        const t = now.getTime();
+        if (t - last < 33 && !ctx.preview) return;
+        const dt = last ? Math.min(80, t - last) / 33 : 1; last = t;
+        // Blobs heat at the bottom and rise, cool at the top and sink.
+        for (const b of blobs) {
+          const yN = b.y / gh;
+          b.heat += (yN > 0.85 ? 0.012 : yN < 0.15 ? -0.012 : -0.0012) * dt * spd;
+          b.heat = Math.max(0, Math.min(1, b.heat));
+          b.vy += (0.5 - b.heat) * 0.006 * dt * spd; b.vy *= 0.985;
+          b.y += b.vy * dt * spd;
+          b.x += Math.sin(t / 3000 + b.ph) * 0.03 * dt * spd;
+          if (b.y < b.r * 0.3) { b.y = b.r * 0.3; b.vy = Math.abs(b.vy) * 0.3; }
+          if (b.y > gh - b.r * 0.3) { b.y = gh - b.r * 0.3; b.vy = -Math.abs(b.vy) * 0.3; }
+          b.x = Math.max(b.r * 0.4, Math.min(gw - b.r * 0.4, b.x));
+        }
+        const d = img.data, [c1, c2] = P.blob;
+        for (let yy = 0; yy < gh; yy++) {
+          const k = yy / gh;
+          const cr = c1[0] + (c2[0] - c1[0]) * k, cg = c1[1] + (c2[1] - c1[1]) * k, cb = c1[2] + (c2[2] - c1[2]) * k;
+          for (let xx = 0; xx < gw; xx++) {
+            let f = 0;
+            for (const b of blobs) { const dx = xx - b.x, dy = (yy - b.y) * 0.8; f += (b.r * b.r) / (dx * dx + dy * dy + 1); }
+            const i = (yy * gw + xx) * 4;
+            const a = f < 0.94 ? 0 : f > 1.06 ? 1 : (f - 0.94) / 0.12;
+            const shade = Math.min(1.25, 0.8 + (f - 1) * 0.12);
+            d[i] = Math.min(255, cr * shade); d[i + 1] = Math.min(255, cg * shade); d[i + 2] = Math.min(255, cb * shade); d[i + 3] = a * 255;
+          }
+        }
+        og.putImageData(img, 0, 0);
+        g.clearRect(0, 0, w, h);
+        if (lamp) {
+          // Glow behind, glass, goo, base and cap.
+          const gl = g.createRadialGradient(w / 2, L.y + L.h * 0.6, 0, w / 2, L.y + L.h * 0.6, L.h * 0.9);
+          gl.addColorStop(0, P.glow); gl.addColorStop(1, 'rgba(0,0,0,0)');
+          g.fillStyle = gl; g.fillRect(0, 0, w, h);
+          g.save(); glass(g); g.clip();
+          const liq = g.createLinearGradient(0, L.y, 0, L.y + L.h);
+          liq.addColorStop(0, `rgba(${P.blob[1].join(',')},0.18)`); liq.addColorStop(1, `rgba(${P.blob[0].join(',')},0.32)`);
+          g.fillStyle = liq; g.fillRect(L.x - 10, L.y, L.w + 20, L.h);
+          g.imageSmoothingEnabled = true; g.drawImage(off, L.x, L.y, L.w, L.h);
+          const sh = g.createLinearGradient(L.x, 0, L.x + L.w, 0);
+          sh.addColorStop(0, 'rgba(255,255,255,0.0)'); sh.addColorStop(0.18, 'rgba(255,255,255,0.18)'); sh.addColorStop(0.3, 'rgba(255,255,255,0)');
+          g.fillStyle = sh; g.fillRect(L.x, L.y, L.w, L.h);
+          g.restore();
+          glass(g); g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 2; g.stroke();
+          const metal = (y0, y1, wTop, wBot) => {
+            const mg = g.createLinearGradient(w / 2 - wBot / 2, 0, w / 2 + wBot / 2, 0);
+            mg.addColorStop(0, '#5b5f66'); mg.addColorStop(0.35, '#d9dde3'); mg.addColorStop(0.6, '#8a9099'); mg.addColorStop(1, '#3d4046');
+            g.fillStyle = mg; g.beginPath(); g.moveTo(w / 2 - wTop / 2, y0); g.lineTo(w / 2 + wTop / 2, y0); g.lineTo(w / 2 + wBot / 2, y1); g.lineTo(w / 2 - wBot / 2, y1); g.closePath(); g.fill();
+          };
+          const by = L.y + L.h;
+          metal(by, by + h * 0.03, L.w * 0.8, L.w * 0.62);
+          metal(by + h * 0.03, by + h * 0.2, L.w * 0.62, L.w * 1.08);
+          metal(L.y - h * 0.045, L.y + 1, L.w * 0.14, L.w * 0.28);
+        } else {
+          g.imageSmoothingEnabled = true; g.drawImage(off, 0, 0, w, h);
+        }
+      },
+    };
+  },
+};
+const FISH_COL = ['#ff8a3d', '#ffd23f', '#3fb8ff', '#ff5d8f', '#7ce38b', '#b48cff', '#ffffff'];
+const aquarium = {
+  name: 'Aquarium', blurb: 'Fish drifting past swaying plants, light rays and rising bubbles.', category: 'Fun',
+  options: [{ key: 'water', label: 'Water', type: 'choice', choices: [{ v: 'tropical', label: 'Tropical' }, { v: 'deep', label: 'Deep sea' }] }, { key: 'fish', label: 'Fish', type: 'choice', choices: [{ v: 6, label: 'A few' }, { v: 12, label: 'Lots' }] }],
+  defaults: { water: 'tropical', fish: 6 },
+  ink: () => '#fff',
+  create(root, o, ctx) {
+    const { w, h } = ctx;
+    const deep = o.water === 'deep';
+    root.style.cssText = 'position:absolute;inset:0;overflow:hidden';
+    const g = slowCanvas(root, w, h);
+    const tick = timeOverlay(root, w > h ? 'left:6vmin;top:6vmin' : 'left:0;right:0;top:6vmin;text-align:center', 17);
+    const R = Math.random;
+    const fish = Array.from({ length: Number(o.fish) || 6 }, (_, i) => ({ x: R() * w, y: h * (0.4 + R() * 0.42), s: (0.6 + R() * 0.9) * Math.min(w, h) / 900, v: (0.4 + R() * 0.8) * (R() < 0.5 ? -1 : 1), c: FISH_COL[i % FISH_COL.length], ph: R() * 6, stripe: R() < 0.5 }));
+    const bubbles = Array.from({ length: 26 }, () => ({ x: R() * w, y: R() * h, r: 1.5 + R() * 4, v: 0.4 + R() * 0.9, ph: R() * 6 }));
+    const weeds = Array.from({ length: Math.round(w / 90) }, (_, i) => ({ x: (i + 0.3 + R() * 0.4) * 90, hgt: h * (0.15 + R() * 0.28), c: R() < 0.5 ? '#2f8f5b' : '#3aa36a', ph: R() * 6 }));
+    let last = 0;
+    return {
+      update(now) {
+        tick(now, ctx.use24h);
+        const t = now.getTime();
+        if (t - last < 33 && !ctx.preview) return;
+        const dt = last ? Math.min(80, t - last) / 16.7 : 1; last = t;
+        const water = g.createLinearGradient(0, 0, 0, h);
+        if (deep) { water.addColorStop(0, '#0a3a5c'); water.addColorStop(1, '#020c1c'); } else { water.addColorStop(0, '#2bb3d6'); water.addColorStop(0.6, '#0d6f9c'); water.addColorStop(1, '#063d63'); }
+        g.fillStyle = water; g.fillRect(0, 0, w, h);
+        // Light rays from the surface.
+        g.save(); g.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 6; i++) {
+          const x = w * (0.1 + i * 0.17) + Math.sin(t / 4000 + i) * 40;
+          const rg = g.createLinearGradient(0, 0, 0, h * 0.8); rg.addColorStop(0, `rgba(255,255,255,${deep ? 0.05 : 0.09})`); rg.addColorStop(1, 'rgba(255,255,255,0)');
+          g.fillStyle = rg; g.beginPath(); g.moveTo(x - 20, 0); g.lineTo(x + 40, 0); g.lineTo(x + 160, h * 0.8); g.lineTo(x + 40, h * 0.8); g.closePath(); g.fill();
+        }
+        g.restore();
+        // Sand and plants.
+        const sand = g.createLinearGradient(0, h * 0.86, 0, h); sand.addColorStop(0, deep ? '#1b2a33' : '#d9c48f'); sand.addColorStop(1, deep ? '#0d151b' : '#b59a5c');
+        g.fillStyle = sand; g.beginPath(); g.moveTo(0, h * 0.9); for (let x = 0; x <= w; x += 40) g.lineTo(x, h * 0.88 + Math.sin(x / 90) * 8); g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fill();
+        for (const wd of weeds) {
+          g.strokeStyle = deep ? '#1f5a45' : wd.c; g.lineWidth = 7; g.lineCap = 'round'; g.beginPath();
+          const base = h * 0.9;
+          g.moveTo(wd.x, base);
+          for (let k = 1; k <= 6; k++) { const yy = base - (wd.hgt * k) / 6; g.lineTo(wd.x + Math.sin(t / 1400 + wd.ph + k * 0.6) * k * 4, yy); }
+          g.stroke();
+        }
+        // Fish.
+        for (const f of fish) {
+          f.x += f.v * dt * 0.9; f.y += Math.sin(t / 1600 + f.ph) * 0.15 * dt;
+          if (f.v > 0 && f.x > w + 80) { f.x = -80; f.y = h * (0.4 + R() * 0.42); }
+          if (f.v < 0 && f.x < -80) { f.x = w + 80; f.y = h * (0.4 + R() * 0.42); }
+          const s = f.s * 60, dir = f.v > 0 ? 1 : -1, wig = Math.sin(t / 180 + f.ph) * 0.25;
+          g.save(); g.translate(f.x, f.y); g.scale(dir, 1);
+          g.fillStyle = f.c;
+          g.beginPath(); g.ellipse(0, 0, s, s * 0.48, 0, 0, Math.PI * 2); g.fill();
+          g.beginPath(); g.moveTo(-s * 0.85, 0); g.lineTo(-s * 1.45, -s * (0.5 + wig)); g.lineTo(-s * 1.45, s * (0.5 - wig)); g.closePath(); g.fill();
+          if (f.stripe) { g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(-s * 0.2, -s * 0.45, s * 0.16, s * 0.9); }
+          g.fillStyle = '#fff'; g.beginPath(); g.arc(s * 0.5, -s * 0.1, s * 0.13, 0, Math.PI * 2); g.fill();
+          g.fillStyle = '#111'; g.beginPath(); g.arc(s * 0.54, -s * 0.1, s * 0.07, 0, Math.PI * 2); g.fill();
+          g.restore();
+        }
+        // Bubbles.
+        g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1.2;
+        for (const b of bubbles) {
+          b.y -= b.v * dt; b.x += Math.sin(t / 700 + b.ph) * 0.3;
+          if (b.y < -10) { b.y = h + 10; b.x = R() * w; }
+          g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.stroke();
+        }
+      },
+    };
+  },
+};
+
 // ------------------------------------------------------------------ countdown
 const CD_BG = [
   { v: 'night', label: 'Night', color: '#101828', c2: '#2b2350', ink: '#fff' },
@@ -1375,8 +1572,8 @@ const countdown = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock, sky, board };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'sky', 'board', 'flip', 'lamp'];
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock, sky, board, lava, aquarium };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'sky', 'board', 'lava', 'aquarium', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };
