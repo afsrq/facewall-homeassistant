@@ -1014,6 +1014,85 @@ const wordexact = {
   },
 };
 
+// ------------------------------------------------------------------ sunrise / sunset dial
+const SUN_PAL = [
+  { v: 'night', label: 'Night', bg: '#0b1020', bg2: '#1b2340', ring: '#1d2747', day: ['#ffb347', '#ffd77a'], ink: '#f4f1e8', dim: 'rgba(244,241,232,0.45)' },
+  { v: 'paper', label: 'Paper', bg: '#f3eee2', bg2: '#fbf8f0', ring: '#dcd3bf', day: ['#f08a24', '#f6c046'], ink: '#2b2418', dim: 'rgba(43,36,24,0.45)', moon: '#5b6380' },
+  { v: 'teal', label: 'MCM teal', bg: '#14403d', bg2: '#1f5f5b', ring: '#173f3c', day: ['#e8b13a', '#f6d77a'], ink: '#f6ead8', dim: 'rgba(246,234,216,0.5)' },
+];
+const minsOf = (iso) => { const d = iso && new Date(iso); return d && !Number.isNaN(d.getTime()) ? d.getHours() * 60 + d.getMinutes() : null; };
+const sunclock = {
+  name: 'Sunrise & sunset', blurb: 'A 24-hour dial with today’s daylight, the sun moving round it, and the next sunrise or sunset.', category: 'Fun',
+  options: [{ key: 'pal', label: 'Colours', type: 'swatch', choices: SUN_PAL.map((p) => ({ v: p.v, label: p.label, color: p.bg2 })) }],
+  defaults: { pal: 'night' },
+  ink: (o) => pick(SUN_PAL, o.pal).ink,
+  create(root, o, ctx) {
+    const { w, h, store } = ctx;
+    const P = pick(SUN_PAL, o.pal);
+    const svg = makeSvg(root, w, h);
+    const id = 'sun' + ++uid;
+    const defs = el('defs', {}, svg);
+    const bgG = el('radialGradient', { id: id + 'bg', cx: '50%', cy: '45%', r: '75%' }, defs);
+    el('stop', { offset: '0', 'stop-color': P.bg2 }, bgG); el('stop', { offset: '1', 'stop-color': P.bg }, bgG);
+    const dayG = el('linearGradient', { id: id + 'day', x1: '0', y1: '1', x2: '0', y2: '0' }, defs);
+    el('stop', { offset: '0', 'stop-color': P.day[0] }, dayG); el('stop', { offset: '1', 'stop-color': P.day[1] }, dayG);
+    const glow = el('filter', { id: id + 'gl', x: '-100%', y: '-100%', width: '300%', height: '300%' }, defs);
+    el('feGaussianBlur', { stdDeviation: Math.min(w, h) * 0.012 }, glow);
+    el('rect', { width: w, height: h, fill: `url(#${id}bg)` }, svg);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.4, sw = R * 0.11;
+    const ang = (m) => (m / 1440) * Math.PI * 2 + Math.PI; // midnight at the bottom, noon at the top
+    const pt = (m, r = R) => [cx + r * Math.sin(ang(m)), cy - r * Math.cos(ang(m))];
+    el('circle', { cx, cy, r: R, fill: 'none', stroke: P.ring, 'stroke-width': sw }, svg);
+    const dayArc = el('path', { fill: 'none', stroke: `url(#${id}day)`, 'stroke-width': sw, 'stroke-linecap': 'round' }, svg);
+    // Hour marks: long every 6 hours with labels, short every hour.
+    for (let hr = 0; hr < 24; hr++) {
+      const m = hr * 60, major = hr % 6 === 0;
+      const [x1, y1] = pt(m, R - sw * 0.9), [x2, y2] = pt(m, R - sw * (major ? 1.6 : 1.2));
+      el('line', { x1, y1, x2, y2, stroke: P.dim, 'stroke-width': major ? 2.4 : 1.2, 'stroke-linecap': 'round' }, svg);
+      if (major) {
+        const [tx, ty] = pt(m, R + sw * 1.35);
+        const label = hr === 0 ? 'midnight' : hr === 12 ? 'noon' : ctx.use24h ? `${hr}:00` : `${hr % 12} ${hr < 12 ? 'am' : 'pm'}`;
+        el('text', { x: tx, y: ty + R * 0.025, 'text-anchor': 'middle', 'font-family': FONT.sans, 'font-size': R * 0.07, 'font-weight': 600, fill: P.dim }, svg, label);
+      }
+    }
+    const sunG = el('g', {}, svg);
+    el('circle', { r: sw * 0.95, fill: P.day[1], filter: `url(#${id}gl)` }, sunG);
+    const sunDot = el('circle', { r: sw * 0.62, fill: P.day[1] }, sunG);
+    const moon = el('path', { d: `M ${sw * 0.3} ${-sw * 0.6} A ${sw * 0.62} ${sw * 0.62} 0 1 0 ${sw * 0.3} ${sw * 0.6} A ${sw * 0.48} ${sw * 0.48} 0 1 1 ${sw * 0.3} ${-sw * 0.6} Z`, fill: P.moon || '#e8e6f0' }, sunG);
+    const riseT = el('text', { 'text-anchor': 'middle', 'font-family': FONT.sans, 'font-size': R * 0.065, 'font-weight': 700, fill: P.day[0] }, svg);
+    const setT = el('text', { 'text-anchor': 'middle', 'font-family': FONT.sans, 'font-size': R * 0.065, 'font-weight': 700, fill: P.day[0] }, svg);
+    const timeT = el('text', { x: cx, y: cy + R * 0.06, 'text-anchor': 'middle', 'font-family': FONT.sans, 'font-size': R * 0.36, 'font-weight': 300, fill: P.ink, 'letter-spacing': '-0.02em' }, svg);
+    const dateT = el('text', { x: cx, y: cy - R * 0.32, 'text-anchor': 'middle', 'font-family': FONT.sans, 'font-size': R * 0.075, 'font-weight': 600, fill: P.dim }, svg);
+    const nextT = el('text', { x: cx, y: cy + R * 0.3, 'text-anchor': 'middle', 'font-family': FONT.sans, 'font-size': R * 0.08, 'font-weight': 600, fill: P.ink }, svg);
+    const fmt = (m) => { const d = new Date(); d.setHours(Math.floor(m / 60), m % 60, 0, 0); return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: !ctx.use24h }); };
+    const dur = (mins) => (mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`);
+    let lastKey = '';
+    return {
+      update(now) {
+        const sun = store?.get('sun.sun')?.attributes || {};
+        const rise = minsOf(sun.next_rising) ?? 390, set = minsOf(sun.next_setting) ?? 1080;
+        const m = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+        const key = `${rise}|${set}|${Math.floor(m)}`;
+        const [sx, sy] = pt(m);
+        sunG.setAttribute('transform', `translate(${sx} ${sy})`);
+        const isDay = m >= rise && m < set;
+        sunDot.style.display = isDay ? '' : 'none'; sunG.firstChild.style.display = isDay ? '' : 'none'; moon.style.display = isDay ? 'none' : '';
+        if (key === lastKey) return; lastKey = key;
+        const [ax, ay] = pt(rise), [bx, by] = pt(set);
+        const span = (set - rise + 1440) % 1440;
+        dayArc.setAttribute('d', `M ${ax} ${ay} A ${R} ${R} 0 ${span > 720 ? 1 : 0} 1 ${bx} ${by}`);
+        const [rx, ry] = pt(rise, R - sw * 2.4), [qx, qy] = pt(set, R - sw * 2.4);
+        riseT.setAttribute('x', rx); riseT.setAttribute('y', ry); riseT.textContent = '↑ ' + fmt(rise);
+        setT.setAttribute('x', qx); setT.setAttribute('y', qy); setT.textContent = '↓ ' + fmt(set);
+        timeT.textContent = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: !ctx.use24h }).replace(/\s?[AP]\.?M\.?$/i, '');
+        dateT.textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        const toSet = Math.round(set - m), toRise = Math.round((rise - m + 1440) % 1440);
+        nextT.textContent = isDay ? `Sunset in ${dur(toSet)}` : `Sunrise in ${dur(toRise)}`;
+      },
+    };
+  },
+};
+
 // ------------------------------------------------------------------ countdown
 const CD_BG = [
   { v: 'night', label: 'Night', color: '#101828', c2: '#2b2350', ink: '#fff' },
@@ -1062,8 +1141,8 @@ const countdown = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'flip', 'lamp'];
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };

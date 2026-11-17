@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.43.0';
+const VERSION = '1.44.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -328,7 +328,20 @@ function watchedEntities() {
   const pageLists = (s.pages || []).flatMap((p) => [p.entities || [], ...(p.sections || []).map((x) => x.entities || [])]);
   const lists = [...pageLists, s.dashboard?.entities || []];
   for (const list of lists) for (const e of list) set.add(typeof e === 'string' ? e : e.id);
-  for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr']) if (f[k]) set.add(f[k]);
+  for (const f of s.faces || []) for (const k of ['tap', 'tl', 'tr', 'bl', 'br']) if (f[k]) set.add(f[k]);
+  // Whole domains some faces and features read.
+  const addDomain = (d, test) => { for (const [id, st] of ha.states) if (id.startsWith(d + '.') && (!test || test(st))) set.add(id); };
+  const types = new Set((s.faces || []).map((f) => f.type));
+  if (types.has('sunclock') || types.has('sky')) { set.add('sun.sun'); addDomain('weather'); }
+  if (types.has('board')) { addDomain('calendar'); addDomain('weather'); }
+  if (types.has('family')) { addDomain('person'); for (const f of s.faces) if (f.type === 'family') for (const id of f.opts?.people || []) set.add(id); }
+  // Sidebars: their readings (chosen, or the room's temperature and the weather).
+  for (const p of s.pages || []) {
+    for (const x of p.sideInfo || []) if (x?.id) set.add(x.id);
+    if ((p.sections || []).length || p.sidebar === 'panel') { addDomain('weather'); addDomain('sensor', (st) => st.attributes?.device_class === 'temperature'); }
+  }
+  // Now-playing glow follows the media players.
+  if (Object.values(s.screens || {}).some((sc) => sc?.glow?.on)) addDomain('media_player');
   for (const id of Object.keys(timers)) set.add(id);
   // Tiles' show-when rules and badges.
   for (const list of pageLists) for (const e of list) {

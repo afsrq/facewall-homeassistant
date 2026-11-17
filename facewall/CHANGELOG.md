@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.44.0
+- **Sunrise & sunset face**: a 24-hour dial with noon at the top and midnight at the bottom. Today's daylight is a warm arc from your real sunrise to sunset (from Home Assistant's sun), and a glowing sun (a moon at night) moves round it. The time is in the middle with "Sunset in 1 h 48 min" or "Sunrise in…" below. Night, Paper or MCM teal colours.
+- Fixed: the bottom-left and bottom-right corners of clock faces, and the sidebar's readings, didn't update live in Home Assistant.
+
 ## 1.43.0
 - **Now playing on the clock** (Settings → Now playing on the clock, per iPad): while music plays, the clock face gets a slow, breathing glow around its edges in colours taken from the album art, plus a small "♪ Song · Artist" line at the bottom. Follow whichever player is playing or pick one; Soft or Strong; the song line can be turned off. It fades away when the music stops.
 
