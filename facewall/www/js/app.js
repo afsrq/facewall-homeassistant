@@ -737,7 +737,7 @@ class App {
 
       // ---------------- Appearance
       const th = themeById(this.baseThemeId());
-      const appearanceSec = section('Appearance',
+      const appearanceSec = section('Style & colours',
         ...(() => {
           const lk = s.general.look || {};
           const setLook = (fn) => { this.update((x) => { x.general.look = { ...(x.general.look || {}) }; fn(x.general.look); for (const k of Object.keys(x.general.look)) if (x.general.look[k] == null) delete x.general.look[k]; }); render(); };
@@ -1030,9 +1030,46 @@ class App {
         gl.on ? row('Show the song', toggle(gl.note !== false, (v) => updGl((g) => { g.note = v; })), 'A small line at the bottom: ♪ Song · Artist') : null,
         gl.on ? row('Glow', segmented([{ v: null, label: 'Soft' }, { v: 'strong', label: 'Strong' }], gl.strength ?? null, (v) => updGl((g) => { g.strength = v; }))) : null);
 
-      sh.body.append(appearanceSec, screenSec, rotSec, glowSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, cdSec, clockSec, dimSec, backupSec, aboutSec);
+      // Tabs across the top, each bundling related sections.
+      // Theming is long, so it's split into titled groups: style, colours, tiles, background, header.
+      const lookGroups = (() => {
+        const GROUP = { 'Theme': 'Colours', 'Night theme on this iPad': 'Colours', 'Time-of-day colours': 'Colours', 'Tile transparency': 'Tiles', 'Blur behind tiles': 'Tiles', 'Corners': 'Tiles', 'Wallpaper': 'Background', 'Weather in the background': 'Background', 'Seasonal touches': 'Background', 'Page header': 'Page header' };
+        const order = ['Style', 'Colours', 'Tiles', 'Background', 'Page header'];
+        const bins = Object.fromEntries(order.map((k) => [k, []]));
+        let cur = 'Style';
+        for (const c of [...appearanceSec.children].slice(1)) {
+          const label = c.querySelector?.('.row-label, .row-title')?.textContent;
+          if (label && GROUP[label]) cur = GROUP[label];
+          bins[cur].push(c);
+        }
+        // Colours: theme first, then the night theme, then time-of-day (with its own options right after it).
+        const lab = (c) => c.querySelector?.('.row-label, .row-title')?.textContent;
+        const tIdx = bins.Colours.findIndex((c) => lab(c) === 'Time-of-day colours');
+        const theme = bins.Colours.filter((c) => ['Theme', 'Night theme on this iPad'].includes(lab(c)));
+        if (tIdx >= 0 && theme.length) bins.Colours = [...theme, ...bins.Colours.filter((c) => !theme.includes(c))];
+        return order.filter((k) => bins[k].length).map((k) => section(k, ...bins[k]));
+      })();
+      const TABS = [
+        { id: 'look', label: 'Theming', ic: 'sparkles', secs: lookGroups },
+        { id: 'clock', label: 'Clock', ic: 'clock', secs: [clockSec, rotSec, glowSec, dimSec] },
+        { id: 'pages', label: 'Pages & tiles', ic: 'grid', secs: [pagesSec, tilesSec, layoutSec] },
+        { id: 'ipad', label: 'This iPad', ic: 'tv', secs: [screenSec, photoSec, doorSec] },
+        { id: 'extras', label: 'Countdowns', ic: 'calendar', secs: [cdSec] },
+        { id: 'system', label: 'System', ic: 'gear', secs: [aboutSec, backupSec] },
+      ];
+      if (!tab) {
+        const want = opts.section && TABS.find((t) => t.secs.some((x) => x.querySelector('.set-title')?.textContent === opts.section));
+        tab = want?.id || (opts.page ? 'pages' : this._settingsTab || 'look');
+      }
+      tabBar.replaceChildren(...TABS.map((t) => h('button.set-tab' + (t.id === tab ? '.on' : ''), { onclick: () => { if (t.id === tab) return; tab = t.id; this._settingsTab = tab; render(); sh.body.scrollTop = 0; } },
+        h('span.set-tab-ic', { html: icon(t.ic) }), h('span', { text: t.label }))));
+      tabBar.querySelector('.set-tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      sh.body.append(...(TABS.find((t) => t.id === tab) || TABS[0]).secs);
       if (opts.section && !this._secScrolled) { this._secScrolled = true; requestAnimationFrame(() => [...sh.body.querySelectorAll('.set-title')].find((t) => t.textContent === opts.section)?.scrollIntoView({ block: 'start' })); }
     };
+    let tab = opts.tab || null;
+    const tabBar = h('div.set-tabs');
+    sh.body.parentNode.insertBefore(tabBar, sh.body);
     this._secScrolled = false;
     render();
   }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.49.0
+- **Settings, reorganised into tabs** across the top, instead of one long list:
+  - **Theming**: Style, Colours (theme, night theme, time-of-day colours), Tiles (transparency, blur, corners), Background (wallpaper, weather, seasonal touches) and Page header.
+  - **Clock**: clock options, Rotate faces, Now playing on the clock and Night dimming.
+  - **Pages & tiles**: your pages, their tiles and the grid.
+  - **This iPad**: this screen's name, start page, sleep and motion, Home Assistant options, Photo frame and Doorbell pop-up.
+  - **Countdowns**, and **System** (connection and backup).
+- Settings opens on the tab you last used; links from elsewhere (a countdown tile, a page's settings button) open the right tab.
+
 ## 1.48.0
 - **Family face**: a photo bubble for each person (from Home Assistant's People) around the time. Anyone at home glows; anyone away is faded, with where they are underneath ("Away", "Work"). A line in the middle says "Everyone's home", "Nobody's home" or "2 of 3 home". Pick which people to show, and Night, Linen, MCM teal or Sunset backgrounds.
 
