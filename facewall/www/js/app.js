@@ -902,6 +902,8 @@ class App {
         pf.on ? row('Each photo for', segmented([{ v: 10, label: '10s' }, { v: 20, label: '20s' }, { v: 30, label: '30s' }, { v: 60, label: '1m' }, { v: 300, label: '5m' }], pf.every || 20, (v) => updPf((p) => { p.every = v; }))) : null,
         pf.on ? row('Order', segmented([{ v: 'shuffle', label: 'Shuffle' }, { v: 'name', label: 'By name' }], pf.order || 'shuffle', (v) => updPf((p) => { p.order = v; }))) : null,
         pf.on ? row('Photos', segmented([{ v: 'fill', label: 'Fill the screen' }, { v: 'fit', label: 'Show whole photo' }], pf.fit || 'fill', (v) => updPf((p) => { p.fit = v; }))) : null,
+        pf.on ? row('On this day', toggle(!!pf.onThisDay, (v) => updPf((p) => { p.onThisDay = v; })), 'When there are photos from today’s date in earlier years, show those (“3 years ago today”). Otherwise, all photos.') : null,
+        pf.on ? row('When it was taken', toggle(!!pf.when, (v) => updPf((p) => { p.when = v; })), 'Show the month and year above the time') : null,
         pf.on ? row('Slow zoom', toggle(pf.zoom !== false, (v) => updPf((p) => { p.zoom = v; })), 'A gentle pan and zoom, like a documentary') : null,
         pf.on ? row('Time in the corner', segmented([{ v: 'time', label: 'Time' }, { v: 'full', label: 'Time, date and weather' }, { v: 'none', label: 'Nothing' }], pf.clock || 'full', (v) => updPf((p) => { p.clock = v; }))) : null,
         pf.on ? row('Try it', h('button.pill.sm.primary', { text: 'Start now', onclick: () => { sh.close(); this.goTo(0, true); this.startFrame(); } })) : null);
@@ -1407,13 +1409,30 @@ class App {
   async startFrame() {
     const pf = this.screen.photos || {};
     if (this.frame) return;
-    const r = await this.store.photos(pf.folder || 'media');
+    const wantDates = pf.onThisDay || pf.when;
+    const r = await this.store.photos(pf.folder || 'media', wantDates);
     let files = r.files || [];
+    const dateOf = new Map(r.dates ? files.map((f, i) => [f, r.dates[i]]) : []);
+    // On this day: photos taken within a couple of days of today's date in earlier years.
+    const today = new Date();
+    const memory = (f) => {
+      const t = dateOf.get(f); if (!t) return false;
+      const d = new Date(t); if (d.getFullYear() >= today.getFullYear()) return false;
+      const a = new Date(today.getFullYear(), d.getMonth(), d.getDate()), b = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      return Math.abs(a - b) <= 2 * 86400000;
+    };
+    if (pf.onThisDay) { const mem = files.filter(memory); if (mem.length) files = mem; }
     if (!files.length) { this.lastActivity = Date.now(); if (!this._pfWarned) { this._pfWarned = true; toast('Photo frame: no photos found in “' + (pf.folder || 'media') + '”'); } return; }
     if ((pf.order || 'shuffle') === 'shuffle') files = files.map((f) => [Math.random(), f]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     const A = h('div.pf-img'), B = h('div.pf-img');
-    const time = h('div.pf-time'), sub = h('div.pf-sub');
-    const corner = h('div.pf-corner', {}, time, sub);
+    const time = h('div.pf-time'), sub = h('div.pf-sub'), when = h('div.pf-when');
+    const corner = h('div.pf-corner', {}, when, time, sub);
+    const whenText = (f) => {
+      const t = dateOf.get(f); if (!t || !pf.when && !pf.onThisDay) return '';
+      const d = new Date(t), yrs = today.getFullYear() - d.getFullYear();
+      if (memory(f)) return `${yrs === 1 ? 'A year' : yrs + ' years'} ago${d.getDate() === today.getDate() && d.getMonth() === today.getMonth() ? ' today' : ''} · ${d.getFullYear()}`;
+      return pf.when ? d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
+    };
     const el = h('div.photo-frame' + (pf.fit === 'fit' ? '.fit' : '') + (pf.zoom === false ? '.still' : ''), { onpointerdown: (e) => { e.preventDefault(); e.stopPropagation(); this.stopFrame(); } }, A, B, (pf.clock || 'full') !== 'none' ? corner : null);
     document.body.append(el);
     let i = 0, front = A;
@@ -1433,6 +1452,7 @@ class App {
         back.classList.remove('on'); void back.offsetWidth; back.classList.add('on');
         front.classList.remove('on');
         front = back;
+        when.textContent = whenText(f);
       };
       img.src = url;
     };

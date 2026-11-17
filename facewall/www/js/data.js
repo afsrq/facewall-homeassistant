@@ -111,7 +111,7 @@ export class Store extends EventTarget {
 
   startTimer(id, minutes) { return this.adapter.startTimer(id, minutes); }
   /** Calendar events between two dates: [{ summary, location, start, end, allDay }]. */
-  photos(folder) { return this.adapter.photos ? this.adapter.photos(folder) : Promise.resolve({ roots: [], files: [] }); }
+  photos(folder, dates) { return this.adapter.photos ? this.adapter.photos(folder, dates) : Promise.resolve({ roots: [], files: [] }); }
   photoUrl(f) { return this.adapter.photoUrl ? this.adapter.photoUrl(f) : ''; }
   events(id, start, end) { return this.adapter.events ? this.adapter.events(id, start, end) : Promise.resolve([]); }
   /** A sensor's recent history: [[epoch ms, number], ...]. */
@@ -230,8 +230,8 @@ class ServerAdapter {
     return (await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target, response: true }) }, 30000)).response;
   }
   async registry() { return fetchJSON('api/registry', {}, 20000); }
-  async photos(folder) {
-    try { return await fetchJSON(`api/photos?folder=${encodeURIComponent(folder || '')}`, {}, 30000); } catch (e) { return { roots: [], files: [], error: e.message }; }
+  async photos(folder, dates) {
+    try { return await fetchJSON(`api/photos?folder=${encodeURIComponent(folder || '')}${dates ? '&dates=1' : ''}`, {}, dates ? 120000 : 30000); } catch (e) { return { roots: [], files: [], error: e.message }; }
   }
   photoUrl(f) { return `api/photo?f=${encodeURIComponent(f)}`; }
   async events(id, start, end) {
@@ -452,7 +452,11 @@ class DemoAdapter {
   /** Made-up 'photos' for the demo: painted skies and hills. */
   async photos(folder) {
     if (!folder) return { roots: ['media', 'share'], files: [] };
-    return { roots: ['media', 'share'], files: Array.from({ length: 6 }, (_, i) => `demo/${i}`) };
+    const files = Array.from({ length: 6 }, (_, i) => `demo/${i}`);
+    const now = new Date();
+    // Two of the demo "photos" were taken on this day in past years.
+    const dates = files.map((_, i) => (i < 2 ? new Date(now.getFullYear() - (i + 2), now.getMonth(), now.getDate(), 15).getTime() : new Date(now.getFullYear() - 1, (now.getMonth() + i * 2) % 12, 9).getTime()));
+    return { roots: ['media', 'share'], files, dates };
   }
   photoUrl(f) {
     const i = Number(f.split('/').pop()) || 0;

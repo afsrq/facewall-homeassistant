@@ -1191,3 +1191,5 @@ body.on-clock .tod-tint.pages-only { opacity: 0 !important; }
 .cd-name-in { flex: 1; min-width: 120px; text-align: left; }
 .cd-date-in { width: 150px; } .cd-time-in { width: 110px; }
 .cd-yearly { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; opacity: 0.85; }
+.pf-when { font-size: clamp(14px, 1.7vw, 20px); font-weight: 650; opacity: 0.95; margin-bottom: 6px; letter-spacing: 0.01em; }
+.pf-when:empty { display: none; }

@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.40.0';
+const VERSION = '1.41.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -50,6 +50,85 @@ async function listPhotos(folder) {
   };
   await walk(start, 0);
   return out.sort();
+}
+
+// When each photo was taken: the camera's EXIF date, a date in the file name, or the file's own time.
+// Remembered (by path and modification time) in photo-dates.json so it is worked out only once.
+const PHOTO_DATES_FILE = path.join(DATA_DIR, 'photo-dates.json');
+let photoDates = null, photoDatesDirty = false;
+function loadPhotoDates() {
+  if (photoDates) return photoDates;
+  try { photoDates = JSON.parse(fs.readFileSync(PHOTO_DATES_FILE, 'utf8')); } catch { photoDates = {}; }
+  return photoDates;
+}
+function savePhotoDatesSoon() {
+  if (photoDatesDirty) return;
+  photoDatesDirty = true;
+  setTimeout(() => { photoDatesDirty = false; fs.writeFile(PHOTO_DATES_FILE, JSON.stringify(photoDates), () => {}); }, 5000);
+}
+/** "YYYY:MM:DD HH:MM:SS" from a JPEG's EXIF (DateTimeOriginal, else DateTime), or null. */
+function exifDate(buf) {
+  if (buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+  let i = 2;
+  while (i + 4 < buf.length) {
+    if (buf[i] !== 0xff) return null;
+    const marker = buf[i + 1], len = buf.readUInt16BE(i + 2);
+    if (marker === 0xe1 && buf.toString('ascii', i + 4, i + 10) === 'Exif\0\0') {
+      const t = i + 10;
+      const le = buf.toString('ascii', t, t + 2) === 'II';
+      const u16 = (o) => (le ? buf.readUInt16LE(t + o) : buf.readUInt16BE(t + o));
+      const u32 = (o) => (le ? buf.readUInt32LE(t + o) : buf.readUInt32BE(t + o));
+      const read = (ifd, want) => {
+        if (t + ifd + 2 > buf.length) return {};
+        const n = u16(ifd), out = {};
+        for (let k = 0; k < n; k++) {
+          const e = ifd + 2 + k * 12;
+          if (t + e + 12 > buf.length) break;
+          const tag = u16(e);
+          if (want.includes(tag)) out[tag] = { type: u16(e + 2), count: u32(e + 4), off: u32(e + 8) };
+        }
+        return out;
+      };
+      const str = (en) => (en && en.count >= 19 && t + en.off + 19 <= buf.length ? buf.toString('ascii', t + en.off, t + en.off + 19) : null);
+      const ifd0 = read(u32(4), [0x0132, 0x8769]);
+      if (ifd0[0x8769]) { const ex = read(ifd0[0x8769].off, [0x9003, 0x9004]); const d = str(ex[0x9003]) || str(ex[0x9004]); if (d) return d; }
+      return str(ifd0[0x0132]);
+    }
+    if (marker === 0xda) return null;
+    i += 2 + len;
+  }
+  return null;
+}
+function parseExif(d) {
+  const m = d && d.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+  if (!m || m[1] === '0000') return null;
+  const t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+function nameDate(name) {
+  const m = name.match(/(?:^|[^0-9])((?:19|20)\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?![0-9]{3})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], 12).getTime() : null;
+}
+async function photoDate(rel) {
+  const full = photoPath(rel);
+  if (!full) return null;
+  let st;
+  try { st = await fsp.stat(full); } catch { return null; }
+  const cache = loadPhotoDates(), key = rel, hit = cache[key];
+  if (hit && hit[0] === st.mtimeMs) return hit[1];
+  let t = null;
+  if (/\.jpe?g$/i.test(full)) {
+    try {
+      const fh = await fsp.open(full, 'r');
+      const buf = Buffer.alloc(Math.min(131072, st.size));
+      await fh.read(buf, 0, buf.length, 0); await fh.close();
+      t = parseExif(exifDate(buf));
+    } catch { /* unreadable: fall back */ }
+  }
+  t ??= nameDate(path.basename(full)) ?? Math.round(st.mtimeMs);
+  cache[key] = [st.mtimeMs, t];
+  savePhotoDatesSoon();
+  return t;
 }
 
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
@@ -485,6 +564,11 @@ async function handleApi(req, res, route) {
     if (!folder) return json(res, 200, { roots, files: [] });
     const files = await listPhotos(folder);
     if (!files) return json(res, 404, { roots, error: 'folder not found', files: [] });
+    if (new URL(req.url, 'http://x').searchParams.get('dates')) {
+      const dates = [];
+      for (const f of files) dates.push(await photoDate(f));
+      return json(res, 200, { roots, files, dates });
+    }
     return json(res, 200, { roots, files });
   }
   if (route === 'photo' && req.method === 'GET') {

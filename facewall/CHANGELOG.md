@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.41.0
+- **On this day** in the photo frame: when you have photos taken on today's date in earlier years, the frame shows those, labelled "3 years ago today · 2023". Otherwise it shows all your photos as usual.
+- **When it was taken**: optionally show each photo's month and year above the time.
+- Photo dates come from the camera (EXIF), from dates in file names (IMG_20231117…, 2023-11-17…), or from the file's own time. They're worked out once and remembered, so big folders stay quick.
+
 ## 1.40.0
 - **Countdowns** (Settings → Countdowns): days to Christmas, a birthday, a vacation, anything. One tap adds Christmas, New Year, Halloween, Valentine's Day, Independence Day or Birthday, or make your own with an emoji. Yearly ones roll over by themselves; add a time to count hours and minutes on the day.
   - **Tile**: Add tiles → Countdowns. A big number, the emoji and the name; it turns festive on the day.
