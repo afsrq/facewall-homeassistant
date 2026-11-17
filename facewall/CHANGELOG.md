@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.48.0
+- **Family face**: a photo bubble for each person (from Home Assistant's People) around the time. Anyone at home glows; anyone away is faded, with where they are underneath ("Away", "Work"). A line in the middle says "Everyone's home", "Nobody's home" or "2 of 3 home". Pick which people to show, and Night, Linen, MCM teal or Sunset backgrounds.
+
 ## 1.47.0
 - **Lava lamp face**: glowing goo that heats at the bottom, rises, stretches, merges and sinks again, inside a classic chrome lamp or across the whole screen. Red and orange, Purple and pink, Teal and lime, or Mustard and teal, at slow or normal speed, with the time and date.
 - **Aquarium face**: fish drifting past swaying plants, with light rays from the surface and rising bubbles. Tropical or Deep sea, a few fish or lots.

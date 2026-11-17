@@ -1524,6 +1524,81 @@ const aquarium = {
   },
 };
 
+// ------------------------------------------------------------------ family
+const FAM_BG = [
+  { v: 'night', label: 'Night', bg: 'radial-gradient(120% 100% at 50% 40%, #1d2340, #0a0d1a)', ink: '#fff', ring: '#30d158' },
+  { v: 'linen', label: 'Linen', bg: 'radial-gradient(120% 100% at 50% 40%, #fbf7ef, #e9e0cf)', ink: '#2b2418', ring: '#2f9e5b' },
+  { v: 'teal', label: 'MCM teal', bg: 'radial-gradient(120% 100% at 50% 40%, #2a7671, #143f3c)', ink: '#f6ead8', ring: '#e8b13a' },
+  { v: 'sunset', label: 'Sunset', bg: 'linear-gradient(160deg, #ff9a6b, #7b3fa0)', ink: '#fff', ring: '#ffe27a' },
+];
+const BUBBLE = ['#e0567f', '#4fb3a9', '#e8b13a', '#5e5ce6', '#d9822b', '#30a46c'];
+const family = {
+  name: 'Family', blurb: 'A photo bubble for each person around the time, glowing when they’re home.', category: 'Fun',
+  options: [
+    { key: 'people', label: 'People', type: 'people' },
+    { key: 'bg', label: 'Background', type: 'swatch', choices: FAM_BG.map((b) => ({ v: b.v, label: b.label, color: b.bg.match(/#[0-9a-f]{6}/i)[0] })) },
+  ],
+  defaults: { bg: 'night' },
+  ink: (o) => pick(FAM_BG, o.bg).ink,
+  create(root, o, ctx) {
+    const { w, h, store } = ctx;
+    const B = pick(FAM_BG, o.bg);
+    root.style.cssText = `position:absolute;inset:0;background:${B.bg};color:${B.ink};font-family:${FONT.sans};overflow:hidden`;
+    const mid = document.createElement('div');
+    mid.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center';
+    mid.innerHTML = `<div style="font-size:${Math.min(w, h) * 0.2}px;font-weight:250;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums"></div><div style="font-size:${Math.min(w, h) * 0.035}px;font-weight:600;opacity:.7;margin-top:${Math.min(w, h) * 0.015}px"></div><div style="font-size:${Math.min(w, h) * 0.032}px;font-weight:600;margin-top:${Math.min(w, h) * 0.02}px;opacity:.9"></div>`;
+    root.appendChild(mid);
+    const [tEl, dEl, sEl] = mid.children;
+    const layer = document.createElement('div');
+    layer.style.cssText = 'position:absolute;inset:0';
+    root.appendChild(layer);
+    const ids = () => {
+      const all = (store?.list?.(['person']) || []).map((x) => x.entity_id);
+      const chosen = (o.people || []).filter((x) => store?.get(x));
+      return chosen.length ? chosen : all;
+    };
+    let key = '', lastT = '';
+    const draw = () => {
+      const list = ids();
+      const states = list.map((id) => store.get(id));
+      const k = JSON.stringify(states.map((s) => [s?.entity_id, s?.state, s?.attributes?.entity_picture]));
+      if (k === key) return; key = k;
+      layer.innerHTML = '';
+      const n = Math.max(1, list.length), m = Math.min(w, h);
+      const size = Math.min(m * 0.17, (Math.PI * m * 0.7) / n * 0.8);
+      const rx = w > h ? Math.min(w * 0.36, m * 0.62) : m * 0.34, ry = w > h ? m * 0.3 : Math.min(h * 0.32, m * 0.58);
+      let homeN = 0;
+      states.forEach((s, i) => {
+        if (!s) return;
+        const a = s.attributes || {}, home = s.state === 'home';
+        if (home) homeN++;
+        const ang = -Math.PI / 2 + (i / n) * Math.PI * 2 + (n === 2 ? Math.PI / 2 : 0);
+        const x = w / 2 + Math.cos(ang) * rx, y = h / 2 + Math.sin(ang) * ry;
+        const pic = a.entity_picture ? (store.mode === 'demo' || /^data:/.test(a.entity_picture) ? a.entity_picture : `api/art?id=${encodeURIComponent(s.entity_id)}&v=${encodeURIComponent(a.entity_picture.slice(-30))}`) : null;
+        const name = a.friendly_name || s.entity_id.split('.')[1];
+        const ini = name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+        const where = home ? 'Home' : s.state === 'not_home' ? 'Away' : s.state.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        const b = document.createElement('div');
+        b.className = 'fam' + (home ? ' home' : '');
+        b.style.cssText = `left:${x}px;top:${y}px;--sz:${size}px;--ring:${B.ring};--bub:${BUBBLE[i % BUBBLE.length]}`;
+        b.innerHTML = `<div class="fam-pic"${pic ? ` style="background-image:url('${pic.replace(/'/g, '%27')}')"` : ''}>${pic ? '' : ini}</div><div class="fam-name"></div><div class="fam-where"></div>`;
+        b.querySelector('.fam-name').textContent = name.split(' ')[0];
+        b.querySelector('.fam-where').textContent = where;
+        layer.appendChild(b);
+      });
+      sEl.textContent = !list.length ? 'Add people in Home Assistant to see them here' : homeN === list.length ? 'Everyone’s home' : homeN === 0 ? 'Nobody’s home' : `${homeN} of ${list.length} home`;
+    };
+    return {
+      update(now) {
+        const t = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: !ctx.use24h }).replace(/\s?[AP]\.?M\.?$/i, '');
+        if (t !== lastT) { lastT = t; tEl.textContent = t; dEl.textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
+        if (store) draw();
+      },
+      onState(id) { if (id === '*' || String(id).startsWith('person.')) key = ''; },
+    };
+  },
+};
+
 // ------------------------------------------------------------------ countdown
 const CD_BG = [
   { v: 'night', label: 'Night', color: '#101828', c2: '#2b2350', ink: '#fff' },
@@ -1572,8 +1647,8 @@ const countdown = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock, sky, board, lava, aquarium };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'sky', 'board', 'lava', 'aquarium', 'flip', 'lamp'];
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock, sky, board, lava, aquarium, family };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'sky', 'board', 'lava', 'aquarium', 'family', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };

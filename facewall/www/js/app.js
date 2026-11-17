@@ -616,6 +616,17 @@ class App {
       let ctl;
       if (o.type === 'swatch') ctl = swatches(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }));
       else if (o.type === 'choice') ctl = segmented(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }));
+      else if (o.type === 'people') {
+        const people = this.store.list(['person']);
+        const chosen = new Set(val || []);
+        ctl = h('div.rot-faces', {}, ...people.map((p) => h('button.rot-face' + (!chosen.size || chosen.has(p.entity_id) ? '.on' : ''), { onclick: () => {
+          const set = new Set(chosen.size ? chosen : people.map((x) => x.entity_id));
+          if (set.has(p.entity_id)) set.delete(p.entity_id); else set.add(p.entity_id);
+          change(() => { work.opts[o.key] = set.size === people.length ? undefined : [...set]; });
+          draw?.();
+        } }, h('span.rot-check', { html: icon('check') }), h('span', { text: this.store.name(p.entity_id) }))));
+        if (!people.length) ctl = h('div.row-sub', { text: 'No people in Home Assistant yet (Settings → People there).' });
+      }
       else if (o.type === 'countdown') {
         const cds = this.settings.countdowns || [];
         ctl = segmented([{ v: 'next', label: 'Next coming up' }, ...cds.map((c) => ({ v: c.id, label: `${c.emoji || ''} ${c.name || 'Countdown'}`.trim() }))], val || 'next', (v) => change(() => { work.opts[o.key] = v; }));
