@@ -362,7 +362,7 @@ export class HomePage {
     const rail = this.rail();
     this.root.classList.toggle('has-rail', !!rail);
     if (this.app.currentRoom === this) document.body.classList.toggle('rail-page', !!rail);
-    this.root.append(h('div.home-bg'), this.fxCanvas, head, this.grid, ...(rail ? [rail] : []));
+    this.root.append(h('div.home-bg'), h('div.home-wall'), this.fxCanvas, head, this.grid, ...(rail ? [rail] : []));
     this.fx.start();
     this.layout();
 

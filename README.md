@@ -82,3 +82,4 @@ Bundled icon sets keep their own licences; the full texts are in `facewall/www/i
 [Phosphor](https://phosphoricons.com) (MIT),
 [Material Symbols](https://fonts.google.com/icons) (Apache 2.0) and
 [Tabler Icons](https://tabler.io/icons) (MIT). Online search uses the free [Iconify](https://iconify.design) API.
+The Retro style uses the [VT323](https://fonts.google.com/specimen/VT323) font (SIL Open Font License 1.1; licence in `facewall/www/fonts/`).

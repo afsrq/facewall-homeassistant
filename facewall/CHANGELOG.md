@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.38.0
+- **Retro terminal style**: an old CRT look, with pixel letters (VT323) glowing in your theme's accent colour (green with Sage, amber with Linen, and so on), scanlines, a darkened edge and a faint flicker. Switched-on tiles light up solid.
+- **Wallpapers**: mid-century patterns behind the tiles, drawn in your theme's own colours: **Starbursts**, **Boomerangs**, **Eames dots** and **Atomic** (orbits and Sputnik lamps). Choose Faint, Soft or Bold and the pattern size. Settings → Appearance → Wallpaper.
+- Fixed: after a change in Settings, the style could be applied from the previous settings.
+
 ## 1.37.1
 - **Bigger letters on the word clocks**, for reading from across the room:
   - New **Letter size** option (Normal, Large, Huge) on both word clocks, with heavier letters at the bigger sizes. The exact word clock now starts at Large.

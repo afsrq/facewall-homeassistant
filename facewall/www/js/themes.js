@@ -107,7 +107,43 @@ export const LOOKS = [
   { id: 'material', name: 'Material You', sub: 'Android style: tonal colours, big rounded corners, icons in circles' },
   { id: 'glass', name: 'Liquid glass', sub: 'Frosted see-through tiles with bright edges over a colourful background' },
   { id: 'bold', name: 'Facewall Bold', sub: 'Flat and crisp: outlined tiles, solid colour when on' },
+  { id: 'retro', name: 'Retro terminal', sub: 'An old CRT: pixel letters glowing in the theme colour, scanlines and a slight curve' },
 ];
+// Wallpapers: mid-century patterns drawn in the theme's own colours, behind the tiles.
+export const WALLPAPERS = [
+  { id: 'starburst', name: 'Starbursts' },
+  { id: 'boomerang', name: 'Boomerangs' },
+  { id: 'dots', name: 'Eames dots' },
+  { id: 'atomic', name: 'Atomic' },
+];
+const svgUrl = (w, h, body) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>${body}</svg>`)}")`;
+const star = (x, y, r, c, rot = 0) => {
+  const pts = [];
+  for (let i = 0; i < 16; i++) { const a = (i * Math.PI) / 8 + rot, rr = i % 2 ? r * 0.16 : i % 4 === 0 ? r : r * 0.55; pts.push(`${(x + Math.cos(a) * rr).toFixed(1)},${(y + Math.sin(a) * rr).toFixed(1)}`); }
+  return `<polygon points='${pts.join(' ')}' fill='${c}'/>`;
+};
+/** A wallpaper tile as a CSS url(), in colours a (accent), b (second colour) and c (text). */
+export function wallpaperUrl(id, a, b, c) {
+  if (id === 'starburst') {
+    return svgUrl(240, 240, star(40, 50, 26, a) + star(170, 30, 14, b, 0.3) + star(130, 150, 30, c, 0.2) + star(30, 190, 12, b) + star(205, 205, 18, a, 0.4) + star(95, 95, 7, c) + star(215, 110, 8, a));
+  }
+  if (id === 'boomerang') {
+    const boom = (x, y, rot, col) => `<path transform='translate(${x} ${y}) rotate(${rot})' d='M0 0 C18 -26 52 -30 70 -12 C52 -14 32 -6 22 10 C34 18 40 34 36 52 C24 30 6 22 0 0Z' fill='${col}'/>`;
+    return svgUrl(260, 220, boom(20, 40, -10, a) + boom(150, 20, 40, b) + boom(90, 120, 160, c) + boom(200, 140, 80, a) + boom(10, 170, 200, b));
+  }
+  if (id === 'dots') {
+    const cols = [a, b, c, a, b];
+    let body = '';
+    for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) { const r = 6 + ((i * 7 + j * 11) % 5) * 3; body += `<circle cx='${24 + i * 48}' cy='${24 + j * 48 + (i % 2) * 12}' r='${r}' fill='${cols[(i + j * 2) % 5]}'/>`; }
+    return svgUrl(240, 252, body);
+  }
+  if (id === 'atomic') {
+    const atom = (x, y, s, col) => `<g transform='translate(${x} ${y}) scale(${s})' fill='none' stroke='${col}' stroke-width='3'><ellipse rx='34' ry='11'/><ellipse rx='34' ry='11' transform='rotate(60)'/><ellipse rx='34' ry='11' transform='rotate(-60)'/><circle r='5' fill='${col}' stroke='none'/></g>`;
+    const sput = (x, y, col) => `<g transform='translate(${x} ${y})' stroke='${col}' stroke-width='2.5'>${[0, 45, 90, 135].map((d) => `<line x1='-22' y1='0' x2='22' y2='0' transform='rotate(${d})'/>`).join('')}${[0, 45, 90, 135, 180, 225, 270, 315].map((d) => `<circle cx='${(22 * Math.cos((d * Math.PI) / 180)).toFixed(1)}' cy='${(22 * Math.sin((d * Math.PI) / 180)).toFixed(1)}' r='3.5' fill='${col}' stroke='none'/>`).join('')}</g>`;
+    return svgUrl(280, 260, atom(60, 60, 1, a) + sput(200, 70, b) + atom(190, 190, 0.7, c) + sput(60, 200, a) + star(130, 130, 10, b));
+  }
+  return 'none';
+}
 /** Apply a style and the tile transparency/blur/corner settings (general.look). */
 export function applyLook(look = {}) {
   const b = document.body, st = document.documentElement.style;
@@ -119,6 +155,16 @@ export function applyLook(look = {}) {
   b.classList.toggle('tile-blur', look.blur != null);
   if (look.radius != null) st.setProperty('--tile-r', look.radius + 'px'); else st.removeProperty('--tile-r');
   b.classList.toggle('tile-r', look.radius != null);
+  // Wallpaper, coloured from the theme that's on now.
+  const wp = WALLPAPERS.some((x) => x.id === look.wallpaper) ? look.wallpaper : null;
+  b.classList.toggle('has-wall', !!wp);
+  if (wp) {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (k, d) => cs.getPropertyValue(k).trim() || d;
+    st.setProperty('--t-wall', wallpaperUrl(wp, v('--t-accent', '#e0a030'), v('--t-date', '#2aa198'), v('--t-text', '#888')));
+    st.setProperty('--t-wall-o', String(look.wallStrength === 'bold' ? 0.3 : look.wallStrength === 'faint' ? 0.08 : 0.16));
+    st.setProperty('--t-wall-size', look.wallSize === 'big' ? '380px' : look.wallSize === 'small' ? '150px' : '240px');
+  } else st.removeProperty('--t-wall');
 }
 
 /** Apply a theme to an element (the whole app by default). */

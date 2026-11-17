@@ -2,7 +2,7 @@
 import { Store, domainOf, isOn } from './data.js';
 import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS, faceEdgeColors } from './faces.js';
 import { HomePage, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
-import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme, LOOKS, applyLook } from './themes.js';
+import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme, LOOKS, applyLook, WALLPAPERS } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
 import { inHaPanel, setHaKiosk, openHaMenu, setHaFill, canFill, setHaChrome } from './hapanel.js';
@@ -162,7 +162,7 @@ class App {
     return sun ? sun.state === 'below_horizon' : m >= 19 * 60 || m < 7 * 60;
   }
   /** Switch between the day and night theme when it's time. */
-  syncTheme() { if (this.themePreviewing) return; const t = this.themeId(); if (t !== this.appliedTheme) { applyTheme(t); this.appliedTheme = t; } }
+  syncTheme() { if (this.themePreviewing) return; const t = this.themeId(); if (t !== this.appliedTheme) { applyTheme(t); applyLook(this.settings.general.look); this.appliedTheme = t; } }
   updateScreen(fn) {
     this.update((s) => { s.screens ||= {}; const sc = s.screens[this.screenId] ||= {}; fn(sc); sc.seen = Date.now(); });
   }
@@ -174,7 +174,7 @@ class App {
   }
   update(mut) {
     const s = clone(this.settings); mut(s); this.store.saveSettings(s);
-    if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
+    if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(s.general.look); }
     this.applyHa();
     return s;
   }
@@ -648,6 +648,9 @@ class App {
             row('Tile transparency', h('div.icon-ctl', {}, alpha, alphaVal), 'Let the background show through the tiles'),
             row('Blur behind tiles', segmented([{ v: null, label: 'Auto' }, { v: 0, label: 'None' }, { v: 12, label: 'Light' }, { v: 30, label: 'Strong' }], lk.blur ?? null, (v) => setLook((L) => { L.blur = v; }))),
             row('Corners', segmented([{ v: null, label: 'Auto' }, { v: 6, label: 'Square' }, { v: 18, label: 'Rounded' }, { v: 34, label: 'Round' }], lk.radius ?? null, (v) => setLook((L) => { L.radius = v; }))),
+            row('Wallpaper', segmented([{ v: null, label: 'None' }, ...WALLPAPERS.map((x) => ({ v: x.id, label: x.name }))], lk.wallpaper ?? null, (v) => setLook((L) => { L.wallpaper = v; })), 'Mid-century patterns behind the tiles, in your theme’s colours'),
+            lk.wallpaper ? row('Pattern strength', segmented([{ v: 'faint', label: 'Faint' }, { v: null, label: 'Soft' }, { v: 'bold', label: 'Bold' }], lk.wallStrength ?? null, (v) => setLook((L) => { L.wallStrength = v; }))) : null,
+            lk.wallpaper ? row('Pattern size', segmented([{ v: 'small', label: 'Small' }, { v: null, label: 'Medium' }, { v: 'big', label: 'Big' }], lk.wallSize ?? null, (v) => setLook((L) => { L.wallSize = v; }))) : null,
           ];
         })(),
         row('Theme', h('div.icon-ctl', {}, this.themeSwatch(th, { small: true }), h('div.row-value', { text: th.name }),
