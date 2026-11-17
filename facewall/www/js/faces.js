@@ -1093,6 +1093,120 @@ const sunclock = {
   },
 };
 
+// ------------------------------------------------------------------ weather sky
+const SKY = { // top, bottom colours at each phase
+  night: ['#060b1d', '#1b2850'], dawn: ['#3d5a9e', '#f4a07c'], day: ['#2f86d6', '#a9d6f5'], golden: ['#4f62b0', '#ff9d5c'], dusk: ['#1d1d4a', '#c9677a'],
+};
+const mixHex = (a, b, t) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
+const sky = {
+  name: 'Weather sky', blurb: 'The whole screen becomes the sky outside: sun or moon, clouds, rain, snow or stars, with the time and temperature.', category: 'Fun',
+  options: [
+    { key: 'layout', label: 'Time', type: 'choice', choices: [{ v: 'corner', label: 'Bottom left' }, { v: 'center', label: 'Centre' }] },
+  ],
+  defaults: { layout: 'corner' },
+  ink: () => '#fff',
+  create(root, o, ctx) {
+    const { w, h, store } = ctx;
+    root.style.cssText = 'position:absolute;inset:0;overflow:hidden';
+    const cv = document.createElement('canvas');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    root.appendChild(cv);
+    const g = cv.getContext('2d'); g.scale(dpr, dpr);
+    const center = o.layout === 'center';
+    const txt = document.createElement('div');
+    txt.style.cssText = `position:absolute;${center ? 'inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center' : 'left:5vmin;bottom:5vmin'};color:#fff;font-family:${FONT.sans};text-shadow:0 2px 24px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.3)`;
+    txt.innerHTML = `<div class="sk-time" style="font-size:${center ? 24 : 19}vmin;font-weight:250;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums"></div><div class="sk-temp" style="font-size:${center ? 6 : 5.4}vmin;font-weight:500;margin-top:1.4vmin;opacity:.95"></div><div class="sk-date" style="font-size:3vmin;font-weight:600;opacity:.8;margin-top:.8vmin"></div>`;
+    root.appendChild(txt);
+    const [tEl, wEl, dEl] = txt.children;
+    const R = Math.random;
+    const stars = Array.from({ length: 140 }, () => ({ x: R() * w, y: R() * h * 0.7, r: R() * 1.3 + 0.3, p: R() * 6 }));
+    const clouds = Array.from({ length: 9 }, (_, i) => ({ x: R() * w * 1.4 - w * 0.2, y: h * (0.08 + R() * 0.45), s: 0.6 + R() * 0.9, v: 0.06 + R() * 0.12, k: i }));
+    const drops = Array.from({ length: 220 }, () => ({ x: R() * w, y: R() * h, z: 0.4 + R() * 0.6, a: R() * 6 }));
+    let last = 0, flash = 0, lastText = '';
+    const weatherId = () => store?.settings?.header?.weather && store.get(store.settings.header.weather) ? store.settings.header.weather : store?.list?.(['weather'])?.[0]?.entity_id;
+    const cloud = (x, y, s, col) => {
+      g.fillStyle = col;
+      g.beginPath();
+      for (const [dx, dy, r] of [[0, 0, 60], [55, -22, 52], [105, 0, 58], [50, 18, 55], [-45, 12, 42], [150, 14, 40]]) { g.moveTo(x + (dx + r) * s, y + dy * s); g.arc(x + dx * s, y + dy * s, r * s, 0, Math.PI * 2); }
+      g.fill();
+    };
+    return {
+      update(now) {
+        const t = now.getTime();
+        if (t - last < 40) return; // ~25 frames a second is plenty
+        const dt = last ? Math.min(100, t - last) / 16.7 : 1; last = t;
+        const wid = weatherId(), ws = wid ? store.get(wid) : null, cond = ws?.state || 'sunny', a = ws?.attributes || {};
+        const sun = store?.get('sun.sun')?.attributes || {};
+        const rise = minsOf(sun.next_rising) ?? 390, set = minsOf(sun.next_setting) ?? 1080;
+        const m = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+        // Where we are in the day, as sky colours.
+        const near = (c, span) => Math.max(0, 1 - Math.abs(m - c) / span);
+        let top, bot;
+        if (m < rise - 45 || m > set + 60) [top, bot] = SKY.night;
+        else if (m < rise + 40) { const k = (m - (rise - 45)) / 85; [top, bot] = [mixHex(SKY.night[0], SKY.dawn[0], Math.min(1, k * 1.6)), mixHex(SKY.night[1], SKY.dawn[1], Math.min(1, k * 1.6))]; if (k > 0.6) [top, bot] = [mixHex(SKY.dawn[0], SKY.day[0], (k - 0.6) / 0.4), mixHex(SKY.dawn[1], SKY.day[1], (k - 0.6) / 0.4)]; }
+        else if (m < set - 70) [top, bot] = SKY.day;
+        else if (m < set + 10) { const k = (m - (set - 70)) / 80; [top, bot] = [mixHex(SKY.day[0], SKY.golden[0], k), mixHex(SKY.day[1], SKY.golden[1], k)]; }
+        else { const k = (m - (set + 10)) / 50; [top, bot] = [mixHex(SKY.dusk[0], SKY.night[0], k), mixHex(SKY.dusk[1], SKY.night[1], k)]; }
+        const overcast = { cloudy: 0.65, rainy: 0.6, pouring: 0.75, 'lightning-rainy': 0.8, lightning: 0.7, snowy: 0.55, 'snowy-rainy': 0.6, fog: 0.7, hail: 0.7, partlycloudy: 0.15, windy: 0.25, 'windy-variant': 0.35 }[cond] || 0;
+        const isNight = m < rise - 20 || m > set + 30;
+        const grey = isNight ? '#1a1d26' : '#8a93a3';
+        const sky = g.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, top); sky.addColorStop(1, bot);
+        g.fillStyle = sky; g.fillRect(0, 0, w, h);
+        if (overcast) { g.globalAlpha = overcast * 0.85; g.fillStyle = grey; g.fillRect(0, 0, w, h); g.globalAlpha = 1; }
+        // Stars and moon at night; the sun by day.
+        if (isNight && overcast < 0.5) {
+          for (const s of stars) { g.globalAlpha = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t / 900 + s.p))) * (1 - overcast * 1.6); g.fillStyle = '#fff'; g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill(); }
+          g.globalAlpha = 1 - overcast;
+          const mx = w * 0.78, my = h * 0.2, mr = Math.min(w, h) * 0.05;
+          const mg = g.createRadialGradient(mx, my, 0, mx, my, mr * 4); mg.addColorStop(0, 'rgba(230,235,255,0.35)'); mg.addColorStop(1, 'rgba(230,235,255,0)');
+          g.fillStyle = mg; g.fillRect(mx - mr * 4, my - mr * 4, mr * 8, mr * 8);
+          g.fillStyle = '#f2f0e6'; g.beginPath(); g.arc(mx, my, mr, 0, Math.PI * 2); g.fill();
+          g.globalAlpha = 1;
+        } else if (!isNight && overcast < 0.6) {
+          const p = Math.max(0, Math.min(1, (m - rise) / (set - rise)));
+          const sx = w * (0.1 + 0.8 * p), sy = h * (0.75 - Math.sin(p * Math.PI) * 0.6), sr = Math.min(w, h) * 0.06;
+          const sg = g.createRadialGradient(sx, sy, 0, sx, sy, sr * 6);
+          sg.addColorStop(0, `rgba(255,240,200,${0.9 - overcast})`); sg.addColorStop(0.2, `rgba(255,220,150,${0.45 - overcast * 0.5})`); sg.addColorStop(1, 'rgba(255,210,140,0)');
+          g.fillStyle = sg; g.fillRect(0, 0, w, h);
+          g.globalAlpha = 1 - overcast; g.fillStyle = '#fff7df'; g.beginPath(); g.arc(sx, sy, sr, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+        }
+        // Clouds drift across.
+        const nClouds = overcast >= 0.5 ? 9 : cond === 'partlycloudy' || cond.startsWith('windy') ? 5 : cond === 'sunny' || cond === 'clear-night' ? 1 : 3;
+        const speed = cond.startsWith('windy') ? 4 : 1;
+        for (const c of clouds.slice(0, nClouds)) {
+          c.x += c.v * speed * dt * (0.6 + c.s * 0.4);
+          if (c.x - 200 * c.s > w) c.x = -260 * c.s;
+          const col = isNight ? `rgba(70,78,100,${0.55 + overcast * 0.3})` : overcast > 0.4 ? `rgba(200,205,215,${0.75})` : 'rgba(255,255,255,0.85)';
+          cloud(c.x, c.y, c.s * Math.min(w, h) / 700, col);
+        }
+        // Rain, snow, fog, lightning.
+        if (/rain|pouring|lightning|hail/.test(cond)) {
+          const n = cond === 'pouring' ? 220 : 130;
+          g.strokeStyle = 'rgba(210,225,255,0.45)'; g.lineWidth = 1.3; g.beginPath();
+          for (const d of drops.slice(0, n)) { d.y += (12 + d.z * 10) * dt; d.x -= 2 * dt; if (d.y > h) { d.y = -20; d.x = R() * (w + 80); } g.moveTo(d.x, d.y); g.lineTo(d.x + 3, d.y - 16 * d.z); }
+          g.stroke();
+          if (/lightning/.test(cond)) { if (flash <= 0 && R() < 0.004) flash = 1; if (flash > 0) { g.fillStyle = `rgba(255,255,255,${flash * 0.5})`; g.fillRect(0, 0, w, h); flash -= 0.08 * dt; } }
+        } else if (/snow/.test(cond)) {
+          g.fillStyle = 'rgba(255,255,255,0.85)';
+          for (const d of drops.slice(0, 160)) { d.a += 0.02 * dt; d.y += (0.8 + d.z * 1.4) * dt; d.x += Math.sin(d.a) * 0.6 * dt; if (d.y > h) { d.y = -5; d.x = R() * w; } g.beginPath(); g.arc(d.x, d.y, 1.2 + d.z * 2.4, 0, Math.PI * 2); g.fill(); }
+        } else if (cond === 'fog') {
+          for (let i = 0; i < 4; i++) { const y = h * (0.35 + i * 0.17) + Math.sin(t / 4000 + i) * 12; const fg = g.createLinearGradient(0, y - 80, 0, y + 80); fg.addColorStop(0, 'rgba(220,225,230,0)'); fg.addColorStop(0.5, 'rgba(220,225,230,0.35)'); fg.addColorStop(1, 'rgba(220,225,230,0)'); g.fillStyle = fg; g.fillRect(0, y - 80, w, 160); }
+        }
+        // The words.
+        const time = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: !ctx.use24h }).replace(/\s?[AP]\.?M\.?$/i, '');
+        const label = WX_TEXT[cond] || cond;
+        const temp = a.temperature != null ? `${Math.round(a.temperature)}° · ${label}` : label;
+        const date = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        const key = time + temp + date;
+        if (key !== lastText) { lastText = key; tEl.textContent = time; wEl.textContent = temp; dEl.textContent = date; }
+      },
+    };
+  },
+};
+
 // ------------------------------------------------------------------ countdown
 const CD_BG = [
   { v: 'night', label: 'Night', color: '#101828', c2: '#2b2350', ink: '#fff' },
@@ -1141,8 +1255,8 @@ const countdown = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'flip', 'lamp'];
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown, sunclock, sky };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'sunclock', 'sky', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };

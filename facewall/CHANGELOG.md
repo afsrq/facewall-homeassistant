@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.45.0
+- **Weather sky face**: the whole screen becomes the sky outside. Its colour follows your real sunrise and sunset (dawn, day, golden hour, dusk, night), with the sun moving across the sky by day and the moon and twinkling stars at night. Drifting clouds, rain, snow, fog and lightning match your weather, and the time, temperature and date sit on top (bottom left or centred).
+
 ## 1.44.0
 - **Sunrise & sunset face**: a 24-hour dial with noon at the top and midnight at the bottom. Today's daylight is a warm arc from your real sunrise to sunset (from Home Assistant's sun), and a glowing sun (a moon at night) moves round it. The time is in the middle with "Sunset in 1 h 48 min" or "Sunrise in…" below. Night, Paper or MCM teal colours.
 - Fixed: the bottom-left and bottom-right corners of clock faces, and the sidebar's readings, didn't update live in Home Assistant.
