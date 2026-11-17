@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.38.0';
+const VERSION = '1.39.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -276,7 +276,7 @@ function watchedEntities() {
     const w = s.header?.weather && ha.states.has(s.header.weather) ? s.header.weather : [...ha.states.keys()].find((id) => id.startsWith('weather.'));
     if (w) set.add(w);
   }
-  if (on.some((p) => p.k === 'sun')) set.add('sun.sun');
+  if (on.some((p) => p.k === 'sun') || s.general?.tod?.on) set.add('sun.sun');
   for (const p of on) { if (p.k === 'sensor' && p.id) set.add(p.id); if (p.k === 'alerts') for (const e of p.entities || []) set.add(e); }
   return set;
 }

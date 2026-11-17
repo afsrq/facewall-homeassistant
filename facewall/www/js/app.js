@@ -98,7 +98,8 @@ class App {
     this.screenId = this.resolveScreen();
     { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
     setTimeout(() => { this.syncTheme(); this.shiftPixels(true); }, 2500);
-    this.applyHa();
+    setInterval(() => this.todSync(), 30000);
+    this.applyHa(); this.todSync();
     this.buildShell();
     this.renderFace();
     this.renderRooms();
@@ -111,7 +112,7 @@ class App {
     this.store.addEventListener('settings', (e) => {
       if (!e.detail.external) return;
       if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
-      this.applyHa();
+      this.applyHa(); this.todSync();
       this.renderFace(); this.renderRooms();
     });
     this.store.addEventListener('status', () => { this.showStatus(); this.syncTheme(); });
@@ -176,6 +177,7 @@ class App {
     const s = clone(this.settings); mut(s); this.store.saveSettings(s);
     if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(s.general.look); }
     this.applyHa();
+    this.todSync();
     return s;
   }
 
@@ -188,6 +190,7 @@ class App {
     this.rooms = [];
     this.dots = h('div.pager-dots');
     this.dim = h('div.dim');
+    this.todTint = h('div.tod-tint');
     this.sleepCover = h('div.sleep-cover', { onpointerdown: (e) => { e.preventDefault(); e.stopPropagation(); this.setSleep(false); } });
     this.faceToast = h('div.face-toast');
     this.facePage.append(this.faceToast);
@@ -199,7 +202,7 @@ class App {
       h('button.pill', { html: icon('sliders') + '<span>Customize</span>', onclick: () => this.openCustomize(this.activeFace(), 'edit') }),
       h('button.pill', { html: icon('home') + '<span>Pages</span>', onclick: () => this.goTo(1) }),
       h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.openSettings() }));
-    app.append(this.pager, this.dots, this.navPrev, this.navNext, this.clockBar, this.dim, this.sleepCover, this.statusPill);
+    app.append(this.pager, this.dots, this.navPrev, this.navNext, this.clockBar, this.todTint, this.dim, this.sleepCover, this.statusPill);
     this.pager.addEventListener('scroll', () => {
       const p = Math.round(this.pager.scrollLeft / Math.max(1, this.pager.clientWidth));
       if (p !== this.page) { this.page = p; this.onPage(); }
@@ -271,6 +274,27 @@ class App {
     setHaFill(hide && this.screen.edge !== false);
     if (inHaPanel && !this._chromeTimer) this._chromeTimer = setInterval(() => this.syncHaChrome(), 1500);
     this.syncHaChrome();
+  }
+  /** Time-of-day colours: a warm tint that follows the day (peach at dawn, none by day, gold at sunset, amber at night). */
+  todSync() {
+    const g = this.settings.general.tod;
+    if (!g?.on || !this.todTint) { if (this.todTint) this.todTint.style.opacity = '0'; return; }
+    const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
+    // Anchor dawn and dusk to the real sun when Home Assistant knows it.
+    const sun = this.store.get('sun.sun')?.attributes;
+    const mins = (iso) => { const d = iso && new Date(iso); return d && !isNaN(d) ? d.getHours() * 60 + d.getMinutes() : null; };
+    const rise = mins(sun?.next_rising) ?? 390, set = mins(sun?.next_setting) ?? 1080;
+    // [minute of day, r, g, b, strength]
+    const K = [[0, 255, 140, 60, 0.32], [rise - 60, 255, 140, 60, 0.3], [rise, 255, 185, 140, 0.18], [rise + 90, 255, 230, 200, 0], [set - 90, 255, 230, 200, 0], [set, 255, 185, 95, 0.16], [set + 120, 255, 160, 80, 0.24], [1320, 255, 145, 65, 0.3], [1440, 255, 140, 60, 0.32]]
+      .map((k) => [Math.max(0, Math.min(1440, k[0])), ...k.slice(1)]).sort((a, b) => a[0] - b[0]);
+    let a = K[0], b = K.at(-1);
+    for (let i = 0; i < K.length - 1; i++) if (m >= K[i][0] && m <= K[i + 1][0]) { a = K[i]; b = K[i + 1]; break; }
+    const t = b[0] === a[0] ? 0 : (m - a[0]) / (b[0] - a[0]);
+    const mix = (i) => a[i] + (b[i] - a[i]) * t;
+    const k = { subtle: 0.6, strong: 1.5 }[g.strength] || 1;
+    this.todTint.style.background = `rgb(${mix(1) | 0}, ${mix(2) | 0}, ${mix(3) | 0})`;
+    this.todTint.style.opacity = String(Math.min(0.6, mix(4) * k).toFixed(3));
+    this.todTint.classList.toggle('pages-only', g.scope === 'pages');
   }
   /** Colour the Home Assistant app's own strips (status bar, edges) to match what's on screen. */
   syncHaChrome() {
@@ -648,6 +672,9 @@ class App {
             row('Tile transparency', h('div.icon-ctl', {}, alpha, alphaVal), 'Let the background show through the tiles'),
             row('Blur behind tiles', segmented([{ v: null, label: 'Auto' }, { v: 0, label: 'None' }, { v: 12, label: 'Light' }, { v: 30, label: 'Strong' }], lk.blur ?? null, (v) => setLook((L) => { L.blur = v; }))),
             row('Corners', segmented([{ v: null, label: 'Auto' }, { v: 6, label: 'Square' }, { v: 18, label: 'Rounded' }, { v: 34, label: 'Round' }], lk.radius ?? null, (v) => setLook((L) => { L.radius = v; }))),
+            row('Time-of-day colours', toggle(!!s.general.tod?.on, (v) => { this.update((x) => { x.general.tod = { ...(x.general.tod || {}), on: v }; }); render(); }), 'A warm tint that follows the day: peach at sunrise, none by day, golden at sunset, amber at night. Easier on the eyes after dark.'),
+            s.general.tod?.on ? row('How warm', segmented([{ v: 'subtle', label: 'Subtle' }, { v: null, label: 'Normal' }, { v: 'strong', label: 'Strong' }], s.general.tod?.strength ?? null, (v) => this.update((x) => { x.general.tod = { ...x.general.tod, strength: v }; }))) : null,
+            s.general.tod?.on ? row('Tint', segmented([{ v: null, label: 'Everything' }, { v: 'pages', label: 'Pages only' }], s.general.tod?.scope ?? null, (v) => { this.update((x) => { x.general.tod = { ...x.general.tod, scope: v }; }); }), 'Pages only leaves the clock faces in their own colours') : null,
             row('Wallpaper', segmented([{ v: null, label: 'None' }, ...WALLPAPERS.map((x) => ({ v: x.id, label: x.name }))], lk.wallpaper ?? null, (v) => setLook((L) => { L.wallpaper = v; })), 'Mid-century patterns behind the tiles, in your theme’s colours'),
             lk.wallpaper ? row('Pattern strength', segmented([{ v: 'faint', label: 'Faint' }, { v: null, label: 'Soft' }, { v: 'bold', label: 'Bold' }], lk.wallStrength ?? null, (v) => setLook((L) => { L.wallStrength = v; }))) : null,
             lk.wallpaper ? row('Pattern size', segmented([{ v: 'small', label: 'Small' }, { v: null, label: 'Medium' }, { v: 'big', label: 'Big' }], lk.wallSize ?? null, (v) => setLook((L) => { L.wallSize = v; }))) : null,

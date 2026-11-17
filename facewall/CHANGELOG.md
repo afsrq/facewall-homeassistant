@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.39.0
+- **Time-of-day colours** (Settings → Appearance): a warm tint that follows the day, like Night Shift: soft peach around sunrise, none during the day, golden at sunset, deepening to amber through the night. It follows your real sunrise and sunset from Home Assistant, and fades gradually. Choose Subtle, Normal or Strong, and whether it tints everything or only your pages.
+
 ## 1.38.0
 - **Retro terminal style**: an old CRT look, with pixel letters (VT323) glowing in your theme's accent colour (green with Sage, amber with Linen, and so on), scanlines, a darkened edge and a faint flicker. Switched-on tiles light up solid.
 - **Wallpapers**: mid-century patterns behind the tiles, drawn in your theme's own colours: **Starbursts**, **Boomerangs**, **Eames dots** and **Atomic** (orbits and Sputnik lamps). Choose Faint, Soft or Bold and the pattern size. Settings → Appearance → Wallpaper.
