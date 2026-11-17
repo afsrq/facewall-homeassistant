@@ -788,7 +788,8 @@ class App {
       const setL = (k, v) => { this.update((x) => { const p2 = pageOf(x, base); p2.layout = { ...(p2.layout || {}), [k]: v }; }); refreshRoom(); render(); };
       const layoutSec = section(`Grid on “${basePg.name}”`,
         row('Columns across', segmented([{ v: null, label: 'Auto' }, ...[3, 4, 5, 6, 7, 8].map((v) => ({ v, label: String(v) }))], L.cols ?? null, (v) => setL('cols', v)), 'More columns = smaller tiles'),
-        row('Rows per screen', segmented([{ v: null, label: 'Auto' }, ...[2, 3, 4, 5, 6].map((v) => ({ v, label: String(v) }))], L.rows ?? null, (v) => setL('rows', v)), 'Taller tiles can span several rows'));
+        row('Fit to screen', toggle(L.fit !== false, (v) => setL('fit', v ? null : false)), 'Stretch or shrink the rows so your tiles exactly fill the screen, upright or sideways'),
+        L.fit === false ? row('Rows per screen', segmented([{ v: null, label: 'Auto' }, ...[2, 3, 4, 5, 6].map((v) => ({ v, label: String(v) }))], L.rows ?? null, (v) => setL('rows', v)), 'Taller tiles can span several rows') : null);
 
       // ---------------- Everywhere
       const g = s.general;

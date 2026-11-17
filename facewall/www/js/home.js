@@ -292,7 +292,7 @@ export class HomePage {
       snapshot: () => this.render(),
       timers: () => this.cards.forEach((c) => c.timer && c.update()),
       forecast: (e) => this.cards.forEach((c) => c.id === e.detail && c.update()),
-      resize: () => { if (this.layout()) this.render(); },
+      resize: () => { if (this.layout()) this.render(); else this.fit(); },
     };
     store.addEventListener('state', this.handlers.state);
     store.addEventListener('snapshot', this.handlers.snapshot);
@@ -388,6 +388,8 @@ export class HomePage {
         h('button.pill.primary', { text: 'Choose devices', onclick: () => this.app.entityBrowser(this.vid, () => this.render()) })));
     }
     if (this.editing) this.root.append(this.editBar());
+    this.fit();
+    requestAnimationFrame(() => this.fit());
     this.grid.scrollTop = scroll;
     this.root.scrollTop = 0;
     this.tick();
@@ -428,13 +430,34 @@ export class HomePage {
     const headH = headPx + 8;
     const reserve = this.editing ? 84 : 0; // room for the edit bar
     // One row = the screen height shared by `rows` (each tile keeps half a gap of margin all round).
-    const unitH = Math.max(90, (H - headH - reserve - (pad - gap / 2)) / rows);
+    const availH = H - headH - reserve - (pad - gap / 2);
+    const unitH = Math.max(90, availH / rows);
+    this.availH = availH;
     const changed = this.cols !== cols;
     Object.assign(this, { cols, rows, gap, unitH, rowH: unitH - gap });
     this.root.style.setProperty('--subcols', cols * SUB);
     this.root.style.setProperty('--gap', gap + 'px');
     this.root.style.setProperty('--subrow-h', (unitH / SUB).toFixed(3) + 'px');
     return changed;
+  }
+
+  /** Fit to screen: stretch or shrink the rows so the tiles you placed exactly fill the space, in any orientation. */
+  fit() {
+    const L = this.page?.layout || {};
+    if (L.fit === false || !this.grid || !this.root.clientHeight) return;
+    const cards = [...this.grid.children].filter((c) => c.style.gridRow && c.offsetParent !== null);
+    if (!cards.length) return;
+    const sub = this.unitH / SUB;
+    const top = this.grid.getBoundingClientRect().top + parseFloat(getComputedStyle(this.grid).paddingTop) - this.grid.scrollTop;
+    let bottom = 0;
+    for (const c of cards) bottom = Math.max(bottom, c.getBoundingClientRect().bottom + this.gap / 2 - top);
+    const used = Math.round(bottom / sub);
+    if (!used) return;
+    // Very long pages still scroll rather than squash tiles to nothing.
+    const unit = Math.max(70, this.availH / (used / SUB));
+    if (Math.abs(unit - this.unitH) < 0.5) return;
+    this.unitH = unit; this.rowH = unit - this.gap;
+    this.root.style.setProperty('--subrow-h', (unit / SUB).toFixed(3) + 'px');
   }
 
   setEditing(on) {
@@ -511,6 +534,7 @@ export class HomePage {
 
   tick() {
     if (this.fx) this.fxNow = fxMode(this.store, this.store.settings);
+    if ((this._fitN = (this._fitN || 0) + 1) % 2 === 0) this.fit(); // tiles that show/hide on their own
     const now = new Date();
     if (!this.greet) return;
     if (this.hdFor !== this.store.settings && this.head) this.applyHeaderStyle(this.head);

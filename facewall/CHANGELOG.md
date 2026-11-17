@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.36.0
+- **Fit to screen** (on by default): pages stretch or shrink their rows so the tiles you placed exactly fill the screen, with no overflow off the bottom in landscape and no empty gap in portrait. Rotating the iPad re-fits straight away, keeping your arrangement and proportions. Very long pages still scroll rather than squashing tiles too small. Turn it off per page in Settings → Grid to go back to a fixed number of rows.
+
 ## 1.35.0
 - **Fixed the bars in the Home Assistant iPad app.** The strip behind the status bar and the strip at the bottom aren't part of the web page: the app draws them itself in colours it reads from Home Assistant's theme. Facewall now sets those colours to whatever is on screen (the clock face's own colour, the page background, or black when the screen sleeps) and tells the app to repaint, so the strips blend in and follow you as you switch faces and pages. Home Assistant's colours come back as soon as you leave Facewall. Settings → Edge to edge (on by default; it no longer needs the sidebar hidden).
 
