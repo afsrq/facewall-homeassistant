@@ -1,7 +1,7 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
 import { Store, domainOf, isOn, COUNTDOWN_PRESETS, countdownInfo } from './data.js';
 import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS, faceEdgeColors } from './faces.js';
-import { HomePage, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
+import { HomePage, mediaArt, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme, LOOKS, applyLook, WALLPAPERS } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
@@ -97,8 +97,9 @@ class App {
     if (this.store.mode === 'demo') document.body.classList.add('demo');
     this.screenId = this.resolveScreen();
     { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
-    setTimeout(() => { this.syncTheme(); this.shiftPixels(true); }, 2500);
+    setTimeout(() => { this.syncTheme(); this.shiftPixels(true); this.glowSync(); }, 2500);
     setInterval(() => this.todSync(), 30000);
+    this.store.addEventListener('state', (e) => { if (String(e.detail).startsWith('media_player.') && this.screen.glow?.on) { clearTimeout(this._glowT); this._glowT = setTimeout(() => this.glowSync(), 300); } });
     this.applyHa(); this.todSync();
     this.buildShell();
     this.renderFace();
@@ -181,6 +182,7 @@ class App {
     if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(s.general.look); }
     this.applyHa();
     this.todSync();
+    this.glowSync();
     return s;
   }
 
@@ -278,6 +280,65 @@ class App {
     if (inHaPanel && !this._chromeTimer) this._chromeTimer = setInterval(() => this.syncHaChrome(), 1500);
     this.syncHaChrome();
   }
+  // ------------------------------------------------------------------ now-playing glow on the clock
+  /** The player the glow follows: the one chosen, or whichever is playing (Music Assistant first). */
+  glowPlayer() {
+    const g = this.screen.glow;
+    if (!g?.on) return null;
+    if (g.player && g.player !== 'auto') return this.store.get(g.player)?.state === 'playing' ? g.player : null;
+    const playing = this.store.list(['media_player']).filter((s) => s.state === 'playing' && s.attributes?.media_title);
+    return playing.find((s) => s.attributes?.app_id === 'music_assistant' || s.attributes?.mass_player_type)?.entity_id || playing[0]?.entity_id || null;
+  }
+  /** Two vivid colours from a picture (small canvas sample), or null if it can't be read. */
+  artColors(url) {
+    this._artCache ||= new Map();
+    if (this._artCache.has(url)) return Promise.resolve(this._artCache.get(url));
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas'); c.width = c.height = 24;
+          const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, 24, 24);
+          const d = x.getImageData(0, 0, 24, 24).data, px = [];
+          for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            px.push({ r, g, b, score: (mx - mn) * 1.2 + mx * 0.4 });
+          }
+          px.sort((a, b) => b.score - a.score);
+          const first = px[0], far = (p) => Math.abs(p.r - first.r) + Math.abs(p.g - first.g) + Math.abs(p.b - first.b) > 120;
+          const second = px.find(far) || px[Math.floor(px.length / 3)];
+          const out = [first, second].map((p) => `rgb(${p.r}, ${p.g}, ${p.b})`);
+          this._artCache.set(url, out); resolve(out);
+        } catch { this._artCache.set(url, null); resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+  async glowSync() {
+    const g = this.screen.glow;
+    const id = this.glowPlayer();
+    if (!this.glowEl) {
+      this.glowEl = h('div.np-glow', {}, h('div.np-a'), h('div.np-b'));
+      this.glowNote = h('div.np-note');
+      this.facePage.append(this.glowEl, this.glowNote);
+    }
+    if (!id) { this.glowEl.classList.remove('on'); this.glowNote.classList.remove('on'); this.glowKey = null; return; }
+    const a = this.store.get(id).attributes;
+    const url = mediaArt(this.store, id);
+    const key = id + '|' + url;
+    if (key !== this.glowKey) {
+      this.glowKey = key;
+      const cols = (url && await this.artColors(url)) || [getComputedStyle(document.documentElement).getPropertyValue('--t-accent').trim() || '#ff9f0a', '#5e5ce6'];
+      this.glowEl.style.setProperty('--np1', cols[0]); this.glowEl.style.setProperty('--np2', cols[1]);
+    }
+    this.glowEl.classList.add('on');
+    this.glowEl.classList.toggle('strong', g.strength === 'strong');
+    const note = g.note !== false ? `♪  ${[a.media_title, a.media_artist].filter(Boolean).join(' · ')}` : '';
+    this.glowNote.textContent = note;
+    this.glowNote.classList.toggle('on', !!note);
+  }
+
   /** Time-of-day colours: a warm tint that follows the day (peach at dawn, none by day, gold at sunset, amber at night). */
   todSync() {
     const g = this.settings.general.tod;
@@ -950,7 +1011,15 @@ class App {
           render();
         } })), h('button.pill', { html: icon('plus') + '<span>Your own</span>', onclick: () => { this.update((x) => { (x.countdowns ||= []).push({ id: uid(), name: '', emoji: '⭐', date: '', yearly: false }); }); render(); } })));
 
-      sh.body.append(appearanceSec, screenSec, rotSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, cdSec, clockSec, dimSec, backupSec, aboutSec);
+      const gl = sc.glow || {};
+      const updGl = (fn) => { this.updateScreen((x) => { x.glow = { ...(x.glow || {}) }; fn(x.glow); }); render(); };
+      const glowSec = section('Now playing on the clock (this iPad)',
+        row('Glow with the music', toggle(!!gl.on, (v) => updGl((g) => { g.on = v; })), 'While music plays, the clock gets a slow, breathing glow in the colours of the album art'),
+        gl.on ? row('Player', entitySelect(this.store, gl.player && gl.player !== 'auto' ? gl.player : '', [['Media players', ['media_player']]], (v) => updGl((g) => { g.player = v || 'auto'; }), 'Whichever is playing'), '') : null,
+        gl.on ? row('Show the song', toggle(gl.note !== false, (v) => updGl((g) => { g.note = v; })), 'A small line at the bottom: ♪ Song · Artist') : null,
+        gl.on ? row('Glow', segmented([{ v: null, label: 'Soft' }, { v: 'strong', label: 'Strong' }], gl.strength ?? null, (v) => updGl((g) => { g.strength = v; }))) : null);
+
+      sh.body.append(appearanceSec, screenSec, rotSec, glowSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, cdSec, clockSec, dimSec, backupSec, aboutSec);
       if (opts.section && !this._secScrolled) { this._secScrolled = true; requestAnimationFrame(() => [...sh.body.querySelectorAll('.set-title')].find((t) => t.textContent === opts.section)?.scrollIntoView({ block: 'start' })); }
     };
     this._secScrolled = false;

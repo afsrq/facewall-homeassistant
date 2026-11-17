@@ -1244,3 +1244,19 @@ body[data-look="retro"] .side-item:not(.on), body[data-look="retro"] .side-btn {
   .side-time { font-size: 27cqw; }
 }
 body[data-look="retro"] .side-item.on .side-ic { color: #031003; }
+
+/* ------------------------------------------------------------ now-playing glow on the clock */
+.np-glow { position: absolute; inset: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity 2.5s ease; mix-blend-mode: screen; }
+.np-glow.on { opacity: 0.8; }
+.np-glow.on.strong { opacity: 1; }
+.np-glow.on.strong > div { inset: -10%; }
+.np-glow > div { position: absolute; inset: -20%; transition: background 3s ease; }
+.np-glow .np-a { background: radial-gradient(45% 55% at 0% 50%, var(--np1, #ff9f0a), transparent 70%), radial-gradient(40% 50% at 100% 100%, var(--np1, #ff9f0a), transparent 70%); animation: np-breathe 7s ease-in-out infinite; }
+.np-glow .np-b { background: radial-gradient(45% 55% at 100% 30%, var(--np2, #5e5ce6), transparent 70%), radial-gradient(40% 50% at 10% 0%, var(--np2, #5e5ce6), transparent 70%); animation: np-breathe 9s ease-in-out -3s infinite; }
+@keyframes np-breathe { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+.np-note { position: absolute; left: 50%; bottom: calc(26px + var(--sa-bottom, env(safe-area-inset-bottom))); transform: translateX(-50%) translateY(8px); z-index: 3; pointer-events: none;
+  max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 18px; border-radius: 99px;
+  font-size: clamp(14px, 1.8vw, 20px); font-weight: 600; color: #fff; background: rgba(0,0,0,0.35); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  opacity: 0; transition: opacity 1.5s, transform 1.5s; }
+.np-note.on { opacity: 0.9; transform: translateX(-50%); }
+@media (prefers-reduced-motion: reduce) { .np-glow > div { animation: none; } }

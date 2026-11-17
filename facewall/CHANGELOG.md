@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.43.0
+- **Now playing on the clock** (Settings → Now playing on the clock, per iPad): while music plays, the clock face gets a slow, breathing glow around its edges in colours taken from the album art, plus a small "♪ Song · Artist" line at the bottom. Follow whichever player is playing or pick one; Soft or Strong; the song line can be turned off. It fades away when the music stops.
+
 ## 1.42.0
 - **Sidebar with time and info**: pages with sections now get a full sidebar on the left: a big clock, the date, then readings such as the room's temperature (indoors) and the weather (outdoors). Below that is the section menu, where each item shows a live summary: "3 on", "1 heating", or "1 alert" in red for an open door, an unlocked lock or a triggered alarm. At the bottom are the connection status and buttons for edit, clock and settings.
 - Choose what the sidebar shows (up to four readings: temperatures, weather, countdowns, any sensor, with your own labels), or switch back to the compact icon menu: Edit layout → Sections → Menu.
