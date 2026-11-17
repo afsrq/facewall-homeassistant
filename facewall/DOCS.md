@@ -153,6 +153,9 @@ Needs the **Music Assistant** integration in Home Assistant (2024.12 or newer). 
 ## TV remote
 Add the TV's **media player** as a tile, then edit it → Style → **TV remote**. Swipe on the round pad (or tap its arrows) to move, tap the middle for OK. Back, Home, play/pause, volume, power and **Apps** (the TV's source list) sit underneath. Facewall works out the brand from Home Assistant (Apple TV, Roku, Android TV Remote, Android TV/Fire TV over ADB, LG webOS, Samsung, Sony Bravia, Philips) and finds the remote entity on the same device. If the arrows don't work, choose the remote in the tile's settings. Hold the tile for the full now-playing sheet.
 
+## Rotate faces
+Settings → **Rotate faces (this iPad)** → Take turns. Tick the faces to include (add faces first: hold the clock → Add face), then choose how often to change and whether to pick at random or in turn. Picking a face from the clock carries on the rotation from that face.
+
 ## Time as text on analog faces
 Hold the clock → Customize on Classic, Numerals, Roman, Gradient, Starburst, Atomic or Confetti → **Time as text**. Choose a corner, Above or Below (the dial shrinks to make room), then the font (same list as the page header), size, weight, colour and whether to show the date underneath.
 

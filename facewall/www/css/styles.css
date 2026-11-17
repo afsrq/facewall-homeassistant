@@ -1131,3 +1131,11 @@ body[data-look="bold"] .rail-btn.on .rail-ic { color: #fff; }
 [data-look-preview="bold"] .look-mini i.on { background: var(--t-accent); border-color: var(--t-accent); }
 .look-sub { padding: 2px 0 6px; }
 body[data-look="glass"].theme-light .light.on:not(.tc-on), body[data-look="glass"].theme-light .light.on:not(.tc-on) .tile-ic { color: var(--t-text); }
+/* Rotate faces */
+.face-page { transition: opacity 0.45s ease; }
+.face-page.face-swap { opacity: 0; }
+.rot-faces { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 10px; }
+.rot-face { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px 8px 10px; border-radius: 99px; background: rgba(127,127,127,0.15); font-weight: 600; font-size: 14px; }
+.rot-face .rot-check { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; border: 1.5px solid rgba(127,127,127,0.5); color: transparent; }
+.rot-face.on { background: rgba(10,132,255,0.16); }
+.rot-face.on .rot-check { background: #0a84ff; border-color: #0a84ff; color: #fff; }

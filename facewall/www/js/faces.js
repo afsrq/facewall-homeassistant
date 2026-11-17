@@ -885,8 +885,117 @@ const confetti = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, starburst, atomic, confetti };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'flip', 'lamp'];
+// ------------------------------------------------------------------ exact word clock
+// "It is one twenty one in the afternoon": every word sits in the grid in reading order; the grid is
+// packed to suit the screen's shape and filled with spare letters.
+const HOUR_W = ['twelve', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven'];
+const TEEN_W = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS_W = { 2: 'twenty', 3: 'thirty', 4: 'forty', 5: 'fifty' };
+const ONES_W = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+const EXACT_SEQ = [
+  'it', 'is',
+  ...['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'].map((w) => 'h:' + w),
+  'm:oh', ...TEEN_W.map((w) => 'm:' + w), ...Object.values(TENS_W).map((w) => 'm:' + w),
+  ...ONES_W.slice(1).map((w) => 'o:' + w), 'oclock',
+  'in', 'at', 'the', 'morning', 'afternoon', 'evening', 'night',
+];
+const wordText = (k) => (k === 'oclock' ? 'OCLOCK' : k.split(':').pop().toUpperCase());
+/** The words lit for a time, e.g. 13:21 → it is one twenty one in the afternoon. */
+export function exactWords(now) {
+  const H = now.getHours(), M = now.getMinutes();
+  const out = ['it', 'is', 'h:' + HOUR_W[H % 12]];
+  if (M === 0) out.push('oclock');
+  else if (M < 10) out.push('m:oh', 'o:' + ONES_W[M]);
+  else if (M < 20) out.push('m:' + TEEN_W[M - 10]);
+  else { out.push('m:' + TENS_W[Math.floor(M / 10)]); if (M % 10) out.push('o:' + ONES_W[M % 10]); }
+  if (H >= 5 && H < 12) out.push('in', 'the', 'morning');
+  else if (H >= 12 && H < 17) out.push('in', 'the', 'afternoon');
+  else if (H >= 17 && H < 21) out.push('in', 'the', 'evening');
+  else out.push('at', 'night');
+  return out;
+}
+/** Pack the words into rows `cols` wide (one spare letter between words), spreading the slack. */
+function packWords(cols) {
+  const rows = [];
+  let cur = [];
+  const len = (r) => r.reduce((n, k) => n + wordText(k).length, 0) + Math.max(0, r.length - 1);
+  for (const k of EXACT_SEQ) {
+    if (cur.length && len([...cur, k]) > cols) { rows.push(cur); cur = []; }
+    cur.push(k);
+  }
+  if (cur.length) rows.push(cur);
+  return rows;
+}
+function exactGrid(w, h) {
+  const target = (w * 0.88) / (h * 0.84);
+  let best = null;
+  for (let c = 10; c <= 26; c++) {
+    const rows = packWords(c);
+    if (rows.some((r) => r.reduce((n, k) => n + wordText(k).length, 0) + r.length - 1 > c)) continue;
+    const score = Math.abs(Math.log(c / rows.length / target));
+    if (!best || score < best.score) best = { c, rows, score };
+  }
+  // Lay out each row: words spread out with spare letters between and around them.
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const FILL = 'ABCDEFGHIJKLMNOPRSTUVWXYZ';
+  const cells = [], where = {};
+  best.rows.forEach((r, ri) => {
+    const used = r.reduce((n, k) => n + wordText(k).length, 0);
+    const gaps = r.length + 1, spare = best.c - used;
+    const gapLen = Array.from({ length: gaps }, (_, i) => (i === 0 || i === gaps - 1 ? 0 : 1));
+    let left = spare - (r.length - 1);
+    for (let i = 0; left > 0; i = (i + 1) % gaps) { gapLen[i]++; left--; }
+    const row = [];
+    r.forEach((k, i) => {
+      for (let g = 0; g < gapLen[i]; g++) row.push(FILL[Math.floor(rnd() * FILL.length)]);
+      where[k] = [ri, row.length, wordText(k).length];
+      row.push(...wordText(k));
+    });
+    for (let g = 0; g < gapLen[gaps - 1]; g++) row.push(FILL[Math.floor(rnd() * FILL.length)]);
+    cells.push(row);
+  });
+  return { cols: best.c, cells, where };
+}
+const wordexact = {
+  name: 'Word clock: exact', blurb: 'The exact time in words: “It is one twenty one in the afternoon.”', category: 'Words',
+  options: wordclock.options.filter((x) => x.key !== 'dots'),
+  defaults: { color: 'white', bg: 'black', font: 'sans' },
+  ink: wordclock.ink,
+  create(root, o, { w, h }) {
+    const bg = pick(WORD_BG, o.bg);
+    const lit = o.color === 'ink' ? '#2d2418' : pick(DIGI, o.color).color;
+    const svg = makeSvg(root, w, h);
+    el('rect', { width: w, height: h, fill: bg.color }, svg);
+    const id = 'we' + ++uid;
+    const f = el('filter', { id, x: '-50%', y: '-50%', width: '200%', height: '200%' }, el('defs', {}, svg));
+    el('feGaussianBlur', { stdDeviation: Math.min(w, h) * 0.005, result: 'b' }, f);
+    const mg = el('feMerge', {}, f); el('feMergeNode', { in: 'b' }, mg); el('feMergeNode', { in: 'SourceGraphic' }, mg);
+    const g = exactGrid(w, h);
+    const rows = g.cells.length;
+    const cell = Math.min((w * 0.88) / g.cols, (h * 0.84) / rows);
+    const x0 = (w - cell * g.cols) / 2 + cell / 2, y0 = (h - cell * rows) / 2 + cell / 2;
+    const family = FONT[o.font] || FONT.sans;
+    const letters = g.cells.map((r, ri) => r.map((ch, ci) => el('text', { x: x0 + ci * cell, y: y0 + ri * cell + cell * 0.32, 'text-anchor': 'middle', 'font-family': family, 'font-weight': 600, 'font-size': cell * 0.56, fill: bg.dim }, svg, ch)));
+    let last = '';
+    return {
+      update(now) {
+        const key = `${now.getHours()}:${now.getMinutes()}`;
+        if (key === last) return; last = key;
+        const on = new Set();
+        for (const k of exactWords(now)) { const [r, c, n] = g.where[k]; for (let i = 0; i < n; i++) on.add(`${r},${c + i}`); }
+        letters.forEach((row, ri) => row.forEach((t, ci) => {
+          const yes = on.has(`${ri},${ci}`);
+          t.setAttribute('fill', yes ? lit : bg.dim);
+          if (yes && !bg.light) t.setAttribute('filter', `url(#${id})`); else t.removeAttribute('filter');
+        }));
+      },
+    };
+  },
+};
+
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };

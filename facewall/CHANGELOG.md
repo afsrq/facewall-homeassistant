@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.37.0
+- **Rotate faces** (Settings → Rotate faces, per iPad): tick the clock faces you like and the iPad takes turns showing them, at random or in turn, every 5 or 15 minutes, hourly, every 6 hours, or each time the clock comes back from your pages. Faces fade into each other.
+- **Word clock: exact**: a new word clock that lights up the exact time in words, such as "It is one twenty one in the afternoon", "It is six fifty seven in the evening", "It is ten fifty eight in the morning" or "It is twelve oh five at night". The letter grid packs itself to suit the screen, upright or sideways. The original "half past ten" word clock is still there.
+
 ## 1.36.0
 - **Fit to screen** (on by default): pages stretch or shrink their rows so the tiles you placed exactly fill the screen, with no overflow off the bottom in landscape and no empty gap in portrait. Rotating the iPad re-fits straight away, keeping your arrangement and proportions. Very long pages still scroll rather than squashing tiles too small. Turn it off per page in Settings → Grid to go back to a fixed number of rows.
 

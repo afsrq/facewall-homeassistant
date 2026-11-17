@@ -299,6 +299,8 @@ class App {
     this.onPage();
   }
   onPage() {
+    if (this.page === 0 && this.lastPage > 0 && this.rotation()?.every === 0) this.rotateFace();
+    this.lastPage = this.page;
     [...this.dots.children].forEach((d, i) => d.classList.toggle('on', i === this.page));
     this.dots.classList.toggle('show', this.page >= 1);
     if (this.face) this.face.paused = this.page !== 0;
@@ -310,8 +312,38 @@ class App {
   }
 
   // ------------------------------------------------------------------ live face
+  /** Faces this screen takes turns showing (Settings → Rotate faces), or null. */
+  rotation() {
+    const r = this.screen.rotate;
+    if (!r?.on) return null;
+    const ids = (r.faces || []).filter((id) => this.settings.faces.some((f) => f.id === id));
+    return ids.length >= 2 ? { ...r, ids } : null;
+  }
+  /** Move on to the next face in the rotation (random, or in order), with a soft fade. */
+  rotateFace() {
+    const r = this.rotation();
+    if (!r) return;
+    const cur = this.activeFace()?.id;
+    let next;
+    if (r.order === 'turn') next = r.ids[(r.ids.indexOf(cur) + 1) % r.ids.length];
+    else { const others = r.ids.filter((x) => x !== cur); next = others[Math.floor(Math.random() * others.length)]; }
+    this.rotId = next; this.rotAt = Date.now();
+    if (this.page === 0 && !this.sleeping) {
+      this.facePage.classList.add('face-swap');
+      setTimeout(() => { this.renderFace(); requestAnimationFrame(() => this.facePage.classList.remove('face-swap')); }, 450);
+    } else this.renderFace();
+  }
+  rotateCheck(idle) {
+    const r = this.rotation();
+    if (!r || this.picker) return;
+    if (!this.rotAt) this.rotAt = Date.now();
+    const every = r.every ?? 15;
+    if (every > 0 && this.page === 0 && Date.now() - this.rotAt > every * 60000) this.rotateFace();
+  }
   activeFace() {
     const s = this.settings;
+    const rot = this.rotation();
+    if (rot) { if (!rot.ids.includes(this.rotId)) this.rotId = rot.ids[Math.floor(Math.random() * rot.ids.length)]; return s.faces.find((f) => f.id === this.rotId); }
     const own = this.screen.faceId;
     return s.faces.find((f) => f.id === own) || s.faces.find((f) => f.id === s.active) || s.faces[0];
   }
@@ -456,6 +488,7 @@ class App {
   chooseFace(id, card) {
     // This screen remembers its own face; it also becomes the default for screens that haven't picked one.
     this.update((s) => { s.active = id; s.screens ||= {}; const sc = s.screens[this.screenId] ||= {}; sc.faceId = id; sc.seen = Date.now(); });
+    if (this.rotation()) { this.rotId = id; this.rotAt = Date.now(); }
     this.renderFace();
     // Zoom a copy of the chosen card up to full screen, then reveal the live face underneath.
     const r = card.getBoundingClientRect();
@@ -839,7 +872,21 @@ class App {
         pfStatus.textContent = r.files?.length ? `${r.files.length} photo${r.files.length === 1 ? '' : 's'} found (sub-folders too).` : `No photos found there. ${roots ? 'Start with ' + roots + ' e.g. media/photos. In Home Assistant, upload to Media → My media.' : 'Facewall can’t see any photo folders.'}`;
       });
 
-      sh.body.append(appearanceSec, screenSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, backupSec, aboutSec);
+      // ---------------- Rotate faces (this iPad)
+      const rot = sc.rotate || {};
+      const updRot = (fn) => { this.updateScreen((x) => { x.rotate = { ...(x.rotate || {}) }; fn(x.rotate); }); this.rotId = null; this.renderFace(); render(); };
+      const inRot = new Set(rot.faces || []);
+      const rotLabel = (f) => { const same = s.faces.filter((x) => x.type === f.type); return (FACES[f.type]?.name || f.type) + (same.length > 1 ? ' ' + (same.indexOf(f) + 1) : ''); };
+      const rotSec = section('Rotate faces (this iPad)',
+        row('Take turns', toggle(!!rot.on, (v) => updRot((r) => { r.on = v; if (v && !(r.faces || []).length) r.faces = s.faces.map((f) => f.id); })), 'Show a different clock face now and then, from the ones you tick below'),
+        rot.on ? h('div.rot-faces', {}, ...s.faces.map((f) => h('button.rot-face' + (inRot.has(f.id) ? '.on' : ''), { onclick: () => updRot((r) => { const set = new Set(r.faces || []); if (set.has(f.id)) set.delete(f.id); else set.add(f.id); r.faces = s.faces.map((x) => x.id).filter((x) => set.has(x)); }) },
+          h('span.rot-check', { html: icon('check') }), h('span', { text: rotLabel(f) })))) : null,
+        rot.on && inRot.size < 2 ? h('div.row-sub', { text: 'Tick at least two faces. Add more faces from the clock: hold it → Add face.' }) : null,
+        rot.on ? row('Change', segmented([{ v: 0, label: 'Each time it comes back' }, { v: 5, label: '5 min' }, { v: 15, label: '15 min' }, { v: 60, label: 'Hourly' }, { v: 360, label: '6 hours' }], rot.every ?? 15, (v) => updRot((r) => { r.every = v; }))) : null,
+        rot.on ? row('Order', segmented([{ v: 'shuffle', label: 'Random' }, { v: 'turn', label: 'In turn' }], rot.order || 'shuffle', (v) => updRot((r) => { r.order = v; }))) : null,
+        rot.on ? row('Try it', h('button.pill.sm.primary', { text: 'Next face', onclick: () => { sh.close(); this.goTo(0, true); this.rotateFace(); } })) : null);
+
+      sh.body.append(appearanceSec, screenSec, rotSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, backupSec, aboutSec);
     };
     render();
   }
@@ -1289,6 +1336,7 @@ class App {
   }
   // ------------------------------------------------------------------ photo frame
   frameCheck(idle, anyOverlay) {
+    this.rotateCheck(idle);
     const pf = this.screen.photos;
     if (!pf?.on || this.frame || this.sleeping || this.bell || anyOverlay || this.page !== 0) return;
     if (idle >= Math.max(20, (pf.after ?? 5) * 60)) this.startFrame();
