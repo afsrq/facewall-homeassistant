@@ -334,6 +334,7 @@ class App {
     document.body.classList.toggle('on-clock', this.page === 0);
     if (this.navPrev) { this.navPrev.hidden = this.page === 0; this.navNext.hidden = this.page >= this.pageCount - 1; }
     document.body.classList.toggle('rail-page', !!this.currentRoom?.root.classList.contains('has-rail'));
+    document.body.classList.toggle('panel-page', !!this.currentRoom?.root.classList.contains('has-panel'));
     setTimeout(() => this.syncHaChrome(), 50);
     this.rooms?.forEach((r, i) => { if (r.editing && i + 1 !== this.page) r.setEditing(false); });
   }
@@ -1207,6 +1208,15 @@ class App {
       sh.body.replaceChildren(
         h('div.about.small', { text: 'Sections put a menu down the left side of this page. Each one has its own tiles, so one room can have Lights, Climate and Media screens. Tap an icon to change it.' }),
         h('div.ent-list', {}, ...rows),
+        row('Menu', segmented([{ v: 'panel', label: 'Sidebar with time & info' }, { v: 'icons', label: 'Icons only' }], pg.sidebar || (secs.length ? 'panel' : 'icons'), (v) => upd((p) => { p.sidebar = v; })), 'The sidebar shows the time, date and a few readings above the menu, with a summary for each section (3 on, 1 heating, 1 alert)'),
+        (pg.sidebar || (secs.length ? 'panel' : 'icons')) === 'panel' ? h('div', {},
+          h('div.set-sub', { text: 'Sidebar shows' }),
+          ...(pg.sideInfo || []).map((x, i) => h('div.sec-row', {},
+            entitySelect(this.store, x.id, INFO_GROUPS, (v) => upd((p) => { if (v) p.sideInfo[i].id = v; })),
+            h('input.text-in.name-in', { value: x.label || '', placeholder: 'Label (e.g. indoors)', onchange: (e) => upd((p) => { p.sideInfo[i].label = e.target.value.trim() || undefined; }) }),
+            h('button.icon-btn.sm.danger', { html: icon('trash'), 'aria-label': 'Remove', onclick: () => upd((p) => { p.sideInfo.splice(i, 1); if (!p.sideInfo.length) delete p.sideInfo; }) }))),
+          !(pg.sideInfo || []).length ? h('div.row-sub', { text: 'Automatic: the room’s temperature (indoors) and the weather (outdoors).' }) : null,
+          (pg.sideInfo || []).length < 4 ? h('button.pill.sm', { html: icon('plus') + '<span>Add a reading</span>', onclick: () => upd((p) => { const auto = this.roomFor(base)?.sideInfoIds() || []; p.sideInfo = p.sideInfo?.length ? [...p.sideInfo, { id: auto[0]?.id || this.store.list(['sensor'])[0]?.entity_id }] : [...auto.map((a) => ({ ...a })), ...(auto.length ? [] : [{ id: this.store.list(['sensor'])[0]?.entity_id }])]; }) }) : null) : null,
         h('div.set-sub', { text: area ? `Add a section (filled from ${area})` : 'Add a section (filled from the whole house)' }),
         h('div.add-page-row', {},
           ...SECTION_PRESETS.filter((p) => !used.has(p.name)).map((p) => h('button.pill', { html: icon(p.icon) + `<span>${p.name}</span>`, onclick: () => add(p) })),

@@ -320,16 +320,109 @@ export class HomePage {
   get vid() { return this.view && this.page?.sections?.some((x) => x.id === this.view) ? `${this.pageId}~${this.view}` : this.pageId; }
   get items() { return pageOf(this.store.settings, this.vid)?.entities || []; }
   showSection(id) { this.view = id || null; this.grid && (this.grid.scrollTop = 0); this.render(); }
+  /** Sidebar: 'panel' (time, date, info and a menu with live summaries) or 'icons' (the compact rail). */
+  get panelMode() { const pg = this.page; return !!pg && (pg.sidebar === 'panel' || (pg.sidebar == null && (pg.sections || []).length > 0)); }
+  /** One line about a set of tiles: alerts first, then what's on, heating or playing. */
+  summaryFor(items) {
+    const st = this.store;
+    let lights = 0, heat = 0, cool = 0, playing = 0, alerts = 0;
+    for (const it of items || []) {
+      const s = st.get(it.id); if (!s) continue;
+      const d = domainOf(it.id), a = s.attributes || {};
+      if (['light', 'switch', 'fan', 'input_boolean'].includes(d) && s.state === 'on') lights++;
+      if (d === 'climate') { if (a.hvac_action === 'heating') heat++; else if (a.hvac_action === 'cooling') cool++; }
+      if (d === 'media_player' && s.state === 'playing') playing++;
+      if (d === 'lock' && ['unlocked', 'open', 'jammed'].includes(s.state)) alerts++;
+      if (d === 'alarm_control_panel' && s.state === 'triggered') alerts++;
+      if (d === 'binary_sensor' && s.state === 'on' && ['door', 'window', 'garage_door', 'smoke', 'moisture', 'gas', 'safety', 'problem'].includes(a.device_class)) alerts++;
+      if (d === 'cover' && a.device_class === 'garage' && s.state === 'open') alerts++;
+    }
+    if (alerts) return { text: `${alerts} alert${alerts > 1 ? 's' : ''}`, cls: 'alert' };
+    if (heat) return { text: `${heat} heating` };
+    if (cool) return { text: `${cool} cooling` };
+    if (lights) return { text: `${lights} on` };
+    if (playing) return { text: 'Playing' };
+    return { text: '' };
+  }
+  /** What the sidebar shows under the date: the page's own picks, or indoor temperature and the weather. */
+  sideInfoIds() {
+    const pg = this.page, st = this.store;
+    if (pg?.sideInfo?.length) return pg.sideInfo.filter((x) => st.get(x.id));
+    const out = [];
+    const all = [...(pg?.entities || []), ...(pg?.sections || []).flatMap((x) => x.entities || [])].map((e) => e.id);
+    const area = pg?.area || [...new Set(Object.values(st.areas || {}))].find((a) => a.toLowerCase() === (pg?.name || '').toLowerCase());
+    const temp = all.find((id) => st.get(id)?.attributes?.device_class === 'temperature')
+      || (area && st.list(['sensor']).find((x) => x.attributes?.device_class === 'temperature' && st.area(x.entity_id) === area)?.entity_id)
+      || all.find((id) => domainOf(id) === 'climate' && st.get(id)?.attributes?.current_temperature != null);
+    if (temp) out.push({ id: temp, label: 'indoors' });
+    const wx = st.settings?.header?.weather || st.list(['weather'])[0]?.entity_id;
+    if (wx && st.get(wx)) out.push({ id: wx, label: 'outdoors' });
+    return out;
+  }
   rail() {
     const pg = this.page, secs = pg?.sections || [];
-    if (!secs.length) return null;
+    const panel = this.panelMode;
+    if (!secs.length && !panel) return null;
     const cur = this.vid === this.pageId ? null : this.view;
-    const btn = (id, name, ic) => h('button.rail-btn' + (cur === id ? '.on' : ''), { 'aria-label': name, onclick: () => this.showSection(id) },
-      h('span.rail-ic', { html: icon(ic || 'grid') }), h('span.rail-name', { text: name }));
-    return h('nav.home-rail', {},
-      btn(null, pg.mainName || 'All', pg.mainIcon || 'home'),
-      ...secs.map((x) => btn(x.id, x.name, x.icon)),
-      this.editing ? h('button.rail-btn.rail-add', { 'aria-label': 'Sections', onclick: () => this.app.sectionsEditor(this.pageId) }, h('span.rail-ic', { html: icon('sliders') }), h('span.rail-name', { text: 'Sections' })) : null);
+    if (!panel) {
+      const btn = (id, name, ic) => h('button.rail-btn' + (cur === id ? '.on' : ''), { 'aria-label': name, onclick: () => this.showSection(id) },
+        h('span.rail-ic', { html: icon(ic || 'grid') }), h('span.rail-name', { text: name }));
+      return h('nav.home-rail', {},
+        btn(null, pg.mainName || 'All', pg.mainIcon || 'home'),
+        ...secs.map((x) => btn(x.id, x.name, x.icon)),
+        this.editing ? h('button.rail-btn.rail-add', { 'aria-label': 'Sections', onclick: () => this.app.sectionsEditor(this.pageId) }, h('span.rail-ic', { html: icon('sliders') }), h('span.rail-name', { text: 'Sections' })) : null);
+    }
+    // The full sidebar.
+    this.side = { time: h('div.side-time'), date: h('div.side-date'), info: h('div.side-info'), sums: [] };
+    const item = (id, name, ic, items) => {
+      const sum = h('span.side-sum');
+      this.side.sums.push([sum, items]);
+      return h('button.side-item' + (cur === id ? '.on' : ''), { onclick: () => this.showSection(id) },
+        h('span.side-ic', { html: icon(ic || 'grid') }), h('span.side-name', { text: name }), sum);
+    };
+    const menu = secs.length ? h('div.side-menu', {},
+      item(null, pg.mainName || 'All', pg.mainIcon || 'home', pg.entities),
+      ...secs.map((x) => item(x.id, x.name, x.icon, x.entities))) : h('div.side-menu');
+    this.side.status = h('span.side-status');
+    const nav = h('nav.home-side', {},
+      h('div.side-page', { text: this.isHome ? '' : pg.name || '' }),
+      this.side.time, this.side.date, this.side.info,
+      h('div.side-spacer'),
+      menu,
+      h('div.side-foot', {}, this.side.status,
+        h('button.side-btn', { html: icon('grid'), 'aria-label': 'Edit layout', onclick: () => this.setEditing(!this.editing) }),
+        h('button.side-btn', { html: icon('clock'), 'aria-label': 'Clock', onclick: () => this.app.goTo(0) }),
+        h('button.side-btn', { html: icon('sliders'), 'aria-label': 'Settings', onclick: () => this.app.openSettings({ page: this.pageId }) })));
+    press(this.side.info, { onLong: () => this.app.sectionsEditor(this.pageId) });
+    this.updateSide();
+    return nav;
+  }
+  updateSide() {
+    const sd = this.side;
+    if (!sd || !sd.time.isConnected && !this.root.contains(sd.time)) return;
+    const st = this.store, now = new Date(), use24h = st.settings?.general?.use24h;
+    const t = now.toLocaleTimeString(undefined, { hour: use24h ? '2-digit' : 'numeric', minute: '2-digit', hour12: !use24h }).replace(/\s?[AP]\.?M\.?$/i, '');
+    if (sd.time.textContent !== t) sd.time.textContent = t;
+    const d = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    if (sd.date.textContent !== d) sd.date.textContent = d;
+    const rows = this.sideInfoIds().map(({ id, label }) => {
+      const s = st.get(id), a = s?.attributes || {}, dm = domainOf(id);
+      let val, ic, lab = label;
+      if (dm === 'weather') { val = a.temperature != null ? `${fmtNum(a.temperature)} ${a.temperature_unit || '°'}` : wxLabel(s.state); ic = iconHtml(st, { icon: wxIcon(s.state, st.get('sun.sun')?.state === 'below_horizon') }, 'sun'); lab ??= wxLabel(s.state).toLowerCase(); }
+      else if (dm === 'climate') { val = a.current_temperature != null ? `${fmtNum(a.current_temperature)} °` : cap(s.state); ic = icon('thermo'); }
+      else if (dm === 'countdown') { val = a.text; ic = `<span class="side-emoji">${a.emoji || '⏳'}</span>`; lab ??= `to ${a.friendly_name}`; }
+      else { val = formatState(st, id); ic = a.device_class === 'temperature' ? icon('thermo') : iconHtml(st, { id }, 'gauge'); }
+      return [ic, val, lab ?? st.name(id)];
+    });
+    const key = JSON.stringify(rows);
+    if (key !== sd.infoKey) {
+      sd.infoKey = key;
+      sd.info.replaceChildren(...rows.map(([ic, val, lab]) => h('div.side-row', {}, h('span.side-row-ic', { html: ic }), h('div', {}, h('div.side-val', { text: val }), h('div.side-lab', { text: lab })))));
+    }
+    for (const [el, items] of sd.sums) { const r = this.summaryFor(items); el.textContent = r.text; el.className = 'side-sum' + (r.cls ? ' ' + r.cls : ''); }
+    const conn = st.status?.connected !== false;
+    sd.status.textContent = st.mode === 'demo' ? 'Demo' : conn ? 'Connected' : 'Reconnecting…';
+    sd.status.classList.toggle('off', !conn && st.mode !== 'demo');
   }
   /** The first page called "Home" keeps the greeting as its title; room pages show their name. */
   get isHome() { return !this.page || /^home$/i.test(this.page.name || ''); }
@@ -341,6 +434,7 @@ export class HomePage {
     this.cards.forEach((c) => c.destroy?.());
     this.root.innerHTML = '';
     this.cards = [];
+    this.side = null;
     this.greet = h('div.greet');
     this.date = h('div.date');
     this.time = h('div.home-time');
@@ -361,8 +455,9 @@ export class HomePage {
     this.fx ||= new Fx(this.fxCanvas, () => this.fxNow, () => this.store.settings?.general?.fx?.amount || 'some');
     this.fxNow = fxMode(this.store, this.store.settings);
     const rail = this.rail();
-    this.root.classList.toggle('has-rail', !!rail);
-    if (this.app.currentRoom === this) document.body.classList.toggle('rail-page', !!rail);
+    this.root.classList.toggle('has-panel', !!rail && this.panelMode);
+    this.root.classList.toggle('has-rail', !!rail && !this.panelMode);
+    if (this.app.currentRoom === this) { document.body.classList.toggle('rail-page', !!rail && !this.panelMode); document.body.classList.toggle('panel-page', !!rail && this.panelMode); }
     this.root.append(h('div.home-bg'), h('div.home-wall'), this.fxCanvas, head, this.grid, ...(rail ? [rail] : []));
     this.fx.start();
     this.layout();
@@ -425,7 +520,7 @@ export class HomePage {
     // The header is the height you chose, or taller when its text needs it (the tiles make room).
     const base = Math.round(H * (headerOf(this.store.settings).height || 13) / 100);
     const titles = this.root.querySelector('.head-titles');
-    const headPx = Math.max(base, titles ? Math.ceil(titles.scrollHeight) + 14 : 0);
+    const headPx = this.root.classList.contains('has-panel') ? Math.round(pad * 0.6) : Math.max(base, titles ? Math.ceil(titles.scrollHeight) + 14 : 0);
     const head = this.root.querySelector('.home-head');
     if (head) head.style.height = `calc(${headPx}px + var(--sa-top, env(safe-area-inset-top)))`;
     const headH = headPx + 8;
@@ -439,6 +534,7 @@ export class HomePage {
     this.root.style.setProperty('--subcols', cols * SUB);
     this.root.style.setProperty('--gap', gap + 'px');
     this.root.style.setProperty('--subrow-h', (unitH / SUB).toFixed(3) + 'px');
+    if (!changed) this.fit();
     return changed;
   }
 
@@ -535,6 +631,7 @@ export class HomePage {
 
   tick() {
     if (this.fx) this.fxNow = fxMode(this.store, this.store.settings);
+    if (this.side) this.updateSide();
     if ((this._fitN = (this._fitN || 0) + 1) % 2 === 0) this.fit(); // tiles that show/hide on their own
     const now = new Date();
     if (!this.greet) return;

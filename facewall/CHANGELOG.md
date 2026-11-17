@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.42.0
+- **Sidebar with time and info**: pages with sections now get a full sidebar on the left: a big clock, the date, then readings such as the room's temperature (indoors) and the weather (outdoors). Below that is the section menu, where each item shows a live summary: "3 on", "1 heating", or "1 alert" in red for an open door, an unlocked lock or a triggered alarm. At the bottom are the connection status and buttons for edit, clock and settings.
+- Choose what the sidebar shows (up to four readings: temperatures, weather, countdowns, any sensor, with your own labels), or switch back to the compact icon menu: Edit layout → Sections → Menu.
+- Fixed: Fit to screen could be undone a moment after a page appeared, leaving the bottom row cut off.
+
 ## 1.41.0
 - **On this day** in the photo frame: when you have photos taken on today's date in earlier years, the frame shows those, labelled "3 years ago today · 2023". Otherwise it shows all your photos as usual.
 - **When it was taken**: optionally show each photo's month and year above the time.
