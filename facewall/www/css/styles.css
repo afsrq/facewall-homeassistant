@@ -1178,3 +1178,16 @@ body[data-look="retro"] .rail-btn.on .rail-ic { color: #031003; }
 /* Time-of-day colours: a warm multiply tint above everything but the sheets */
 .tod-tint { position: fixed; inset: 0; pointer-events: none; z-index: 39; mix-blend-mode: multiply; opacity: 0; transition: opacity 3s, background-color 3s; }
 body.on-clock .tod-tint.pages-only { opacity: 0 !important; }
+/* Countdown tile + settings */
+.card.countdown { align-items: center; justify-content: center; text-align: center; gap: 2cqmin; }
+.cd-emoji { font-size: min(22cqmin, 18cqh); line-height: 1; }
+.cd-main { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.cd-num { font-size: min(36cqmin, 34cqh); font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.cd-unit { font-size: min(8cqmin, 9cqh); font-weight: 600; opacity: 0.75; margin-top: 1cqmin; }
+.cd-name { font-size: min(9.5cqmin, 10cqh); font-weight: 700; max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card.countdown.today { background: linear-gradient(135deg, #ff9f0a, #ff375f); color: #fff; }
+.cd-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.cd-emoji-in { width: 52px; text-align: center; font-size: 20px; }
+.cd-name-in { flex: 1; min-width: 120px; text-align: left; }
+.cd-date-in { width: 150px; } .cd-time-in { width: 110px; }
+.cd-yearly { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; opacity: 0.85; }

@@ -67,6 +67,7 @@ export function kindFor(item) {
   if (item.id === ALL_OFF) return 'alloff';
   if (item.id === SCENES) return 'scenes';
   const d = domainOf(item.id);
+  if (d === 'countdown') return 'countdown';
   if (d === 'climate') return styleOf(item) === 'dial' ? 'thermostat' : 'climate';
   if (d === 'person' || d === 'device_tracker') return 'person';
   if (d === 'weather') return 'weather';
@@ -89,7 +90,7 @@ export function kindFor(item) {
 /** [width in columns, height in rows] for a tile (its own size, or the default for its kind). */
 export function sizeOf(item) {
   const k = kindFor(item);
-  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'remote' ? [1.5, 2] : k === 'music' ? [2, 1.5] : k === 'vacuum' || k === 'alarm' ? [2, 1] : k === 'scenes' ? [3, 0.6] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
+  const def = k === 'thermostat' ? [1.5, 1.5] : k === 'remote' ? [1.5, 2] : k === 'music' ? [2, 1.5] : k === 'vacuum' || k === 'alarm' ? [2, 1] : k === 'scenes' ? [3, 0.6] : k === 'countdown' ? [1, 1] : ['climate', 'weather', 'media', 'camera', 'graph', 'calendar'].includes(k) ? [2, 1] : [1, 1];
   return [item.w || def[0], item.h || def[1]];
 }
 
@@ -604,7 +605,7 @@ export class HomePage {
   makeCard(item) {
     const kind = kindFor(item);
     if (kind === 'alloff') return this.allOffCard([...new Set(this.items.filter((i) => domainOf(i.id) === 'light').map((i) => i.id))], item);
-    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard, vacuum: this.vacuumCard, alarm: this.alarmCard, airq: this.airqCard, remote: this.remoteCard, music: this.musicCard }[kind];
+    const fn = { weather: this.weatherCard, climate: this.climateCard, timer: this.timerCard, lock: this.lockCard, light: this.lightCard, toggle: this.toggleCard, cover: this.coverCard, action: this.actionCard, sensor: this.sensorCard, media: this.mediaCard, camera: this.cameraCard, scenes: this.scenesCard, graph: this.graphCard, calendar: this.calendarCard, thermostat: this.thermostatCard, garage: this.garageCard, person: this.personCard, vacuum: this.vacuumCard, alarm: this.alarmCard, airq: this.airqCard, remote: this.remoteCard, music: this.musicCard, countdown: this.countdownCard }[kind];
     return fn.call(this, item.id, item);
   }
 
@@ -1200,6 +1201,27 @@ export class HomePage {
       tick();
     };
     return { id, el, update, tick };
+  }
+
+  // ------------------------------------------------------------------ countdown
+  countdownCard(id, item = { id }) {
+    const st = this.store;
+    const emoji = h('div.cd-emoji'), num = h('div.cd-num'), unit = h('div.cd-unit'), name = h('div.cd-name');
+    const el = h('div.card.countdown', {}, emoji, h('div.cd-main', {}, num, unit), name);
+    press(el, { onTap: () => this.app.openSettings({ section: 'Countdowns' }) });
+    const update = () => {
+      const s = st.get(id), a = s?.attributes || {};
+      if (!s) { num.textContent = '—'; unit.textContent = ''; name.textContent = 'Countdown removed'; emoji.textContent = ''; return; }
+      const d = Number(s.state);
+      emoji.textContent = a.emoji || '';
+      if (d > 1) { num.textContent = String(d); unit.textContent = 'days to'; }
+      else if (d === 1) { num.textContent = '1'; unit.textContent = 'day to'; }
+      else if (d === 0) { num.textContent = a.text === 'Today!' ? '🎉' : a.text; unit.textContent = a.text === 'Today!' ? 'Today is' : 'to'; }
+      else { num.textContent = String(-d); unit.textContent = -d === 1 ? 'day since' : 'days since'; }
+      name.textContent = item.name || a.friendly_name;
+      el.classList.toggle('today', d === 0);
+    };
+    return { id, el, update };
   }
 
   // ------------------------------------------------------------------ TV remote

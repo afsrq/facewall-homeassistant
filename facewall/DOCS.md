@@ -153,6 +153,9 @@ Needs the **Music Assistant** integration in Home Assistant (2024.12 or newer). 
 ## TV remote
 Add the TV's **media player** as a tile, then edit it → Style → **TV remote**. Swipe on the round pad (or tap its arrows) to move, tap the middle for OK. Back, Home, play/pause, volume, power and **Apps** (the TV's source list) sit underneath. Facewall works out the brand from Home Assistant (Apple TV, Roku, Android TV Remote, Android TV/Fire TV over ADB, LG webOS, Samsung, Sony Bravia, Philips) and finds the remote entity on the same device. If the arrows don't work, choose the remote in the tile's settings. Hold the tile for the full now-playing sheet.
 
+## Countdowns
+Settings → **Countdowns**: tap a ready-made one (Christmas, New Year, Halloween…) or **Your own**, then set the name, emoji and date. **Every year** makes it roll on to next year once the day has passed; a time counts down hours and minutes on the day. Show them as a tile (Add tiles → Countdowns), full screen with the **Countdown** face, in a clock face's corner, or in the page header (Header → A sensor → pick the countdown).
+
 ## Rotate faces
 Settings → **Rotate faces (this iPad)** → Take turns. Tick the faces to include (add faces first: hold the clock → Add face), then choose how often to change and whether to pick at random or in turn. Picking a face from the clock carries on the rotation from that face.
 

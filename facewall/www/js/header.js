@@ -167,6 +167,7 @@ export function headerSegments(store, hd, now, { skipGreeting = false } = {}) {
       }
       case 'sensor': {
         if (!p.id || !store.get(p.id)) break;
+        if (p.id.startsWith('countdown.')) { const a = store.get(p.id).attributes; push([a.emoji, p.label || a.long].filter(Boolean).join(' ')); break; }
         const label = p.label ?? store.name?.(p.id) ?? '';
         push([label, formatState(store, p.id)].filter(Boolean).join(' '));
         break;

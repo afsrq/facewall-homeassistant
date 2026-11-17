@@ -29,7 +29,7 @@ export class Store extends EventTarget {
   }
 
   // ---- reading
-  get(id) { return this.states.get(id) || null; }
+  get(id) { return this.states.get(id) || this.virtual?.get(id) || null; }
   name(id) {
     const s = this.get(id);
     return s?.attributes?.friendly_name || (id ? (id.split('.')[1] || id).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '');
@@ -37,9 +37,22 @@ export class Store extends EventTarget {
   area(id) { return this.areas[id] || ''; }
   list(domains) {
     const ds = domains ? new Set(domains) : null;
-    return [...this.states.values()]
+    return [...this.states.values(), ...(this.virtual?.values() || [])]
       .filter((s) => !ds || ds.has(domainOf(s.entity_id)))
       .sort((a, b) => this.name(a.entity_id).localeCompare(this.name(b.entity_id)));
+  }
+
+  /** Countdowns from Settings, as pretend entities (countdown.xyz) so tiles, faces and the header can show them. */
+  syncCountdowns(now = new Date()) {
+    const next = new Map();
+    for (const c of this.settings?.countdowns || []) {
+      const id = 'countdown.' + c.id, info = countdownInfo(c, now);
+      next.set(id, { entity_id: id, state: String(info.days), attributes: { friendly_name: c.name || 'Countdown', emoji: c.emoji || '', target: info.target.toISOString(), text: info.text, long: info.long, hours: info.hours, icon: 'mdi:calendar-clock' } });
+    }
+    const old = this.virtual || new Map();
+    this.virtual = next;
+    for (const [id, st] of next) { const o = old.get(id); if (!o || o.state !== st.state || o.attributes.text !== st.attributes.text || o.attributes.friendly_name !== st.attributes.friendly_name || o.attributes.emoji !== st.attributes.emoji) this.dispatchEvent(new CustomEvent('state', { detail: id })); }
+    for (const id of old.keys()) if (!next.has(id)) this.dispatchEvent(new CustomEvent('state', { detail: id }));
   }
 
   // ---- internal (used by adapters)
@@ -540,10 +553,40 @@ const BINARY = {
   motion: ['Clear', 'Motion'], occupancy: ['Clear', 'Occupied'], presence: ['Away', 'Home'], moisture: ['Dry', 'Wet'],
   lock: ['Locked', 'Unlocked'], smoke: ['Clear', 'Smoke'], battery: ['Normal', 'Low'], connectivity: ['Offline', 'Online'],
 };
+// ------------------------------------------------------------------ countdowns
+/** Days (and hours) until a countdown's date. Yearly ones roll on to next year once passed. */
+export function countdownInfo(c, now = new Date()) {
+  const [y, mo, d] = String(c.date || '').split('-').map(Number);
+  const [hh, mm] = String(c.time || '').split(':').map(Number);
+  const at = (yr) => new Date(yr, (mo || 1) - 1, d || 1, Number.isFinite(hh) ? hh : 0, Number.isFinite(mm) ? mm : 0);
+  let target = at(y || now.getFullYear());
+  const dayStart = (t) => new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  if (c.yearly) { target = at(now.getFullYear()); if (dayStart(target) < dayStart(now)) target = at(now.getFullYear() + 1); }
+  const days = Math.round((dayStart(target) - dayStart(now)) / 86400000);
+  const ms = target - now, hours = Math.max(0, Math.floor(ms / 3600000)), mins = Math.max(0, Math.floor(ms / 60000) % 60);
+  const name = c.name || 'it';
+  let text, long;
+  if (days < 0) { text = `${-days} day${days === -1 ? '' : 's'} ago`; long = `${name} was ${text}`; }
+  else if (days === 0) { text = c.time && ms > 0 ? `${hours ? hours + ' h ' : ''}${mins} min` : 'Today!'; long = c.time && ms > 0 ? `${text} to ${name}` : `${name} is today!`; }
+  else if (days === 1) { text = 'Tomorrow'; long = `${name} is tomorrow`; }
+  else { text = `${days} days`; long = `${days} days to ${name}`; }
+  return { days, target, text, long, hours };
+}
+export const COUNTDOWN_PRESETS = [
+  { name: 'Christmas', emoji: '🎄', date: '12-25', yearly: true },
+  { name: 'New Year', emoji: '🎆', date: '01-01', yearly: true },
+  { name: 'Halloween', emoji: '🎃', date: '10-31', yearly: true },
+  { name: 'Valentine’s Day', emoji: '❤️', date: '02-14', yearly: true },
+  { name: 'Independence Day', emoji: '🎇', date: '07-04', yearly: true },
+  { name: 'Birthday', emoji: '🎂', date: '', yearly: true },
+  { name: 'Vacation', emoji: '🏖️', date: '', yearly: false },
+];
+
 export function formatState(store, id) {
   const s = store.get(id);
   if (!s) return '—';
   const d = domainOf(id), a = s.attributes || {};
+  if (d === 'countdown') return a.text;
   if (s.state === 'unavailable') return 'Unavailable';
   if (d === 'binary_sensor') { const m = BINARY[a.device_class]; return m ? m[s.state === 'on' ? 1 : 0] : s.state === 'on' ? 'On' : 'Off'; }
   if (d === 'climate') return a.current_temperature != null ? `${a.current_temperature}°` : cap(s.state);

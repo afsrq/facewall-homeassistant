@@ -1014,8 +1014,56 @@ const wordexact = {
   },
 };
 
-export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti };
-export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'flip', 'lamp'];
+// ------------------------------------------------------------------ countdown
+const CD_BG = [
+  { v: 'night', label: 'Night', color: '#101828', c2: '#2b2350', ink: '#fff' },
+  { v: 'festive', label: 'Festive', color: '#7a1020', c2: '#1d5c3a', ink: '#fff' },
+  { v: 'sunset', label: 'Sunset', color: '#ff7e5f', c2: '#7b2ff7', ink: '#fff' },
+  { v: 'ocean', label: 'Ocean', color: '#0f5e7a', c2: '#2bc0b4', ink: '#fff' },
+  { v: 'teal', label: 'MCM teal', color: '#1f5f5b', c2: '#2a7671', ink: '#f6ead8' },
+  { v: 'cream', label: 'Cream', color: '#efe6d2', c2: '#f7f1e3', ink: '#2d2418' },
+];
+const countdown = {
+  name: 'Countdown', blurb: 'Days to go, big enough to read across the room, with the time below.', category: 'Fun',
+  options: [
+    { key: 'which', label: 'Countdown', type: 'countdown' },
+    { key: 'bg', label: 'Background', type: 'swatch', choices: CD_BG },
+    { key: 'time', label: 'Show the time', type: 'bool' },
+  ],
+  defaults: { which: 'next', bg: 'night', time: true },
+  ink: (o) => pick(CD_BG, o.bg).ink,
+  create(root, o, ctx) {
+    const { w, h, store } = ctx;
+    const bg = pick(CD_BG, o.bg);
+    root.style.cssText = `position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2vmin;color:${bg.ink};background:radial-gradient(120% 120% at 20% 10%, ${bg.c2}, ${bg.color} 70%);font-family:${FONT.sans};text-align:center;container-type:size;`;
+    const mk = (css, text = '') => { const d = document.createElement('div'); d.style.cssText = css; d.textContent = text; root.appendChild(d); return d; };
+    const emoji = mk('font-size:16cqmin;line-height:1');
+    const num = mk('font-size:38cqmin;font-weight:800;line-height:.9;letter-spacing:-0.04em;font-variant-numeric:tabular-nums');
+    const what = mk('font-size:7cqmin;font-weight:650;opacity:.92;max-width:90cqw');
+    const clock = mk('font-size:5.5cqmin;font-weight:600;opacity:.7;margin-top:2cqmin;font-variant-numeric:tabular-nums');
+    if (!o.time) clock.style.display = 'none';
+    const pickOne = () => {
+      const all = store?.list?.(['countdown']) || [];
+      if (o.which && o.which !== 'next') return all.find((x) => x.entity_id === 'countdown.' + o.which) || null;
+      return all.filter((x) => Number(x.state) >= 0).sort((a, b) => Number(a.state) - Number(b.state))[0] || all[0] || null;
+    };
+    return {
+      update(now) {
+        const c = pickOne();
+        clock.textContent = now.toLocaleTimeString(undefined, { hour: ctx.use24h ? '2-digit' : 'numeric', minute: '2-digit', hour12: !ctx.use24h });
+        if (!c) { emoji.textContent = '⏳'; num.textContent = ''; what.textContent = 'Add a countdown in Settings → Countdowns'; return; }
+        const a = c.attributes, d = Number(c.state);
+        emoji.textContent = a.emoji || '';
+        if (d === 0) { num.textContent = a.text === 'Today!' ? '🎉' : a.text; what.textContent = a.text === 'Today!' ? `${a.friendly_name} is today!` : `to ${a.friendly_name}`; }
+        else if (d < 0) { num.textContent = String(-d); what.textContent = `day${d === -1 ? '' : 's'} since ${a.friendly_name}`; }
+        else { num.textContent = String(d); what.textContent = `${d === 1 ? 'day' : 'days'} to ${a.friendly_name}`; }
+      },
+    };
+  },
+};
+
+export const FACES = { classic, numerals, digital, roman, flip, lamp, gradient, modular, wordclock, wordexact, starburst, atomic, confetti, countdown };
+export const FACE_ORDER = ['classic', 'numerals', 'gradient', 'roman', 'starburst', 'atomic', 'confetti', 'digital', 'modular', 'wordclock', 'wordexact', 'countdown', 'flip', 'lamp'];
 
 /** What a complication shows for an entity: smarter for weather, calendars and media. */
 const WX_TEXT = { 'clear-night': 'Clear', cloudy: 'Cloudy', exceptional: 'Extreme', fog: 'Fog', hail: 'Hail', lightning: 'Storms', 'lightning-rainy': 'Storms', partlycloudy: 'Partly cloudy', pouring: 'Heavy rain', rainy: 'Rain', snowy: 'Snow', 'snowy-rainy': 'Sleet', sunny: 'Sunny', windy: 'Windy', 'windy-variant': 'Windy' };

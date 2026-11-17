@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.40.0
+- **Countdowns** (Settings → Countdowns): days to Christmas, a birthday, a vacation, anything. One tap adds Christmas, New Year, Halloween, Valentine's Day, Independence Day or Birthday, or make your own with an emoji. Yearly ones roll over by themselves; add a time to count hours and minutes on the day.
+  - **Tile**: Add tiles → Countdowns. A big number, the emoji and the name; it turns festive on the day.
+  - **Countdown face**: full screen ("3 days to Vacation") with the time below; shows the next one coming up, or one you pick.
+  - **Clock corners and page header**: pick a countdown as a face's corner info, or add it to the header ("🎄 38 days to Christmas").
+
 ## 1.39.0
 - **Time-of-day colours** (Settings → Appearance): a warm tint that follows the day, like Night Shift: soft peach around sunrise, none during the day, golden at sunset, deepening to amber through the night. It follows your real sunrise and sunset from Home Assistant, and fades gradually. Choose Subtle, Normal or Strong, and whether it tints everything or only your pages.
 

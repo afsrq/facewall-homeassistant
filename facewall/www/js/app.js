@@ -1,5 +1,5 @@
 // Facewall app shell: pager (clock ⇄ room pages), face picker, customize, gallery, settings, per-screen settings.
-import { Store, domainOf, isOn } from './data.js';
+import { Store, domainOf, isOn, COUNTDOWN_PRESETS, countdownInfo } from './data.js';
 import { FACES, FACE_ORDER, mountFace, TIME_FACES, TIME_POS, faceEdgeColors } from './faces.js';
 import { HomePage, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCENES, tileName, tileIcon, sizeOf, pageOf, iconHtml, stylesFor, styleOf, kindFor, ICON_MOVABLE, ICON_POSITIONS, NAME_POSITIONS, MAX_H, MIN_SIZE, roundSize, fmtSize, colorSlots, tileBackground } from './home.js';
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme, LOOKS, applyLook, WALLPAPERS } from './themes.js';
@@ -12,13 +12,13 @@ import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect,
 const uid = () => Math.random().toString(36).slice(2, 9);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const TAP_GROUPS = [['Lights', ['light']], ['Switches', ['switch', 'input_boolean']], ['Fans', ['fan']], ['Scenes', ['scene']], ['Scripts', ['script']], ['Covers', ['cover']]];
-const INFO_GROUPS = [['Weather', ['weather']], ['Calendars', ['calendar']], ['Sensors', ['sensor']], ['Binary sensors', ['binary_sensor']], ['Climate', ['climate']], ['Media', ['media_player']], ['Lights', ['light']], ['Switches', ['switch']]];
+const INFO_GROUPS = [['Countdowns', ['countdown']], ['Weather', ['weather']], ['Calendars', ['calendar']], ['Sensors', ['sensor']], ['Binary sensors', ['binary_sensor']], ['Climate', ['climate']], ['Media', ['media_player']], ['Lights', ['light']], ['Switches', ['switch']]];
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } };
 const slug = (t) => String(t || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 // What a room page made from a Home Assistant area starts with, in this order.
 const AREA_ORDER = ['climate', 'water_heater', 'lock', 'light', 'switch', 'fan', 'input_boolean', 'cover', 'sensor'];
-const TILE_DOMAINS = ['weather', 'light', 'climate', 'water_heater', 'lock', 'switch', 'input_boolean', 'fan', 'cover', 'scene', 'script', 'button', 'input_button', 'sensor', 'binary_sensor', 'automation', 'media_player', 'camera', 'calendar', 'person', 'device_tracker', 'vacuum', 'alarm_control_panel'];
+const TILE_DOMAINS = ['weather', 'light', 'climate', 'water_heater', 'lock', 'switch', 'input_boolean', 'fan', 'cover', 'scene', 'script', 'button', 'input_button', 'sensor', 'binary_sensor', 'automation', 'media_player', 'camera', 'calendar', 'person', 'device_tracker', 'vacuum', 'alarm_control_panel', 'countdown'];
 
 function defaultSettings(store) {
   const ids = (d, n) => store.list([d]).slice(0, n).map((s) => s.entity_id);
@@ -109,7 +109,10 @@ class App {
     onIconsChanged(() => this.rooms.forEach((r) => r.render()));
     loadIcons();
 
+    this.store.syncCountdowns();
+    setInterval(() => this.store.syncCountdowns(), 30000);
     this.store.addEventListener('settings', (e) => {
+      this.store.syncCountdowns();
       if (!e.detail.external) return;
       if (!this.themePreviewing) { this.appliedTheme = applyTheme(this.themeId()).id; applyLook(this.settings.general.look); }
       this.applyHa(); this.todSync();
@@ -551,6 +554,11 @@ class App {
       let ctl;
       if (o.type === 'swatch') ctl = swatches(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }));
       else if (o.type === 'choice') ctl = segmented(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }));
+      else if (o.type === 'countdown') {
+        const cds = this.settings.countdowns || [];
+        ctl = segmented([{ v: 'next', label: 'Next coming up' }, ...cds.map((c) => ({ v: c.id, label: `${c.emoji || ''} ${c.name || 'Countdown'}`.trim() }))], val || 'next', (v) => change(() => { work.opts[o.key] = v; }));
+        if (!cds.length) ctl = h('div', {}, ctl, h('button.pill.sm', { text: 'Add countdowns', onclick: () => this.openSettings({ section: 'Countdowns' }) }));
+      }
       else ctl = toggle(val, (v) => change(() => { work.opts[o.key] = v; }));
       opts.append(o.type === 'bool' ? row(o.label, ctl) : h('div.cz-section', {}, h('div.cz-label', { text: o.label }), ctl));
     }
@@ -916,8 +924,33 @@ class App {
         rot.on ? row('Order', segmented([{ v: 'shuffle', label: 'Random' }, { v: 'turn', label: 'In turn' }], rot.order || 'shuffle', (v) => updRot((r) => { r.order = v; }))) : null,
         rot.on ? row('Try it', h('button.pill.sm.primary', { text: 'Next face', onclick: () => { sh.close(); this.goTo(0, true); this.rotateFace(); } })) : null);
 
-      sh.body.append(appearanceSec, screenSec, rotSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, clockSec, dimSec, backupSec, aboutSec);
+      // ---------------- Countdowns
+      const cds = s.countdowns || [];
+      const updCd = (i, fn) => { this.update((x) => { fn(x.countdowns[i]); }); render(); };
+      const cdSec = section('Countdowns',
+        h('div.about.small', { text: 'Days until the things you’re looking forward to. Show them on a tile (Add tiles → Countdowns), in a corner of a clock face, in the page header (Your own text → A sensor), or full screen with the Countdown face.' }),
+        h('div.ent-list', {}, ...cds.map((c, i) => {
+          const info = countdownInfo(c);
+          return h('div.cd-row', {},
+            h('input.text-in.cd-emoji-in', { value: c.emoji || '', 'aria-label': 'Emoji', placeholder: '⭐', maxlength: 4, onchange: (e) => updCd(i, (x) => { x.emoji = e.target.value.trim(); }) }),
+            h('input.text-in.cd-name-in', { value: c.name || '', 'aria-label': 'Name', placeholder: 'Name', onchange: (e) => updCd(i, (x) => { x.name = e.target.value.trim(); }) }),
+            h('input.text-in.cd-date-in', { type: 'date', value: c.date || '', 'aria-label': 'Date', onchange: (e) => updCd(i, (x) => { x.date = e.target.value; }) }),
+            h('input.text-in.cd-time-in', { type: 'time', value: c.time || '', 'aria-label': 'Time (optional)', onchange: (e) => updCd(i, (x) => { if (e.target.value) x.time = e.target.value; else delete x.time; }) }),
+            h('label.cd-yearly', {}, toggle(!!c.yearly, (v) => updCd(i, (x) => { x.yearly = v; })), h('span', { text: 'Every year' })),
+            h('span.ent-sub.count', { text: c.date ? info.text : 'Pick a date' }),
+            h('button.icon-btn.sm.danger', { html: icon('trash'), 'aria-label': 'Delete countdown', onclick: () => { this.update((x) => { x.countdowns.splice(i, 1); }); render(); } }));
+        })),
+        h('div.add-page-row', {}, ...COUNTDOWN_PRESETS.filter((p) => !cds.some((c) => c.name === p.name)).map((p) => h('button.pill', { text: `${p.emoji} ${p.name}`, onclick: () => {
+          const yr = new Date().getFullYear();
+          const date = p.date ? `${yr}-${p.date}` : '';
+          this.update((x) => { (x.countdowns ||= []).push({ id: uid(), name: p.name, emoji: p.emoji, date, yearly: p.yearly }); });
+          render();
+        } })), h('button.pill', { html: icon('plus') + '<span>Your own</span>', onclick: () => { this.update((x) => { (x.countdowns ||= []).push({ id: uid(), name: '', emoji: '⭐', date: '', yearly: false }); }); render(); } })));
+
+      sh.body.append(appearanceSec, screenSec, rotSec, photoSec, doorSec, pagesSec, tilesSec, layoutSec, cdSec, clockSec, dimSec, backupSec, aboutSec);
+      if (opts.section && !this._secScrolled) { this._secScrolled = true; requestAnimationFrame(() => [...sh.body.querySelectorAll('.set-title')].find((t) => t.textContent === opts.section)?.scrollIntoView({ block: 'start' })); }
     };
+    this._secScrolled = false;
     render();
   }
 
@@ -1758,7 +1791,7 @@ class App {
     const chips = h('div.filter-chips');
     const list = h('div.ent-list');
     sh.body.append(search, chips, list);
-    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['media_player', 'Media'], ['camera', 'Cameras'], ['calendar', 'Calendars'], ['person', 'People'], ['vacuum', 'Vacuums'], ['alarm_control_panel', 'Alarm'], ['scene', 'Scenes'], ['other', 'Other']];
+    const groups = [['all', 'All'], ['light', 'Lights'], ['climate', 'Climate'], ['switch', 'Switches'], ['lock', 'Locks'], ['cover', 'Covers'], ['sensor', 'Sensors'], ['weather', 'Weather'], ['media_player', 'Media'], ['camera', 'Cameras'], ['calendar', 'Calendars'], ['person', 'People'], ['vacuum', 'Vacuums'], ['alarm_control_panel', 'Alarm'], ['countdown', 'Countdowns'], ['scene', 'Scenes'], ['other', 'Other']];
     const MAIN = ['light', 'climate', 'switch', 'lock', 'cover', 'sensor', 'scene', 'weather', 'media_player', 'camera', 'calendar', 'person', 'vacuum', 'alarm_control_panel'];
     const renderChips = () => {
       chips.innerHTML = '';
