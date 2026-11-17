@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.37.1
+- **Bigger letters on the word clocks**, for reading from across the room:
+  - New **Letter size** option (Normal, Large, Huge) on both word clocks, with heavier letters at the bigger sizes. The exact word clock now starts at Large.
+  - The exact word clock needs far fewer letters: teens are built from parts (FOUR·TEEN, THIR·TEEN), and the grid packs itself to give the biggest letters the screen allows.
+  - New **Words: Short** option on the exact word clock: "One twenty one afternoon" instead of "It is one twenty one in the afternoon", for even bigger letters.
+
 ## 1.37.0
 - **Rotate faces** (Settings → Rotate faces, per iPad): tick the clock faces you like and the iPad takes turns showing them, at random or in turn, every 5 or 15 minutes, hourly, every 6 hours, or each time the clock comes back from your pages. Faces fade into each other.
 - **Word clock: exact**: a new word clock that lights up the exact time in words, such as "It is one twenty one in the afternoon", "It is six fifty seven in the evening", "It is ten fifty eight in the morning" or "It is twelve oh five at night". The letter grid packs itself to suit the screen, upright or sideways. The original "half past ten" word clock is still there.

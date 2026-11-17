@@ -650,6 +650,9 @@ const modular = {
 };
 
 // ============================================================ Word clock
+/** Letter size: share of each grid cell the letter fills, and its weight. */
+const LETTER = { normal: [0.56, 600], large: [0.7, 700], huge: [0.84, 800] };
+const SIZE_OPT = { key: 'size', label: 'Letter size', type: 'choice', choices: [{ v: 'normal', label: 'Normal' }, { v: 'large', label: 'Large' }, { v: 'huge', label: 'Huge' }] };
 const WORD_ROWS = ['ITLISASAMPM', 'ACQUARTERDC', 'TWENTYFIVEX', 'HALFSTENFTO', 'PASTERUNINE', 'ONESIXTHREE', 'FOURFIVETWO', 'EIGHTELEVEN', 'SEVENTWELVE', 'TENSEOCLOCK'];
 const WORDS = {
   IT: [0, 0, 2], IS: [0, 3, 2], A: [1, 0, 1], QUARTER: [1, 2, 7], TWENTY: [2, 0, 6], FIVE_M: [2, 6, 4], HALF: [3, 0, 4], TEN_M: [3, 5, 3], TO: [3, 9, 2], PAST: [4, 0, 4],
@@ -679,8 +682,9 @@ const wordclock = {
     { key: 'bg', label: 'Background', type: 'swatch', choices: WORD_BG },
     { key: 'font', label: 'Font', type: 'choice', choices: [{ v: 'sans', label: 'Sans' }, { v: 'serif', label: 'Serif' }, { v: 'mono', label: 'Mono' }, { v: 'condensed', label: 'Narrow' }] },
     { key: 'dots', label: 'Minute dots', type: 'bool' },
+    SIZE_OPT,
   ],
-  defaults: { color: 'white', bg: 'black', font: 'sans', dots: true },
+  defaults: { color: 'white', bg: 'black', font: 'sans', dots: true, size: 'normal' },
   ink: (o) => (pick(WORD_BG, o.bg).light ? '#2d2418' : '#fff'),
   create(root, o, { w, h }) {
     const bg = pick(WORD_BG, o.bg);
@@ -695,7 +699,8 @@ const wordclock = {
     const cell = Math.min((w * 0.84) / cols, (h * 0.84) / rows);
     const x0 = (w - cell * cols) / 2 + cell / 2, y0 = (h - cell * rows) / 2 + cell / 2;
     const family = FONT[o.font] || FONT.sans;
-    const letters = WORD_ROWS.map((r, ri) => [...r].map((ch, ci) => el('text', { x: x0 + ci * cell, y: y0 + ri * cell + cell * 0.32, 'text-anchor': 'middle', 'font-family': family, 'font-weight': 600, 'font-size': cell * 0.58, fill: bg.dim }, svg, ch)));
+    const [lk, lw] = LETTER[o.size] || [0.58, 600];
+    const letters = WORD_ROWS.map((r, ri) => [...r].map((ch, ci) => el('text', { x: x0 + ci * cell, y: y0 + ri * cell + cell * lk * 0.36, 'text-anchor': 'middle', 'font-family': family, 'font-weight': lw, 'font-size': cell * lk, fill: bg.dim }, svg, ch)));
     const dots = [];
     if (o.dots) {
       const r = cell * 0.09, inset = cell * 0.55;
@@ -892,50 +897,57 @@ const HOUR_W = ['twelve', 'one', 'two', 'three', 'four', 'five', 'six', 'seven',
 const TEEN_W = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
 const TENS_W = { 2: 'twenty', 3: 'thirty', 4: 'forty', 5: 'fifty' };
 const ONES_W = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
-const EXACT_SEQ = [
-  'it', 'is',
-  ...['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'].map((w) => 'h:' + w),
-  'm:oh', ...TEEN_W.map((w) => 'm:' + w), ...Object.values(TENS_W).map((w) => 'm:' + w),
-  ...ONES_W.slice(1).map((w) => 'o:' + w), 'oclock',
-  'in', 'at', 'the', 'morning', 'afternoon', 'evening', 'night',
-];
+// Teens are built from shorter pieces (FOUR + TEEN, THIR + TEEN), so the grid needs far fewer letters.
+const TEEN_ROOT = { 13: 'thir', 14: 'four', 15: 'fif', 16: 'six', 17: 'seven', 18: 'eigh', 19: 'nine' };
+function exactSeq(short) {
+  return [
+    ...(short ? [] : ['it', 'is']),
+    ...['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'].map((w) => 'h:' + w),
+    'm:oh', 'm:ten', 'm:eleven', 'm:twelve', ...Object.values(TENS_W).map((w) => 'm:' + w),
+    ...ONES_W.slice(1).map((w) => 'o:' + w), 'o:thir', 'o:fif', 'teen', 'oclock',
+    ...(short ? [] : ['in', 'at', 'the']), 'morning', 'afternoon', 'evening', 'night',
+  ];
+}
 const wordText = (k) => (k === 'oclock' ? 'OCLOCK' : k.split(':').pop().toUpperCase());
 /** The words lit for a time, e.g. 13:21 → it is one twenty one in the afternoon. */
-export function exactWords(now) {
+export function exactWords(now, short = false) {
   const H = now.getHours(), M = now.getMinutes();
-  const out = ['it', 'is', 'h:' + HOUR_W[H % 12]];
+  const out = short ? [] : ['it', 'is'];
+  out.push('h:' + HOUR_W[H % 12]);
   if (M === 0) out.push('oclock');
   else if (M < 10) out.push('m:oh', 'o:' + ONES_W[M]);
-  else if (M < 20) out.push('m:' + TEEN_W[M - 10]);
+  else if (M < 13) out.push('m:' + TEEN_W[M - 10]);
+  else if (M < 20) out.push('o:' + TEEN_ROOT[M], 'teen');
   else { out.push('m:' + TENS_W[Math.floor(M / 10)]); if (M % 10) out.push('o:' + ONES_W[M % 10]); }
-  if (H >= 5 && H < 12) out.push('in', 'the', 'morning');
-  else if (H >= 12 && H < 17) out.push('in', 'the', 'afternoon');
-  else if (H >= 17 && H < 21) out.push('in', 'the', 'evening');
-  else out.push('at', 'night');
+  const part = H >= 5 && H < 12 ? 'morning' : H >= 12 && H < 17 ? 'afternoon' : H >= 17 && H < 21 ? 'evening' : 'night';
+  if (!short) out.push(...(part === 'night' ? ['at'] : ['in', 'the']));
+  out.push(part);
   return out;
 }
-/** Pack the words into rows `cols` wide (one spare letter between words), spreading the slack. */
-function packWords(cols) {
+/** Pack the words into rows `cols` wide (one spare letter between words). */
+function packWords(seq, cols) {
   const rows = [];
   let cur = [];
   const len = (r) => r.reduce((n, k) => n + wordText(k).length, 0) + Math.max(0, r.length - 1);
-  for (const k of EXACT_SEQ) {
+  for (const k of seq) {
     if (cur.length && len([...cur, k]) > cols) { rows.push(cur); cur = []; }
     cur.push(k);
   }
   if (cur.length) rows.push(cur);
   return rows;
 }
-function exactGrid(w, h) {
-  const target = (w * 0.88) / (h * 0.84);
+function exactGrid(w, h, short, margin) {
+  const seq = exactSeq(short);
+  const target = (w * margin) / (h * margin);
   let best = null;
-  for (let c = 10; c <= 26; c++) {
-    const rows = packWords(c);
+  for (let c = 9; c <= 26; c++) {
+    const rows = packWords(seq, c);
     if (rows.some((r) => r.reduce((n, k) => n + wordText(k).length, 0) + r.length - 1 > c)) continue;
-    const score = Math.abs(Math.log(c / rows.length / target));
-    if (!best || score < best.score) best = { c, rows, score };
+    // Prefer the grid whose letters come out biggest on this screen.
+    const cell = Math.min((w * margin) / c, (h * margin) / rows.length);
+    const score = cell - Math.abs(Math.log(c / rows.length / target)) * 0.01;
+    if (!best || score > best.score) best = { c, rows, score };
   }
-  // Lay out each row: words spread out with spare letters between and around them.
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const FILL = 'ABCDEFGHIJKLMNOPRSTUVWXYZ';
@@ -955,35 +967,43 @@ function exactGrid(w, h) {
     for (let g = 0; g < gapLen[gaps - 1]; g++) row.push(FILL[Math.floor(rnd() * FILL.length)]);
     cells.push(row);
   });
+  where['o:eigh'] = where['o:eight'] && [where['o:eight'][0], where['o:eight'][1], 4]; // EIGHteen lights the first four letters of EIGHT
   return { cols: best.c, cells, where };
 }
 const wordexact = {
   name: 'Word clock: exact', blurb: 'The exact time in words: “It is one twenty one in the afternoon.”', category: 'Words',
-  options: wordclock.options.filter((x) => x.key !== 'dots'),
-  defaults: { color: 'white', bg: 'black', font: 'sans' },
+  options: [
+    ...wordclock.options.filter((x) => x.key !== 'dots' && x.key !== 'size'),
+    { key: 'words', label: 'Words', type: 'choice', choices: [{ v: 'full', label: 'Full sentence' }, { v: 'short', label: 'Short (bigger letters)' }] },
+    SIZE_OPT,
+  ],
+  defaults: { color: 'white', bg: 'black', font: 'sans', words: 'full', size: 'large' },
   ink: wordclock.ink,
   create(root, o, { w, h }) {
     const bg = pick(WORD_BG, o.bg);
     const lit = o.color === 'ink' ? '#2d2418' : pick(DIGI, o.color).color;
+    const short = o.words === 'short';
     const svg = makeSvg(root, w, h);
     el('rect', { width: w, height: h, fill: bg.color }, svg);
     const id = 'we' + ++uid;
     const f = el('filter', { id, x: '-50%', y: '-50%', width: '200%', height: '200%' }, el('defs', {}, svg));
     el('feGaussianBlur', { stdDeviation: Math.min(w, h) * 0.005, result: 'b' }, f);
     const mg = el('feMerge', {}, f); el('feMergeNode', { in: 'b' }, mg); el('feMergeNode', { in: 'SourceGraphic' }, mg);
-    const g = exactGrid(w, h);
+    const margin = 0.93;
+    const g = exactGrid(w, h, short, margin);
     const rows = g.cells.length;
-    const cell = Math.min((w * 0.88) / g.cols, (h * 0.84) / rows);
+    const cell = Math.min((w * margin) / g.cols, (h * margin) / rows);
     const x0 = (w - cell * g.cols) / 2 + cell / 2, y0 = (h - cell * rows) / 2 + cell / 2;
     const family = FONT[o.font] || FONT.sans;
-    const letters = g.cells.map((r, ri) => r.map((ch, ci) => el('text', { x: x0 + ci * cell, y: y0 + ri * cell + cell * 0.32, 'text-anchor': 'middle', 'font-family': family, 'font-weight': 600, 'font-size': cell * 0.56, fill: bg.dim }, svg, ch)));
+    const [k, weight] = LETTER[o.size] || LETTER.large;
+    const letters = g.cells.map((r, ri) => r.map((ch, ci) => el('text', { x: x0 + ci * cell, y: y0 + ri * cell + cell * k * 0.36, 'text-anchor': 'middle', 'font-family': family, 'font-weight': weight, 'font-size': cell * k, fill: bg.dim }, svg, ch)));
     let last = '';
     return {
       update(now) {
         const key = `${now.getHours()}:${now.getMinutes()}`;
         if (key === last) return; last = key;
         const on = new Set();
-        for (const k of exactWords(now)) { const [r, c, n] = g.where[k]; for (let i = 0; i < n; i++) on.add(`${r},${c + i}`); }
+        for (const wd of exactWords(now, short)) { const p = g.where[wd]; if (!p) continue; const [r, c, n] = p; for (let i = 0; i < n; i++) on.add(`${r},${c + i}`); }
         letters.forEach((row, ri) => row.forEach((t, ci) => {
           const yes = on.has(`${ri},${ci}`);
           t.setAttribute('fill', yes ? lit : bg.dim);
