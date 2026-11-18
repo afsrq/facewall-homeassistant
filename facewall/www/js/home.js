@@ -1554,15 +1554,32 @@ export class HomePage {
         h('button.ms2-crumb' + (i === crumbs.length - 1 ? '.on' : ''), { text: c.name, onclick: () => { path = path.slice(0, i); query = ''; q.value = ''; drawTabs(); load(); } })]).filter(Boolean)));
     };
     const open = (it) => { path.push(it); query = ''; q.value = ''; drawTabs(); load(); };
+    /** Pick a Music Assistant speaker to play on (search and the library don't depend on one). */
+    const chooseSpeaker = (it, done) => {
+      const reg = st._lastReg, list = st.list(['media_player']).filter((x) => liveSpeaker(x) && isMaPlayer(reg, x));
+      if (!list.length) { toast('No Music Assistant speakers found'); return; }
+      const sh = sheet({ title: `Play “${it.name}” on…`, cls: 'mp-picker' });
+      sh.body.append(...list.map((x) => h('button.ent-row.mp-pick-row', { onclick: () => { sh.close(); done(x.entity_id); } },
+        h('span.ent-ic', { html: icon('volume') }),
+        h('div.ent-text', {}, h('div.ent-name', { text: st.name(x.entity_id) }), h('div.ent-sub', { text: x.state === 'playing' && x.attributes?.media_title ? `Playing ${x.attributes.media_title}` : cap(x.state) })))));
+    };
+    /** Play on this page's speaker if Music Assistant can use it; otherwise ask which speaker, and switch the page to it. */
+    const playIt = async (it, enqueue = 'play', radio = false) => {
+      const msg = radio ? `Radio based on ${it.name}` : enqueue === 'next' ? 'Playing next' : enqueue === 'add' ? 'Added to the queue' : `Playing ${it.name}`;
+      if (it._b) { maPlay(st, id, it, enqueue, radio); toast(msg); return; }
+      const m = await maInfo(st); st._lastReg = m.r;
+      if (isMaPlayer(m.r, st.get(id)) && liveSpeaker(st.get(id))) { maPlay(st, id, it, enqueue, radio); toast(msg); return; }
+      chooseSpeaker(it, (o) => { maPlay(st, o, it, enqueue, radio); toast(`${msg} on ${st.name(o)}`); if (onPlayer) setTimeout(() => onPlayer(o), 300); });
+    };
     const tile = (it) => {
       const menu = h('div.ma-menu', {},
-        h('button', { text: 'Play now', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it); toast(`Playing ${it.name}`); } }),
-        h('button', { text: 'Play next', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'next'); toast('Playing next'); el.classList.remove('menu'); } }),
-        h('button', { text: 'Add to queue', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'add'); toast('Added to the queue'); el.classList.remove('menu'); } }),
-        it.media_type !== 'radio' && !it._b ? h('button', { text: 'Start radio', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'play', true); toast('Radio based on ' + it.name); } }) : null);
+        h('button', { text: 'Play now', onclick: (e) => { e.stopPropagation(); el.classList.remove('menu'); playIt(it); } }),
+        h('button', { text: 'Play next', onclick: (e) => { e.stopPropagation(); el.classList.remove('menu'); playIt(it, 'next'); } }),
+        h('button', { text: 'Add to queue', onclick: (e) => { e.stopPropagation(); el.classList.remove('menu'); playIt(it, 'add'); } }),
+        it.media_type !== 'radio' && !it._b ? h('button', { text: 'Start radio', onclick: (e) => { e.stopPropagation(); el.classList.remove('menu'); playIt(it, 'play', true); } }) : null);
       const more = h('button.ma-more', { text: '•••', 'aria-label': 'More', onclick: (e) => { e.stopPropagation(); grid.querySelectorAll('.menu').forEach((x) => x !== el && x.classList.remove('menu')); el.classList.toggle('menu'); } });
       const folder = it._b && it.expand && !it.play;
-      const el = h('div.ma-item' + (it.media_type === 'artist' || it.cls === 'artist' ? '.round' : '') + (folder ? '.folder' : ''), { onclick: () => { if (it._b && it.expand && (!it.play || ['directory', 'app'].includes(it.cls))) return open(it); maPlay(st, id, it); toast(`Playing ${it.name}`); } },
+      const el = h('div.ma-item' + (it.media_type === 'artist' || it.cls === 'artist' ? '.round' : '') + (folder ? '.folder' : ''), { onclick: () => { if (it._b && it.expand && (!it.play || ['directory', 'app'].includes(it.cls))) return open(it); playIt(it); } },
         h('div.ma-cwrap', {}, maCover(it), it._b && !it.play ? null : more, it._b && !it.play ? null : menu), h('div.ma-name', { text: it.name }), h('div.ma-sub', { text: it._b ? (it.expand && it.play ? cap(it.cls || '') : '') : maSub(it) }));
       return el;
     };
@@ -1578,12 +1595,12 @@ export class HomePage {
         if (!m.has('get_library') && Date.now() - (st._regFreshAt || 0) > 20000) { st._regFreshAt = Date.now(); await st.registry(true); m = await maInfo(st); }
         if (my !== seq) return;
         // Music Assistant's library only plays on Music Assistant's own speakers; other speakers browse their own library.
-        const maSpeaker = isMaPlayer(m.r, st.get(id));
-        const useMa = m.has('get_library') && maSpeaker;
+        st._lastReg = m.r;
+        // Search and the library go straight to Music Assistant, whatever speaker is on show.
+        // Only without Music Assistant's library actions does the page browse the speaker's own library.
+        const useMa = m.has('get_library') || m.has('search');
         if (browseMode === useMa) { browseMode = !useMa; path = []; drawTabs(); }
-        const maOthers = m.d && !maSpeaker ? st.list(['media_player']).filter((x) => liveSpeaker(x) && isMaPlayer(m.r, x)) : [];
-        hint.replaceChildren(...(maOthers.length && onPlayer ? [h('span', { text: `${st.name(id)} isn’t a Music Assistant speaker, so only its own library shows here. For all your music, switch to:` }),
-          ...maOthers.slice(0, 6).map((x) => h('button.pill.sm.primary', { text: st.name(x.entity_id), onclick: () => onPlayer(x.entity_id) }))] : []));
+        hint.replaceChildren(...(useMa && !isMaPlayer(m.r, st.get(id)) ? [h('span', { text: 'Pick anything to play and choose a speaker then.' })] : []));
         if (query) {
           if (!browseMode && m.has('search')) {
             const r = await maAsk(st, 'search', { name: query, limit: 12 });

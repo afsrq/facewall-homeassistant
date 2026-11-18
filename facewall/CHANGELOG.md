@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.50.5
+- **Music page: search and browse go straight to Music Assistant**, whatever speaker is on show. Spotify, Apple Music and the rest are searched through Music Assistant, not through a speaker.
+- **Choose the speaker when you play.** Tap something (or Play next, Add to queue, Start radio): if the page's speaker is a Music Assistant one it plays there; otherwise Facewall asks which Music Assistant speaker to use and switches the page to it.
+- A speaker's own library is only browsed when Home Assistant has no Music Assistant actions at all.
+
 ## 1.50.4
 - **Music page search fixed** ("does not support action media_player.search_media").
   - Facewall checks for Music Assistant again before falling back, so a reinstalled Music Assistant is picked up without restarting anything.
