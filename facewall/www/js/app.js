@@ -890,6 +890,12 @@ class App {
             this.update((x) => { x.pages.push({ id, name: `Page ${x.pages.length + 1}`, entities: [], layout: { cols: null, rows: null } }); });
             editPage = id; this.renderRooms(); render();
           } }),
+          h('button.pill', { html: icon('music') + '<span>Music page</span>', onclick: () => {
+            const id = 'p-' + uid();
+            this.update((x) => { x.pages.push({ id, name: 'Music', kind: 'music', entities: [], layout: { cols: null, rows: null } }); });
+            editPage = id; this.renderRooms(); render();
+            toast('Added a Music page. Swipe to the end to see it.');
+          } }),
           areaSel));
 
       // ---------------- Tiles on the page being edited

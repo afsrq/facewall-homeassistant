@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.50.0
+- **Music page**: a whole page for Music Assistant. Add it from **Settings → Pages & tiles → Music page**, then swipe to the end.
+  - Big cover art, a seek bar, shuffle, repeat, volume and **Up next**.
+  - Search and browse everything in Music Assistant: favourites, playlists, albums, artists, songs, radio, podcasts and audiobooks, from Spotify, Apple Music, Tidal, YouTube Music and the rest.
+  - Other speakers: **Control** one, **Group** it with this one, or **Move here** to bring its music over.
+  - Starts on whichever speaker is playing and remembers the one you switch to. Works in landscape and portrait.
+
 ## 1.49.0
 - **Settings, reorganised into tabs** across the top, instead of one long list:
   - **Theming**: Style, Colours (theme, night theme, time-of-day colours), Tiles (transparency, blur, corners), Background (wallpaper, weather, seasonal touches) and Page header.

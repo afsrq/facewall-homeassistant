@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.49.0';
+const VERSION = '1.50.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -342,6 +342,7 @@ function watchedEntities() {
   }
   // Now-playing glow follows the media players.
   if (Object.values(s.screens || {}).some((sc) => sc?.glow?.on)) addDomain('media_player');
+  if ((s.pages || []).some((p) => p.kind === 'music')) addDomain('media_player');
   for (const id of Object.keys(timers)) set.add(id);
   // Tiles' show-when rules and badges.
   for (const list of pageLists) for (const e of list) {

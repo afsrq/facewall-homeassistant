@@ -17,7 +17,7 @@ Watch faces for a wall-mounted iPad, with your Home Assistant devices one swipe 
 - **Page header**: pick what shows under each page's title (greeting, date, weather, high/low, wind, rain, sunrise/sunset, storm and hurricane warnings, sensors, your own text), with your choice of font, size and colour.
 - **Themes**: 18 themes (dark, pastel and electric) with a live preview picker; use one for the whole house or a different one per iPad.
 - **Living backgrounds**: gentle rain, snow, clouds, fog or stars behind the tiles that match the weather outside, plus seasonal blossoms, leaves and snow.
-- **TV remote and Music Assistant**: a touchpad remote for Apple TV, Roku, Android/Fire TV, LG, Samsung and Sony, and a Music Assistant tile to browse, search, queue and group speakers.
+- **TV remote and Music Assistant**: a touchpad remote for Apple TV, Roku, Android/Fire TV, LG, Samsung and Sony, a Music Assistant tile to browse, search, queue and group speakers, and a full Music page.
 - **Styles × themes**: draw the tiles like Apple Home, Material You (Android), liquid glass or Facewall Bold, in any of 30 colour themes, with adjustable transparency, blur and corners.
 - **Sections**: a menu down the left of a page (Lights, Climate, Media…), each with its own tiles, filled from the room in one tap.
 - **Fun faces**: sunrise & sunset dial, a live weather sky, an airport departure board, lava lamp, aquarium, family, countdowns and word clocks.
