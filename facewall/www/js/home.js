@@ -436,7 +436,7 @@ export class HomePage {
     this.root.innerHTML = '';
     this.cards = [];
     this.side = null;
-    this.musicV?.destroy(); this.musicV = null;
+    this.musicV?.destroy(); this.musicV = null; clearTimeout(this._musicWait);
     if (this.page?.kind === 'music') return this.renderMusic();
     this.root.classList.remove('music-page');
     this.greet = h('div.greet');
@@ -1402,31 +1402,80 @@ export class HomePage {
   /** A whole page for music: Music Assistant's player and library, full screen. */
   async renderMusic() {
     const st = this.store, pg = this.page;
+    const run = (this._musicRun = (this._musicRun || 0) + 1);
     this.root.classList.add('music-page');
     this.grid = h('div.home-grid.music-dummy');
     this.greet = h('div'); this.date = h('div'); this.time = h('div');
+    const who = h('span.mp-who');
+    const pickBtn = h('button.pill.glass.mp-pick', { onclick: () => this.musicPicker() }, h('span.mp-pick-ic', { html: icon('volume') }), who);
     const top = h('div.mp-top', {},
       h('div.mp-heading', { text: pg.name || 'Music' }),
-      h('div.mp-top-btns', {},
+      h('div.mp-top-btns', {}, pickBtn,
         h('button.icon-btn.glass', { 'aria-label': 'Clock', html: icon('clock'), onclick: () => this.app.goTo(0) }),
         h('button.icon-btn.glass', { 'aria-label': 'Settings', html: icon('gear'), onclick: () => this.app.openSettings({ page: this.pageId }) })));
-    const body = h('div.mp-body', {}, h('div.ma-msg', { text: 'Loading…' }));
+    const body = h('div.mp-body', {}, h('div.mp-empty', {}, h('div.mp-empty-text', { text: 'Finding your speakers…' })));
     this.root.append(h('div.home-bg'), h('div.home-wall'), top, body);
-    // Which speaker: the one chosen, else a Music Assistant speaker that's playing, else the first one.
-    const reg = await st.registry();
-    const ma = st.list(['media_player']).filter((x) => reg.entities?.[x.entity_id]?.pl === 'music_assistant');
-    let id = pg.player && st.get(pg.player) ? pg.player : (ma.find((x) => x.state === 'playing') || ma[0])?.entity_id;
-    if (!id) {
+    const stale = () => run !== this._musicRun || this.page?.kind !== 'music';
+    try {
+      const { ma, all } = await this.musicPlayers();
+      if (stale()) return;
+      let id = pg.player && st.get(pg.player) ? pg.player : (ma.find((x) => x.state === 'playing') || ma[0])?.entity_id;
+      pickBtn.style.display = all.length ? '' : 'none';
+      if (!id) {
+        who.textContent = 'Choose a speaker';
+        body.replaceChildren(h('div.mp-empty', {},
+          h('div.mp-empty-ic', { html: icon('music') }),
+          h('div.mp-empty-title', { text: all.length ? 'No Music Assistant speakers found' : 'No speakers yet' }),
+          h('div.mp-empty-text', { text: 'This page plays Spotify, Apple Music, Tidal, YouTube Music, Deezer, Qobuz, SoundCloud, your own files and radio through Music Assistant. Install Music Assistant and its integration in Home Assistant, connect your music services there, and its speakers show up here.' }),
+          all.length ? h('div.mp-empty-text', { text: 'Or pick any speaker to control it from here:' }) : null,
+          all.length ? h('div.mp-empty-list', {}, ...all.map((x) => h('button.pill', { text: st.name(x.entity_id), onclick: () => this.setMusicPlayer(x.entity_id) }))) : null));
+        // Speakers can arrive a moment after the page; try again when one does.
+        if ((this._musicTries = (this._musicTries || 0) + 1) <= 4) this._musicWait = setTimeout(() => { if (!stale() && !this.musicV) this.render(); }, 6000);
+        return;
+      }
+      who.textContent = st.name(id);
+      this.musicV?.destroy();
+      this.musicV = this.musicView(id, { page: true, onPlayer: (o) => this.setMusicPlayer(o) });
+      body.replaceChildren(this.musicV.el);
+    } catch (e) {
+      if (stale()) return;
       body.replaceChildren(h('div.mp-empty', {},
-        h('div.mp-empty-ic', { html: icon('music') }),
-        h('div.mp-empty-title', { text: 'Add Music Assistant to Home Assistant' }),
-        h('div.mp-empty-text', { text: 'This page plays Spotify, Apple Music, Tidal, YouTube Music, Deezer, Qobuz, SoundCloud, your own files and radio through Music Assistant. Install the Music Assistant add-on and its integration in Home Assistant, connect your music services there, and your speakers will show up here.' })));
-      return;
+        h('div.mp-empty-title', { text: 'The music page hit a problem' }),
+        h('div.mp-empty-text', { text: String(e?.message || e) }),
+        h('button.pill.primary', { text: 'Try again', onclick: () => { st.registry(true); this.render(); } })));
+      console.error('Music page', e);
     }
-    if (this.page?.kind !== 'music') return;
-    this.musicV?.destroy();
-    this.musicV = this.musicView(id, { page: true, onPlayer: (o) => { this.app.update((x) => { const p = pageOf(x, this.pageId); if (p) p.player = o; }); this.render(); } });
-    body.replaceChildren(this.musicV.el);
+  }
+
+  /** Media players, with Music Assistant's first. MA players are found by their integration, or by MA's own attributes. */
+  async musicPlayers() {
+    const st = this.store;
+    let reg = await st.registry();
+    const isMa = (x) => reg?.entities?.[x.entity_id]?.pl === 'music_assistant' || x.attributes?.mass_player_type != null || x.attributes?.active_queue != null || x.attributes?.app_id === 'music_assistant';
+    let all = st.list(['media_player']);
+    if (all.length && !all.some(isMa) && !this._regRetried) { this._regRetried = true; reg = await st.registry(true); }
+    all = st.list(['media_player']);
+    const ma = all.filter(isMa);
+    return { ma, all: [...ma, ...all.filter((x) => !ma.includes(x))] };
+  }
+
+  setMusicPlayer(id) {
+    this.app.update((x) => { const p = pageOf(x, this.pageId); if (p) p.player = id; });
+    this.render();
+  }
+
+  async musicPicker() {
+    const st = this.store, { ma, all } = await this.musicPlayers();
+    const cur = this.page?.player;
+    const sh = sheet({ title: 'Speaker for this page', cls: 'mp-picker' });
+    const row = (x) => h('button.ent-row.mp-pick-row' + (x.entity_id === cur ? '.sel' : ''), { onclick: () => { sh.close(); this.setMusicPlayer(x.entity_id); } },
+      h('span.ent-ic', { html: icon('volume') }),
+      h('div.ent-text', {}, h('div.ent-name', { text: st.name(x.entity_id) }), h('div.ent-sub', { text: x.state === 'playing' && x.attributes?.media_title ? `Playing ${x.attributes.media_title}` : cap(x.state) })));
+    sh.body.append(...[
+      h('button.ent-row.mp-pick-row' + (!cur ? '.sel' : ''), { onclick: () => { sh.close(); this.setMusicPlayer(null); } }, h('span.ent-ic', { html: icon('music') }), h('div.ent-text', {}, h('div.ent-name', { text: 'Whichever is playing' }), h('div.ent-sub', { text: 'Follows the Music Assistant speaker that is playing' }))),
+      ma.length ? h('div.set-sub', { text: 'Music Assistant speakers' }) : null, ...ma.map(row),
+      all.length > ma.length ? h('div.set-sub', { text: ma.length ? 'Other speakers (controls only, no library)' : 'Speakers (controls only, no library)' }) : null,
+      ...all.filter((x) => !ma.includes(x)).map(row)].filter(Boolean));
   }
 
   musicSheet(id, item = { id }) {
@@ -1497,7 +1546,8 @@ export class HomePage {
     const speakers = h('div.ms2-speakers');
     const drawSpeakers = async () => {
       const reg = await st.registry();
-      const others = st.list(['media_player']).map((s) => s.entity_id).filter((x) => x !== id && reg.entities?.[x]?.pl === 'music_assistant');
+      const maAttr = (a) => a?.mass_player_type != null || a?.active_queue != null || a?.app_id === 'music_assistant';
+      const others = st.list(['media_player']).filter((x) => x.entity_id !== id && (reg.entities?.[x.entity_id]?.pl === 'music_assistant' || maAttr(x.attributes))).map((x) => x.entity_id);
       if (!others.length) { speakers.replaceChildren(); return; }
       const members = st.get(id)?.attributes?.group_members || [];
       speakers.replaceChildren(h('div.set-sub', { text: 'Other speakers' }), ...others.map((o) => {

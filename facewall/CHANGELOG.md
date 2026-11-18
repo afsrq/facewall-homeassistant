@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.50.1
+- **Music page fixes**: the page no longer stays empty.
+  - Finds Music Assistant speakers even when Home Assistant's entity registry doesn't say which integration they come from, and tries again if they arrive a moment late.
+  - A **speaker button** at the top picks the speaker for the page (or "Whichever is playing"). Other speakers can be controlled too, without the library.
+  - If something goes wrong, the page says what and offers **Try again**, instead of showing nothing.
+  - The play button is visible on light themes.
+
 ## 1.50.0
 - **Music page**: a whole page for Music Assistant. Add it from **Settings → Pages & tiles → Music page**, then swipe to the end.
   - Big cover art, a seek bar, shuffle, repeat, volume and **Up next**.
