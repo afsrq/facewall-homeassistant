@@ -1566,22 +1566,40 @@ export class HomePage {
         h('div.ma-cwrap', {}, maCover(it), it._b && !it.play ? null : more, it._b && !it.play ? null : menu), h('div.ma-name', { text: it.name }), h('div.ma-sub', { text: it._b ? (it.expand && it.play ? cap(it.cls || '') : '') : maSub(it) }));
       return el;
     };
+    const hint = h('div.ms2-hint');
+    const SEARCH_MEDIA = 4194304; // MediaPlayerEntityFeature.SEARCH_MEDIA
     const load = async () => {
       const my = ++seq;
       grid.replaceChildren(h('div.ma-msg', { text: 'Loading…' }));
-      let items = [];
+      let items = [], note = '';
       try {
-        const m = await maInfo(st);
-        if (!browseMode && !m.has('get_library')) { browseMode = true; drawTabs(); }
+        let m = await maInfo(st);
+        // Music Assistant may have been (re)installed since Facewall last looked: check again before giving up on it.
+        if (!m.has('get_library') && Date.now() - (st._regFreshAt || 0) > 20000) { st._regFreshAt = Date.now(); await st.registry(true); m = await maInfo(st); }
+        if (my !== seq) return;
+        // Music Assistant's library only plays on Music Assistant's own speakers; other speakers browse their own library.
+        const maSpeaker = isMaPlayer(m.r, st.get(id));
+        const useMa = m.has('get_library') && maSpeaker;
+        if (browseMode === useMa) { browseMode = !useMa; path = []; drawTabs(); }
+        const maOthers = m.d && !maSpeaker ? st.list(['media_player']).filter((x) => liveSpeaker(x) && isMaPlayer(m.r, x)) : [];
+        hint.replaceChildren(...(maOthers.length && onPlayer ? [h('span', { text: `${st.name(id)} isn’t a Music Assistant speaker, so only its own library shows here. For all your music, switch to:` }),
+          ...maOthers.slice(0, 6).map((x) => h('button.pill.sm.primary', { text: st.name(x.entity_id), onclick: () => onPlayer(x.entity_id) }))] : []));
         if (query) {
-          if (m.has('search')) {
+          if (!browseMode && m.has('search')) {
             const r = await maAsk(st, 'search', { name: query, limit: 12 });
-            const order = type === 'fav' || browseMode ? ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts', 'audiobooks'] : [type === 'radio' ? 'radio' : type + 's'];
+            const order = type === 'fav' ? ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts', 'audiobooks'] : [type === 'radio' ? 'radio' : type + 's'];
             for (const k of order) items.push(...(r?.[k] || []));
-          } else if (m.searchMedia) {
+          } else if (m.searchMedia && (st.get(id)?.attributes?.supported_features & SEARCH_MEDIA)) {
             const r = await st.ask('media_player', 'search_media', { search_query: query }, { entity_id: id });
             items = (r?.[id]?.result || r?.result || []).map(fromBrowse);
-          } else throw new Error('this speaker can’t be searched from Home Assistant');
+          } else {
+            // This speaker can't search: look through the folder on show instead.
+            const node = path[path.length - 1];
+            const b = await st.browse(id, node?.uri, node?.media_type);
+            const ql = query.toLowerCase();
+            items = (b?.children || []).map(fromBrowse).filter((x) => (x.name || '').toLowerCase().includes(ql));
+            note = `${st.name(id)} can’t search its library, so this only looks through ${node ? '“' + node.name + '”' : 'the folders on show'}.`;
+          }
         } else if (browseMode) {
           const node = path[path.length - 1];
           const b = await st.browse(id, node?.uri, node?.media_type);
@@ -1589,14 +1607,13 @@ export class HomePage {
         } else items = type === 'fav' ? await maFavourites(st, 40) : await maLibrary(st, type);
       } catch (e) {
         if (my !== seq) return;
-        // Library actions missing: switch to browsing the speaker's library instead.
-        if (e.missing && !browseMode && !query) { browseMode = true; drawTabs(); return load(); }
         grid.replaceChildren(h('div.ma-msg', {}, h('div', { text: 'Couldn’t load music: ' + (e.message || e) }),
-          h('button.pill.sm', { text: 'Try again', onclick: () => { st.registry(true); load(); } })));
+          h('button.pill.sm', { text: 'Try again', onclick: () => { st._regFreshAt = 0; st.registry(true); load(); } })));
         return;
       }
       if (my !== seq) return;
-      grid.replaceChildren(...(items.length ? items.map(tile) : [h('div.ma-msg', { text: query ? 'Nothing found.' : browseMode ? 'Nothing here.' : type === 'fav' ? 'No favourites yet. Star things in Music Assistant, or browse the other tabs.' : 'Nothing here yet.' })]));
+      const empty = h('div.ma-msg', { text: query ? 'Nothing found.' : browseMode ? 'Nothing here.' : type === 'fav' ? 'No favourites yet. Star things in Music Assistant, or browse the other tabs.' : 'Nothing here yet.' });
+      grid.replaceChildren(...[note ? h('div.ma-msg.ma-note', { text: note }) : null, ...(items.length ? items.map(tile) : [empty])].filter(Boolean));
     };
     // Speakers: control another one, group them with this one, or move the music over
     const speakers = h('div.ms2-speakers');
@@ -1649,8 +1666,8 @@ export class HomePage {
     st.addEventListener('state', onEv);
     const timer = page ? setInterval(tickProg, 1000) : null;
     const el = page
-      ? h('div.mp', {}, h('div.mp-left', {}, nowBar, speakers), h('div.mp-right', {}, q, tabs, grid))
-      : h('div', {}, nowBar, q, tabs, grid, speakers);
+      ? h('div.mp', {}, h('div.mp-left', {}, nowBar, speakers), h('div.mp-right', {}, q, hint, tabs, grid))
+      : h('div', {}, nowBar, q, hint, tabs, grid, speakers);
     drawTabs(); render(); load(); drawSpeakers();
     return { el, destroy() { st.removeEventListener('state', onEv); clearInterval(timer); } };
   }

@@ -1344,3 +1344,7 @@ body[data-look="retro"] .side-item.on .side-ic { color: #031003; }
 .ms2-crumb-sep { opacity: 0.4; }
 .ma-item.folder .ma-cover::after { content: '›'; position: absolute; right: 10px; bottom: 6px; font-size: 26px; font-weight: 700; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
 .ma-msg .pill { margin-top: 10px; }
+.ms2-hint:empty { display: none; }
+.ms2-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 16px; background: rgba(10,132,255,0.14); font-size: 13.5px; line-height: 1.35; }
+.ms2-hint > span { flex: 1 1 100%; opacity: 0.85; }
+.ma-note { grid-column: 1 / -1; padding: 0 2px 6px; font-size: 13px; opacity: 0.65; }

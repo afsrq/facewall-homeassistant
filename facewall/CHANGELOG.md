@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.50.4
+- **Music page search fixed** ("does not support action media_player.search_media").
+  - Facewall checks for Music Assistant again before falling back, so a reinstalled Music Assistant is picked up without restarting anything.
+  - Music Assistant speakers search all your music (Spotify, Apple Music and the rest) through Music Assistant.
+  - Other speakers (for example a WiiM through its own integration) browse their own library. If they can't search, Facewall looks through the folder on show instead of failing, and a note offers to switch to a Music Assistant speaker for all your music.
+
 ## 1.50.3
 - **Music page: no more speakers that no longer exist.** Removing or reinstalling Music Assistant leaves its old speakers behind in Home Assistant as unavailable entities. Facewall now leaves those out of the speaker button, Other speakers and the automatic choice, and a page set to an old speaker goes back to whichever is playing.
 - Facewall notices new speakers sooner: it re-reads Home Assistant's entity list when it sees a speaker it doesn't know (at most once a minute), instead of after five minutes.
