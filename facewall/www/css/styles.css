@@ -1338,3 +1338,9 @@ body[data-look="retro"] .side-item.on .side-ic { color: #031003; }
   .mp-left .ms2-speakers .set-sub { display: none; }
   .mp-left .ms2-speakers .ent-row { flex: none; width: min(78vw, 400px); border-radius: 18px; background: var(--t-card); border: 1px solid var(--t-card-border); padding: 10px 12px; margin: 0; }
 }
+.ms2-crumbs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px 2px; }
+.ms2-crumb { background: none; border: 0; color: inherit; font: inherit; font-size: 15px; font-weight: 600; opacity: 0.6; padding: 6px 8px; border-radius: 10px; cursor: pointer; }
+.ms2-crumb.on { opacity: 1; background: var(--t-soft, rgba(127,127,127,0.18)); }
+.ms2-crumb-sep { opacity: 0.4; }
+.ma-item.folder .ma-cover::after { content: '›'; position: absolute; right: 10px; bottom: 6px; font-size: 26px; font-weight: 700; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+.ma-msg .pill { margin-top: 10px; }

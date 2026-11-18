@@ -178,20 +178,47 @@ const MEDIA_OFF = ['off', 'standby', 'unavailable', 'unknown'];
 
 // ------------------------------------------------------------------ Music Assistant helpers
 export const MA_TYPES = [{ v: 'fav', label: 'Favourites' }, { v: 'playlist', label: 'Playlists' }, { v: 'album', label: 'Albums' }, { v: 'artist', label: 'Artists' }, { v: 'track', label: 'Songs' }, { v: 'radio', label: 'Radio' }, { v: 'podcast', label: 'Podcasts' }, { v: 'audiobook', label: 'Audiobooks' }];
-const maImg = (it) => { const i = it?.image || it?.album?.image; return typeof i === 'string' ? i : i?.path || null; };
+const maImg = (it) => {
+  const i = it?.image || it?.album?.image, u = typeof i === 'string' ? i : i?.path || null;
+  return u && u.startsWith('/api/') ? `api/hathumb?p=${encodeURIComponent(u)}` : u;
+};
 const maSub = (it) => (it?.artists || []).map((a) => a.name).filter(Boolean).join(', ') || it?.owner || (it?.media_type === 'radio' ? 'Radio' : '');
-const maArgs = async (store, extra) => { const r = await store.registry(); return { ...(r.ma?.[0] ? { config_entry_id: r.ma[0] } : {}), ...extra }; };
+/** Is this speaker one of Music Assistant's? (by its integration, or by the attributes Music Assistant adds) */
+export const isMaPlayer = (reg, s) => ['music_assistant', 'mass'].includes(reg?.entities?.[s?.entity_id]?.pl) || s?.attributes?.mass_player_type != null || s?.attributes?.active_queue != null || s?.attributes?.app_id === 'music_assistant';
+/** Which Music Assistant actions this Home Assistant has: the built-in integration's (music_assistant), the older HACS one's (mass), or none. */
+async function maInfo(store) {
+  const r = await store.registry();
+  const d = r.maDomain === undefined ? 'music_assistant' : r.maDomain;
+  const sv = new Set(r.maServices || (d ? ['search', 'get_library', 'play_media', 'transfer_queue', 'get_queue'] : []));
+  return { r, d, has: (x) => !!d && sv.has(x), searchMedia: r.searchMedia !== false };
+}
+/** Ask Music Assistant something. Adds its instance when there is one; retries without it if the action doesn't take one. */
+async function maAsk(store, service, extra = {}, target) {
+  const m = await maInfo(store);
+  if (!m.has(service)) throw Object.assign(new Error(`Home Assistant has no ${m.d || 'music_assistant'}.${service} action`), { missing: true });
+  const withEntry = m.r.ma?.[0] && !target ? { config_entry_id: m.r.ma[0], ...extra } : extra;
+  try { return await store.ask(m.d, service, withEntry, target); }
+  catch (e) { if (withEntry !== extra && /extra keys|config_entry_id|not a valid/i.test(e.message || '')) return store.ask(m.d, service, extra, target); throw e; }
+}
+/** A Home Assistant media-browser entry, shaped like a Music Assistant item. */
+const fromBrowse = (b) => ({ name: b.title, uri: b.media_content_id, media_type: b.media_content_type, image: b.thumbnail, _b: true, expand: !!b.can_expand, play: !!b.can_play, cls: b.media_class });
 async function maLibrary(store, type, opts = {}) {
-  const r = await store.ask('music_assistant', 'get_library', await maArgs(store, { media_type: type, limit: opts.limit || 60, ...(opts.favorite ? { favorite: true } : {}), ...(opts.search ? { search: opts.search } : {}), order_by: opts.favorite ? 'timestamp_added_desc' : 'name' }));
+  const r = await maAsk(store, 'get_library', { media_type: type, limit: opts.limit || 60, ...(opts.favorite ? { favorite: true } : {}), ...(opts.search ? { search: opts.search } : {}), order_by: opts.favorite ? 'timestamp_added_desc' : 'name' });
   return r?.items || [];
 }
 async function maFavourites(store, limit = 18) {
-  const lists = await Promise.all(['playlist', 'radio', 'album', 'artist'].map((t) => maLibrary(store, t, { favorite: true, limit }).catch(() => [])));
+  let err = null;
+  const lists = await Promise.all(['playlist', 'radio', 'album', 'artist'].map((t) => maLibrary(store, t, { favorite: true, limit }).catch((e) => { err ||= e; return null; })));
+  if (lists.every((l) => l === null)) throw err;
   const out = [];
-  for (let i = 0; out.length < limit && i < limit; i++) for (const l of lists) if (l[i] && out.length < limit) out.push(l[i]);
+  for (let i = 0; out.length < limit && i < limit; i++) for (const l of lists) if (l?.[i] && out.length < limit) out.push(l[i]);
   return out;
 }
-const maPlay = (store, id, it, enqueue = 'play', radio = false) => store.call('music_assistant', 'play_media', { media_id: it.uri, media_type: it.media_type, enqueue, ...(radio ? { radio_mode: true } : {}) }, { entity_id: id });
+async function maPlay(store, id, it, enqueue = 'play', radio = false) {
+  const m = it._b ? null : await maInfo(store);
+  if (m?.has('play_media')) return store.call(m.d, 'play_media', { media_id: it.uri, media_type: it.media_type, enqueue, ...(radio ? { radio_mode: true } : {}) }, { entity_id: id });
+  return store.call('media_player', 'play_media', { media_content_id: it.uri, media_content_type: it.media_type || 'music', ...(enqueue !== 'play' ? { enqueue } : {}) }, { entity_id: id });
+}
 /** A cover picture: straight from Music Assistant, through Facewall if the iPad can't reach it, else initials. */
 function maCover(it, cls = 'div.ma-cover') {
   const el = h(cls, { 'data-ini': (it?.name || '?').replace(/[^\p{L}\p{N} ]/gu, '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() });
@@ -1451,7 +1478,7 @@ export class HomePage {
   async musicPlayers() {
     const st = this.store;
     let reg = await st.registry();
-    const isMa = (x) => reg?.entities?.[x.entity_id]?.pl === 'music_assistant' || x.attributes?.mass_player_type != null || x.attributes?.active_queue != null || x.attributes?.app_id === 'music_assistant';
+    const isMa = (x) => isMaPlayer(reg, x);
     let all = st.list(['media_player']);
     if (all.length && !all.some(isMa) && !this._regRetried) { this._regRetried = true; reg = await st.registry(true); }
     all = st.list(['media_player']);
@@ -1508,21 +1535,31 @@ export class HomePage {
       : h('div.ms2-now', {}, art, h('div.ms2-info', {}, title, sub, next), ctl, h('div.ms2-volrow', {}, h('span', { html: icon('volume') }), vol));
     // Browse
     let type = 'fav', query = '', seq = 0;
+    // When Home Assistant has no Music Assistant library actions, browse the speaker's library the generic way.
+    let browseMode = false, path = [];
     const q = h('input.text-in.ms2-search', { type: 'search', placeholder: 'Search songs, artists, albums, playlists, radio…' });
     let qt = null;
     q.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => { query = q.value.trim(); load(); }, 350); });
     const tabs = h('div.ms2-tabs');
     const grid = h('div.ms2-grid');
-    const drawTabs = () => tabs.replaceChildren(segmented(MA_TYPES, type, (v) => { type = v; query = ''; q.value = ''; drawTabs(); load(); }));
+    const drawTabs = () => {
+      if (!browseMode) return tabs.replaceChildren(segmented(MA_TYPES, type, (v) => { type = v; query = ''; q.value = ''; drawTabs(); load(); }));
+      const crumbs = [{ name: 'Library' }, ...path];
+      tabs.replaceChildren(h('div.ms2-crumbs', {}, ...crumbs.flatMap((c, i) => [
+        i ? h('span.ms2-crumb-sep', { text: '›' }) : null,
+        h('button.ms2-crumb' + (i === crumbs.length - 1 ? '.on' : ''), { text: c.name, onclick: () => { path = path.slice(0, i); query = ''; q.value = ''; drawTabs(); load(); } })]).filter(Boolean)));
+    };
+    const open = (it) => { path.push(it); query = ''; q.value = ''; drawTabs(); load(); };
     const tile = (it) => {
       const menu = h('div.ma-menu', {},
         h('button', { text: 'Play now', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it); toast(`Playing ${it.name}`); } }),
         h('button', { text: 'Play next', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'next'); toast('Playing next'); el.classList.remove('menu'); } }),
         h('button', { text: 'Add to queue', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'add'); toast('Added to the queue'); el.classList.remove('menu'); } }),
-        it.media_type !== 'radio' ? h('button', { text: 'Start radio', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'play', true); toast('Radio based on ' + it.name); } }) : null);
+        it.media_type !== 'radio' && !it._b ? h('button', { text: 'Start radio', onclick: (e) => { e.stopPropagation(); maPlay(st, id, it, 'play', true); toast('Radio based on ' + it.name); } }) : null);
       const more = h('button.ma-more', { text: '•••', 'aria-label': 'More', onclick: (e) => { e.stopPropagation(); grid.querySelectorAll('.menu').forEach((x) => x !== el && x.classList.remove('menu')); el.classList.toggle('menu'); } });
-      const el = h('div.ma-item' + (it.media_type === 'artist' ? '.round' : ''), { onclick: () => { maPlay(st, id, it); toast(`Playing ${it.name}`); } },
-        h('div.ma-cwrap', {}, maCover(it), more, menu), h('div.ma-name', { text: it.name }), h('div.ma-sub', { text: maSub(it) }));
+      const folder = it._b && it.expand && !it.play;
+      const el = h('div.ma-item' + (it.media_type === 'artist' || it.cls === 'artist' ? '.round' : '') + (folder ? '.folder' : ''), { onclick: () => { if (it._b && it.expand && (!it.play || ['directory', 'app'].includes(it.cls))) return open(it); maPlay(st, id, it); toast(`Playing ${it.name}`); } },
+        h('div.ma-cwrap', {}, maCover(it), it._b && !it.play ? null : more, it._b && !it.play ? null : menu), h('div.ma-name', { text: it.name }), h('div.ma-sub', { text: it._b ? (it.expand && it.play ? cap(it.cls || '') : '') : maSub(it) }));
       return el;
     };
     const load = async () => {
@@ -1530,24 +1567,39 @@ export class HomePage {
       grid.replaceChildren(h('div.ma-msg', { text: 'Loading…' }));
       let items = [];
       try {
+        const m = await maInfo(st);
+        if (!browseMode && !m.has('get_library')) { browseMode = true; drawTabs(); }
         if (query) {
-          const r = await st.ask('music_assistant', 'search', await maArgs(st, { name: query, limit: 12 }));
-          const order = type === 'fav' ? ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts', 'audiobooks'] : [type === 'radio' ? 'radio' : type + 's'];
-          for (const k of order) items.push(...(r?.[k] || []));
+          if (m.has('search')) {
+            const r = await maAsk(st, 'search', { name: query, limit: 12 });
+            const order = type === 'fav' || browseMode ? ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts', 'audiobooks'] : [type === 'radio' ? 'radio' : type + 's'];
+            for (const k of order) items.push(...(r?.[k] || []));
+          } else if (m.searchMedia) {
+            const r = await st.ask('media_player', 'search_media', { search_query: query }, { entity_id: id });
+            items = (r?.[id]?.result || r?.result || []).map(fromBrowse);
+          } else throw new Error('this speaker can’t be searched from Home Assistant');
+        } else if (browseMode) {
+          const node = path[path.length - 1];
+          const b = await st.browse(id, node?.uri, node?.media_type);
+          items = (b?.children || []).map(fromBrowse);
         } else items = type === 'fav' ? await maFavourites(st, 40) : await maLibrary(st, type);
       } catch (e) {
-        if (my === seq) grid.replaceChildren(h('div.ma-msg', { text: 'Couldn’t reach Music Assistant: ' + (e.message || e) + '. Is the Music Assistant integration set up in Home Assistant?' }));
+        if (my !== seq) return;
+        // Library actions missing: switch to browsing the speaker's library instead.
+        if (e.missing && !browseMode && !query) { browseMode = true; drawTabs(); return load(); }
+        grid.replaceChildren(h('div.ma-msg', {}, h('div', { text: 'Couldn’t load music: ' + (e.message || e) }),
+          h('button.pill.sm', { text: 'Try again', onclick: () => { st.registry(true); load(); } })));
         return;
       }
       if (my !== seq) return;
-      grid.replaceChildren(...(items.length ? items.map(tile) : [h('div.ma-msg', { text: query ? 'Nothing found.' : type === 'fav' ? 'No favourites yet. Star things in Music Assistant, or browse the other tabs.' : 'Nothing here yet.' })]));
+      grid.replaceChildren(...(items.length ? items.map(tile) : [h('div.ma-msg', { text: query ? 'Nothing found.' : browseMode ? 'Nothing here.' : type === 'fav' ? 'No favourites yet. Star things in Music Assistant, or browse the other tabs.' : 'Nothing here yet.' })]));
     };
     // Speakers: control another one, group them with this one, or move the music over
     const speakers = h('div.ms2-speakers');
     const drawSpeakers = async () => {
       const reg = await st.registry();
-      const maAttr = (a) => a?.mass_player_type != null || a?.active_queue != null || a?.app_id === 'music_assistant';
-      const others = st.list(['media_player']).filter((x) => x.entity_id !== id && (reg.entities?.[x.entity_id]?.pl === 'music_assistant' || maAttr(x.attributes))).map((x) => x.entity_id);
+      const others = st.list(['media_player']).filter((x) => x.entity_id !== id && isMaPlayer(reg, x)).map((x) => x.entity_id);
+      const m = await maInfo(st);
       if (!others.length) { speakers.replaceChildren(); return; }
       const members = st.get(id)?.attributes?.group_members || [];
       speakers.replaceChildren(h('div.set-sub', { text: 'Other speakers' }), ...others.map((o) => {
@@ -1557,7 +1609,7 @@ export class HomePage {
           h('div.ent-text', {}, h('div.ent-name', { text: st.name(o) }), h('div.ent-sub', { text: s?.attributes?.media_title && s.state === 'playing' ? `Playing ${s.attributes.media_title}` : cap(s?.state || '') })),
           onPlayer ? h('button.pill.sm', { text: 'Control', onclick: () => onPlayer(o) }) : null,
           h('button.pill.sm' + (inGroup ? '.primary' : ''), { text: inGroup ? 'Grouped' : 'Group', onclick: () => { if (inGroup) st.call('media_player', 'unjoin', {}, { entity_id: o }); else st.call('media_player', 'join', { group_members: [o] }, { entity_id: id }); setTimeout(drawSpeakers, 400); } }),
-          h('button.pill.sm', { text: page ? 'Move here' : 'Move music there', title: 'Move the music to this speaker', onclick: () => { st.call('music_assistant', 'transfer_queue', { source_player: id, auto_play: true }, { entity_id: o }); toast(`Moved to ${st.name(o)}`); if (onPlayer) onPlayer(o); else setTimeout(drawSpeakers, 400); } }));
+          !m.has('transfer_queue') ? null : h('button.pill.sm', { text: page ? 'Move here' : 'Move music there', title: 'Move the music to this speaker', onclick: () => { st.call(m.d, 'transfer_queue', { source_player: id, auto_play: true }, { entity_id: o }); toast(`Moved to ${st.name(o)}`); if (onPlayer) onPlayer(o); else setTimeout(drawSpeakers, 400); } }));
       }));
     };
     const fmtT = (sec) => { sec = Math.max(0, Math.round(sec || 0)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
@@ -1585,7 +1637,7 @@ export class HomePage {
       if (document.activeElement !== vol) vol.value = Math.round((a.volume_level ?? 0) * 100);
       tickProg();
       try {
-        const qd = (await st.ask('music_assistant', 'get_queue', {}, { entity_id: id }))?.[id];
+        const qd = (await maAsk(st, 'get_queue', {}, { entity_id: id }))?.[id];
         next.textContent = qd?.next_item?.name ? `Up next: ${qd.next_item.name}` : '';
       } catch { next.textContent = ''; }
     };
@@ -1666,7 +1718,7 @@ export class HomePage {
     timer = setInterval(tick, 1000);
     render();
     st.registry().then((reg) => {
-      if (reg.entities?.[id]?.pl !== 'music_assistant') return;
+      if (!isMaPlayer(reg, st.get(id))) return;
       sh.body.querySelector('.ms-end')?.prepend(h('button.pill.sm.primary', { html: icon('music') + '<span>Browse music</span>', onclick: () => { sh.close(); this.musicSheet(id, item); } }));
     });
   }

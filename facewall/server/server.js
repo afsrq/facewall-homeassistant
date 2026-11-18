@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.50.1';
+const VERSION = '1.50.2';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -501,15 +501,26 @@ async function callService(domain, service, data = {}, target, response = false)
 let registryCache = null, registryAt = 0;
 async function registry() {
   if (registryCache && Date.now() - registryAt < 300000) return registryCache;
-  const out = { entities: {}, ma: [] };
+  const out = { entities: {}, ma: [], maDomain: null, maServices: [], searchMedia: false };
   try {
     const r = await haRequest({ type: 'config/entity_registry/list_for_display' });
     for (const e of r?.entities || []) if (e.ei && (e.pl || e.di)) out.entities[e.ei] = { pl: e.pl || null, di: e.di || null };
   } catch (e) { log('Entity registry:', e.message); }
+  // Which Music Assistant actions this Home Assistant actually has: the built-in integration (music_assistant)
+  // or the older HACS one (mass). Also whether media players can be searched the generic way.
   try {
-    const ce = await haRequest({ type: 'config_entries/get', domain: 'music_assistant' });
-    out.ma = (ce || []).filter((c) => c.state === 'loaded').map((c) => c.entry_id);
-  } catch { /* Music Assistant not installed */ }
+    const svc = await haRequest({ type: 'get_services' });
+    out.maDomain = ['music_assistant', 'mass'].find((d) => svc?.[d] && Object.keys(svc[d]).length) || null;
+    out.maServices = out.maDomain ? Object.keys(svc[out.maDomain]) : [];
+    out.searchMedia = !!svc?.media_player?.search_media;
+  } catch (e) { log('Services:', e.message); }
+  for (const domain of [out.maDomain || 'music_assistant']) {
+    try {
+      const ce = await haRequest({ type: 'config_entries/get', domain });
+      out.ma = (ce || []).filter((c) => c.state === 'loaded').map((c) => c.entry_id);
+    } catch { /* Music Assistant not installed */ }
+  }
+  if (out.maDomain !== 'music_assistant' || !out.maServices.includes('search')) log('Music Assistant actions:', out.maDomain || 'none', out.maServices.join(', ') || '-');
   registryCache = out; registryAt = Date.now();
   return out;
 }
@@ -704,8 +715,31 @@ async function handleApi(req, res, route) {
     catch (e) { return json(res, 502, { error: e.message }); }
   }
 
+  // Browse a media player's library the generic Home Assistant way (works for any player that can browse).
+  if (route === 'browse' && req.method === 'POST') {
+    const { entity_id, media_content_id, media_content_type } = await readBody(req);
+    if (!/^media_player\.[a-z0-9_]+$/.test(entity_id || '')) return json(res, 400, { error: 'bad player' });
+    const msg = { type: 'media_player/browse_media', entity_id };
+    if (media_content_id) { msg.media_content_id = String(media_content_id); msg.media_content_type = String(media_content_type || ''); }
+    try { return json(res, 200, await haRequest(msg, 30000)); } catch (e) { return json(res, 502, { error: e.message }); }
+  }
+  // Thumbnails from Home Assistant's media browser, which need its login.
+  if (route === 'hathumb' && req.method === 'GET') {
+    const p = new URL(req.url, 'http://x').searchParams.get('p') || '';
+    if (!/^\/api\/(media_player_proxy|image_proxy|brands|media_source|image)\//.test(p)) return json(res, 400, { error: 'not allowed' });
+    const base = SUPERVISOR_TOKEN ? 'http://supervisor/core' : HA_URL;
+    try {
+      const r = await fetch(base + p, { headers: { Authorization: `Bearer ${TOKEN}` }, signal: AbortSignal.timeout(15000) });
+      const type = r.headers.get('content-type') || '';
+      if (!r.ok || !type.startsWith('image/')) return json(res, 502, { error: 'no image' });
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': buf.length, 'Cache-Control': 'private, max-age=3600' });
+      return res.end(buf);
+    } catch (e) { return json(res, 502, { error: e.message }); }
+  }
   if (route === 'registry' && req.method === 'GET') {
     if (!ha.connected) return json(res, 503, { error: 'not connected' });
+    if (new URL(req.url, 'http://x').searchParams.get('fresh')) registryCache = null;
     return json(res, 200, await registry());
   }
   if (route === 'icons/custom' && req.method === 'GET') return json(res, 200, { icons: await customIcons() });

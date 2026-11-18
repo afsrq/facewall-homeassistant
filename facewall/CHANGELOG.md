@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.50.2
+- **Music page works with more Music Assistant setups.** Facewall now asks Home Assistant which Music Assistant actions it actually has, instead of assuming them:
+  - Works with the built-in Music Assistant integration (`music_assistant`) and the older HACS one (`mass`).
+  - If Home Assistant has no Music Assistant library actions, the page browses the speaker's library the standard Home Assistant way (Library › folders › playlists), and searches with Home Assistant's own media search.
+  - "Couldn't reach Music Assistant" errors now come with **Try again**, and favourites no longer hide an error as "No favourites yet".
+  - Move here only shows when Home Assistant can move a queue.
+
 ## 1.50.1
 - **Music page fixes**: the page no longer stays empty.
   - Finds Music Assistant speakers even when Home Assistant's entity registry doesn't say which integration they come from, and tries again if they arrive a moment late.

@@ -84,9 +84,11 @@ export class Store extends EventTarget {
   call(domain, service, data = {}, target) { return this.adapter.call(domain, service, data, target); }
   /** Call a service that answers (e.g. Music Assistant search). Resolves to the response, or throws. */
   ask(domain, service, data = {}, target) { return this.adapter.ask ? this.adapter.ask(domain, service, data, target) : Promise.reject(new Error('not supported')); }
+  /** Browse a media player's library (Home Assistant's media browser). */
+  browse(id, uri, type) { return this.adapter.browse ? this.adapter.browse(id, uri, type) : Promise.reject(new Error('not supported')); }
   /** { entities: { id: { pl: integration, di: device } }, ma: [Music Assistant entry ids] } — fetched once, then cached. */
   registry(fresh) {
-    if (!this._reg || fresh) this._reg = (this.adapter.registry ? this.adapter.registry() : Promise.resolve(null)).then((r) => r || { entities: {}, ma: [] }).catch(() => { this._reg = null; return { entities: {}, ma: [] }; });
+    if (!this._reg || fresh) this._reg = (this.adapter.registry ? this.adapter.registry(fresh) : Promise.resolve(null)).then((r) => r || { entities: {}, ma: [] }).catch(() => { this._reg = null; return { entities: {}, ma: [] }; });
     return this._reg;
   }
 
@@ -229,7 +231,10 @@ class ServerAdapter {
   async ask(domain, service, data, target) {
     return (await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target, response: true }) }, 30000)).response;
   }
-  async registry() { return fetchJSON('api/registry', {}, 20000); }
+  async registry(fresh) { return fetchJSON('api/registry' + (fresh ? '?fresh=1' : ''), {}, 20000); }
+  async browse(entity_id, media_content_id, media_content_type) {
+    return fetchJSON('api/browse', { method: 'POST', body: JSON.stringify({ entity_id, media_content_id, media_content_type }) }, 35000);
+  }
   async photos(folder, dates) {
     try { return await fetchJSON(`api/photos?folder=${encodeURIComponent(folder || '')}${dates ? '&dates=1' : ''}`, {}, dates ? 120000 : 30000); } catch (e) { return { roots: [], files: [], error: e.message }; }
   }
@@ -426,7 +431,7 @@ class DemoAdapter {
   }
 
   async registry() {
-    return { entities: { 'media_player.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'remote.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'media_player.living_room_speaker': { pl: 'music_assistant', di: 'sp1' }, 'media_player.kitchen_speaker': { pl: 'music_assistant', di: 'sp2' }, 'media_player.bedroom_speaker': { pl: 'music_assistant', di: 'sp3' } }, ma: ['demo'] };
+    return { entities: { 'media_player.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'remote.living_room_tv': { pl: 'apple_tv', di: 'tv1' }, 'media_player.living_room_speaker': { pl: 'music_assistant', di: 'sp1' }, 'media_player.kitchen_speaker': { pl: 'music_assistant', di: 'sp2' }, 'media_player.bedroom_speaker': { pl: 'music_assistant', di: 'sp3' } }, ma: ['demo'], maDomain: 'music_assistant', maServices: ['search', 'get_library', 'play_media', 'transfer_queue', 'get_queue'], searchMedia: true };
   }
   async ask(domain, service, data = {}, target = {}) {
     await new Promise((r) => setTimeout(r, 150));
