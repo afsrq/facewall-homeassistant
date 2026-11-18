@@ -187,20 +187,36 @@ const maSub = (it) => (it?.artists || []).map((a) => a.name).filter(Boolean).joi
 /** A speaker that exists now: not one Home Assistant only remembers (left behind by a removed or reinstalled integration), and not unavailable. */
 export const liveSpeaker = (s) => !!s && !s.attributes?.restored && !['unavailable', 'unknown'].includes(s.state);
 export const isMaPlayer = (reg, s) => ['music_assistant', 'mass'].includes(reg?.entities?.[s?.entity_id]?.pl) || s?.attributes?.mass_player_type != null || s?.attributes?.active_queue != null || s?.attributes?.app_id === 'music_assistant';
-/** Which Music Assistant actions this Home Assistant has: the built-in integration's (music_assistant), the older HACS one's (mass), or none. */
+/** Music Assistant's actions on this Home Assistant. Facewall tries the built-in integration's (music_assistant) and the
+ *  older HACS one's (mass), and remembers whichever answers. Home Assistant's list of actions is only a hint. */
 async function maInfo(store) {
   const r = await store.registry();
-  const d = r.maDomain === undefined ? 'music_assistant' : r.maDomain;
-  const sv = new Set(r.maServices || (d ? ['search', 'get_library', 'play_media', 'transfer_queue', 'get_queue'] : []));
-  return { r, d, has: (x) => !!d && sv.has(x), searchMedia: r.searchMedia !== false };
+  const doms = [...new Set([store._maDom, r.maDomain, 'music_assistant', 'mass'].filter(Boolean))];
+  // Skip an action Home Assistant's list says is missing from a domain it did list.
+  const known = (d, x) => !(r.maDomain && d === r.maDomain && r.maServices?.length && !r.maServices.includes(x));
+  return { r, d: store._maDom || r.maDomain || 'music_assistant', doms, known, searchMedia: r.searchMedia !== false };
 }
-/** Ask Music Assistant something. Adds its instance when there is one; retries without it if the action doesn't take one. */
+const maEntry = (r, d) => (r.maEntries?.[d] || (d === (r.maDomain || 'music_assistant') ? r.ma : null) || [])[0];
+const isNotFound = (e, d, s) => (e?.message || '').includes(`${d}.${s} not found`);
+/** Ask Music Assistant something; resolves to its answer. Throws with .missing when no Music Assistant action answers. */
 async function maAsk(store, service, extra = {}, target) {
-  const m = await maInfo(store);
-  if (!m.has(service)) throw Object.assign(new Error(`Home Assistant has no ${m.d || 'music_assistant'}.${service} action`), { missing: true });
-  const withEntry = m.r.ma?.[0] && !target ? { config_entry_id: m.r.ma[0], ...extra } : extra;
-  try { return await store.ask(m.d, service, withEntry, target); }
-  catch (e) { if (withEntry !== extra && /extra keys|config_entry_id|not a valid/i.test(e.message || '')) return store.ask(m.d, service, extra, target); throw e; }
+  let m = await maInfo(store), last = null;
+  for (const d of m.doms) {
+    if (!m.known(d, service)) continue;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const entry = target ? null : maEntry(m.r, d);
+      const args = entry ? { config_entry_id: entry, ...extra } : extra;
+      try { const res = await store.ask(d, service, args, target); store._maDom = d; return res; }
+      catch (e) {
+        if (isNotFound(e, d, service)) { last = e; break; }
+        if (entry && /extra keys/i.test(e.message || '')) { const res = await store.ask(d, service, extra, target); store._maDom = d; return res; }
+        // It needs Music Assistant's instance and Facewall didn't have it (say Music Assistant was just reinstalled): look again once.
+        if (!entry && attempt === 0 && /config_entry_id/i.test(e.message || '')) { await store.registry(true); m = await maInfo(store); continue; }
+        throw e;
+      }
+    }
+  }
+  throw Object.assign(new Error(`Home Assistant has no Music Assistant ${service} action` + (last ? ` (${last.message})` : '')), { missing: true });
 }
 /** A Home Assistant media-browser entry, shaped like a Music Assistant item. */
 const fromBrowse = (b) => ({ name: b.title, uri: b.media_content_id, media_type: b.media_content_type, image: b.thumbnail, _b: true, expand: !!b.can_expand, play: !!b.can_play, cls: b.media_class });
@@ -218,7 +234,7 @@ async function maFavourites(store, limit = 18) {
 }
 async function maPlay(store, id, it, enqueue = 'play', radio = false) {
   const m = it._b ? null : await maInfo(store);
-  if (m?.has('play_media')) return store.call(m.d, 'play_media', { media_id: it.uri, media_type: it.media_type, enqueue, ...(radio ? { radio_mode: true } : {}) }, { entity_id: id });
+  if (m) return store.call(m.d, 'play_media', { media_id: it.uri, media_type: it.media_type, enqueue, ...(radio ? { radio_mode: true } : {}) }, { entity_id: id });
   return store.call('media_player', 'play_media', { media_content_id: it.uri, media_content_type: it.media_type || 'music', ...(enqueue !== 'play' ? { enqueue } : {}) }, { entity_id: id });
 }
 /** A cover picture: straight from Music Assistant, through Facewall if the iPad can't reach it, else initials. */
@@ -1590,32 +1606,38 @@ export class HomePage {
       grid.replaceChildren(h('div.ma-msg', { text: 'Loading…' }));
       let items = [], note = '';
       try {
-        let m = await maInfo(st);
-        // Music Assistant may have been (re)installed since Facewall last looked: check again before giving up on it.
-        if (!m.has('get_library') && Date.now() - (st._regFreshAt || 0) > 20000) { st._regFreshAt = Date.now(); await st.registry(true); m = await maInfo(st); }
+        const m = await maInfo(st);
         if (my !== seq) return;
         // Music Assistant's library only plays on Music Assistant's own speakers; other speakers browse their own library.
         st._lastReg = m.r;
         // Search and the library go straight to Music Assistant, whatever speaker is on show.
         // Only without Music Assistant's library actions does the page browse the speaker's own library.
-        const useMa = m.has('get_library') || m.has('search');
+        // Unless Music Assistant didn't answer in the last minute, go to it.
+        const useMa = !(st._maNone && Date.now() - st._maNone < 60000);
         if (browseMode === useMa) { browseMode = !useMa; path = []; drawTabs(); }
         hint.replaceChildren(...(useMa && !isMaPlayer(m.r, st.get(id)) ? [h('span', { text: 'Pick anything to play and choose a speaker then.' })] : []));
         if (query) {
-          if (!browseMode && m.has('search')) {
-            const r = await maAsk(st, 'search', { name: query, limit: 12 });
-            const order = type === 'fav' ? ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts', 'audiobooks'] : [type === 'radio' ? 'radio' : type + 's'];
-            for (const k of order) items.push(...(r?.[k] || []));
-          } else if (m.searchMedia && (st.get(id)?.attributes?.supported_features & SEARCH_MEDIA)) {
+          // Search Music Assistant first (Spotify and every other service it has), whatever speaker is on show.
+          let done = false;
+          if (!(st._maSearchNone && Date.now() - st._maSearchNone < 60000)) {
+            try {
+              const r = await maAsk(st, 'search', { name: query, limit: 12 });
+              const order = type === 'fav' || browseMode ? ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts', 'audiobooks'] : [type === 'radio' ? 'radio' : type + 's'];
+              for (const k of order) items.push(...(r?.[k] || []));
+              done = true;
+            } catch (e) { if (!e.missing) throw e; st._maSearchNone = Date.now(); }
+          }
+          if (done) { /* Music Assistant answered */ }
+          else if (m.searchMedia && (st.get(id)?.attributes?.supported_features & SEARCH_MEDIA)) {
             const r = await st.ask('media_player', 'search_media', { search_query: query }, { entity_id: id });
             items = (r?.[id]?.result || r?.result || []).map(fromBrowse);
           } else {
-            // This speaker can't search: look through the folder on show instead.
+            // No Music Assistant search and this speaker can't search: look through the folder on show instead.
             const node = path[path.length - 1];
             const b = await st.browse(id, node?.uri, node?.media_type);
             const ql = query.toLowerCase();
             items = (b?.children || []).map(fromBrowse).filter((x) => (x.name || '').toLowerCase().includes(ql));
-            note = `${st.name(id)} can’t search its library, so this only looks through ${node ? '“' + node.name + '”' : 'the folders on show'}.`;
+            note = `Music Assistant’s search isn’t available and ${st.name(id)} can’t search, so this only looks through ${path.length ? '“' + path[path.length - 1].name + '”' : 'the folders on show'}.`;
           }
         } else if (browseMode) {
           const node = path[path.length - 1];
@@ -1624,8 +1646,10 @@ export class HomePage {
         } else items = type === 'fav' ? await maFavourites(st, 40) : await maLibrary(st, type);
       } catch (e) {
         if (my !== seq) return;
+        // No Music Assistant actions answered: browse the speaker's own library instead (and try Music Assistant again in a minute).
+        if (e.missing && !browseMode) { st._maNone = Date.now(); console.warn('Music page:', e.message); return load(); }
         grid.replaceChildren(h('div.ma-msg', {}, h('div', { text: 'Couldn’t load music: ' + (e.message || e) }),
-          h('button.pill.sm', { text: 'Try again', onclick: () => { st._regFreshAt = 0; st.registry(true); load(); } })));
+          h('button.pill.sm', { text: 'Try again', onclick: () => { st._maNone = 0; st._maSearchNone = 0; st._regFreshAt = 0; st.registry(true); load(); } })));
         return;
       }
       if (my !== seq) return;
@@ -1647,7 +1671,7 @@ export class HomePage {
           h('div.ent-text', {}, h('div.ent-name', { text: st.name(o) }), h('div.ent-sub', { text: s?.attributes?.media_title && s.state === 'playing' ? `Playing ${s.attributes.media_title}` : cap(s?.state || '') })),
           onPlayer ? h('button.pill.sm', { text: 'Control', onclick: () => onPlayer(o) }) : null,
           h('button.pill.sm' + (inGroup ? '.primary' : ''), { text: inGroup ? 'Grouped' : 'Group', onclick: () => { if (inGroup) st.call('media_player', 'unjoin', {}, { entity_id: o }); else st.call('media_player', 'join', { group_members: [o] }, { entity_id: id }); setTimeout(drawSpeakers, 400); } }),
-          !m.has('transfer_queue') ? null : h('button.pill.sm', { text: page ? 'Move here' : 'Move music there', title: 'Move the music to this speaker', onclick: () => { st.call(m.d, 'transfer_queue', { source_player: id, auto_play: true }, { entity_id: o }); toast(`Moved to ${st.name(o)}`); if (onPlayer) onPlayer(o); else setTimeout(drawSpeakers, 400); } }));
+          !m.known(m.d, 'transfer_queue') ? null : h('button.pill.sm', { text: page ? 'Move here' : 'Move music there', title: 'Move the music to this speaker', onclick: () => { st.call(m.d, 'transfer_queue', { source_player: id, auto_play: true }, { entity_id: o }); toast(`Moved to ${st.name(o)}`); if (onPlayer) onPlayer(o); else setTimeout(drawSpeakers, 400); } }));
       }));
     };
     const fmtT = (sec) => { sec = Math.max(0, Math.round(sec || 0)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
