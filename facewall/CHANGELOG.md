@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.50.3
+- **Music page: no more speakers that no longer exist.** Removing or reinstalling Music Assistant leaves its old speakers behind in Home Assistant as unavailable entities. Facewall now leaves those out of the speaker button, Other speakers and the automatic choice, and a page set to an old speaker goes back to whichever is playing.
+- Facewall notices new speakers sooner: it re-reads Home Assistant's entity list when it sees a speaker it doesn't know (at most once a minute), instead of after five minutes.
+
 ## 1.50.2
 - **Music page works with more Music Assistant setups.** Facewall now asks Home Assistant which Music Assistant actions it actually has, instead of assuming them:
   - Works with the built-in Music Assistant integration (`music_assistant`) and the older HACS one (`mass`).

@@ -184,6 +184,8 @@ const maImg = (it) => {
 };
 const maSub = (it) => (it?.artists || []).map((a) => a.name).filter(Boolean).join(', ') || it?.owner || (it?.media_type === 'radio' ? 'Radio' : '');
 /** Is this speaker one of Music Assistant's? (by its integration, or by the attributes Music Assistant adds) */
+/** A speaker that exists now: not one Home Assistant only remembers (left behind by a removed or reinstalled integration), and not unavailable. */
+export const liveSpeaker = (s) => !!s && !s.attributes?.restored && !['unavailable', 'unknown'].includes(s.state);
 export const isMaPlayer = (reg, s) => ['music_assistant', 'mass'].includes(reg?.entities?.[s?.entity_id]?.pl) || s?.attributes?.mass_player_type != null || s?.attributes?.active_queue != null || s?.attributes?.app_id === 'music_assistant';
 /** Which Music Assistant actions this Home Assistant has: the built-in integration's (music_assistant), the older HACS one's (mass), or none. */
 async function maInfo(store) {
@@ -1446,7 +1448,7 @@ export class HomePage {
     try {
       const { ma, all } = await this.musicPlayers();
       if (stale()) return;
-      let id = pg.player && st.get(pg.player) ? pg.player : (ma.find((x) => x.state === 'playing') || ma[0])?.entity_id;
+      let id = pg.player && liveSpeaker(st.get(pg.player)) ? pg.player : (ma.find((x) => x.state === 'playing') || ma[0])?.entity_id;
       pickBtn.style.display = all.length ? '' : 'none';
       if (!id) {
         who.textContent = 'Choose a speaker';
@@ -1479,9 +1481,11 @@ export class HomePage {
     const st = this.store;
     let reg = await st.registry();
     const isMa = (x) => isMaPlayer(reg, x);
-    let all = st.list(['media_player']);
-    if (all.length && !all.some(isMa) && !this._regRetried) { this._regRetried = true; reg = await st.registry(true); }
-    all = st.list(['media_player']);
+    let all = st.list(['media_player']).filter(liveSpeaker);
+    // New speakers (say after reinstalling Music Assistant) that the cached registry doesn't know yet: look again, at most once a minute.
+    const unknown = all.some((x) => !reg?.entities?.[x.entity_id]) || (all.length && !all.some(isMa));
+    if (unknown && Date.now() - (st._regFreshAt || 0) > 60000) { st._regFreshAt = Date.now(); reg = await st.registry(true); }
+    all = st.list(['media_player']).filter(liveSpeaker);
     const ma = all.filter(isMa);
     return { ma, all: [...ma, ...all.filter((x) => !ma.includes(x))] };
   }
@@ -1598,7 +1602,7 @@ export class HomePage {
     const speakers = h('div.ms2-speakers');
     const drawSpeakers = async () => {
       const reg = await st.registry();
-      const others = st.list(['media_player']).filter((x) => x.entity_id !== id && isMaPlayer(reg, x)).map((x) => x.entity_id);
+      const others = st.list(['media_player']).filter((x) => x.entity_id !== id && liveSpeaker(x) && isMaPlayer(reg, x)).map((x) => x.entity_id);
       const m = await maInfo(st);
       if (!others.length) { speakers.replaceChildren(); return; }
       const members = st.get(id)?.attributes?.group_members || [];

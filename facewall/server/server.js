@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.50.2';
+const VERSION = '1.50.3';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -500,7 +500,7 @@ async function callService(domain, service, data = {}, target, response = false)
 // Which integration each entity comes from and which device it belongs to (for TV remotes and Music Assistant).
 let registryCache = null, registryAt = 0;
 async function registry() {
-  if (registryCache && Date.now() - registryAt < 300000) return registryCache;
+  if (registryCache && Date.now() - registryAt < 60000) return registryCache;
   const out = { entities: {}, ma: [], maDomain: null, maServices: [], searchMedia: false };
   try {
     const r = await haRequest({ type: 'config/entity_registry/list_for_display' });
