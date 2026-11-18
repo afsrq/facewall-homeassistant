@@ -218,6 +218,19 @@ async function maAsk(store, service, extra = {}, target) {
   }
   throw Object.assign(new Error(`Home Assistant has no Music Assistant ${service} action` + (last ? ` (${last.message})` : '')), { missing: true });
 }
+/** Why Music Assistant isn't answering, in plain words, from Facewall's diagnostics. */
+function maHelp(d) {
+  const ents = [...(Array.isArray(d.entries?.music_assistant) ? d.entries.music_assistant : []), ...(Array.isArray(d.entries?.mass) ? d.entries.mass : [])];
+  const loaded = ents.filter((e) => e.state === 'loaded');
+  const svcs = Object.entries(d.services || {}).map(([k, v]) => `${k}: ${v.join(', ')}`).join(' · ');
+  let what;
+  if (!ents.length) what = 'Home Assistant doesn’t have the Music Assistant integration. The Music Assistant app runs your music, but Home Assistant also needs its integration to search and play it.';
+  else if (!loaded.length) what = `Home Assistant’s Music Assistant integration isn’t running (${ents.map((e) => e.state + (e.reason ? ': ' + e.reason : '')).join(', ')}). Try reloading it, or check that the Music Assistant app is started.`;
+  else what = 'Home Assistant’s Music Assistant integration is running but didn’t offer a search. Restarting Home Assistant usually fixes this.';
+  return [h('span', { text: what }),
+    !loaded.length ? h('a.pill.sm.primary', { text: ents.length ? 'Open integrations' : 'Add the integration', href: ents.length ? 'https://my.home-assistant.io/redirect/integration/?domain=music_assistant' : 'https://my.home-assistant.io/redirect/config_flow_start/?domain=music_assistant', target: '_blank', rel: 'noopener' }) : null,
+    h('span.ms2-hint-detail', { text: `Details: ${ents.length ? ents.map((e) => `${e.title || 'Music Assistant'} (${e.state})`).join(', ') : 'no Music Assistant integration'} · actions: ${svcs || (d.servicesError ? 'list unavailable (' + d.servicesError + ')' : 'none')} · Music Assistant speakers: ${d.players?.ma ?? '?'} of ${d.players?.total ?? '?'}` })].filter(Boolean);
+}
 /** A Home Assistant media-browser entry, shaped like a Music Assistant item. */
 const fromBrowse = (b) => ({ name: b.title, uri: b.media_content_id, media_type: b.media_content_type, image: b.thumbnail, _b: true, expand: !!b.can_expand, play: !!b.can_play, cls: b.media_class });
 async function maLibrary(store, type, opts = {}) {
@@ -1604,7 +1617,7 @@ export class HomePage {
     const load = async () => {
       const my = ++seq;
       grid.replaceChildren(h('div.ma-msg', { text: 'Loading…' }));
-      let items = [], note = '';
+      let items = [], note = '', maDown = false;
       try {
         const m = await maInfo(st);
         if (my !== seq) return;
@@ -1627,6 +1640,7 @@ export class HomePage {
               done = true;
             } catch (e) { if (!e.missing) throw e; st._maSearchNone = Date.now(); }
           }
+          maDown = !done;
           if (done) { /* Music Assistant answered */ }
           else if (m.searchMedia && (st.get(id)?.attributes?.supported_features & SEARCH_MEDIA)) {
             const r = await st.ask('media_player', 'search_media', { search_query: query }, { entity_id: id });
@@ -1653,6 +1667,11 @@ export class HomePage {
         return;
       }
       if (my !== seq) return;
+      // Music Assistant didn't answer: say why, from what Home Assistant reports, and how to fix it.
+      if (maDown || (!query && browseMode)) {
+        hint.replaceChildren(h('span', { text: 'Checking Music Assistant…' }));
+        st.musicDiag().then((d) => { if (my === seq && d) hint.replaceChildren(...maHelp(d)); }).catch(() => {});
+      }
       const empty = h('div.ma-msg', { text: query ? 'Nothing found.' : browseMode ? 'Nothing here.' : type === 'fav' ? 'No favourites yet. Star things in Music Assistant, or browse the other tabs.' : 'Nothing here yet.' });
       grid.replaceChildren(...[note ? h('div.ma-msg.ma-note', { text: note }) : null, ...(items.length ? items.map(tile) : [empty])].filter(Boolean));
     };

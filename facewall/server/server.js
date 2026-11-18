@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.50.6';
+const VERSION = '1.50.7';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -717,6 +717,21 @@ async function handleApi(req, res, route) {
     catch (e) { return json(res, 502, { error: e.message }); }
   }
 
+  // What Home Assistant says about Music Assistant, for the Music page's "why can't I search" note.
+  if (route === 'diag/music' && req.method === 'GET') {
+    const out = { services: null, servicesError: null, entries: {}, players: { total: 0, ma: 0 } };
+    try {
+      const svc = await haRequest({ type: 'get_services' }, 30000);
+      out.services = Object.fromEntries(Object.entries(svc || {}).filter(([d]) => /music|mass/i.test(d)).map(([d, v]) => [d, Object.keys(v)]));
+    } catch (e) { out.servicesError = e.message; }
+    for (const domain of ['music_assistant', 'mass']) {
+      try { out.entries[domain] = (await haRequest({ type: 'config_entries/get', domain }) || []).map((c) => ({ title: c.title, state: c.state, reason: c.reason || null })); }
+      catch (e) { out.entries[domain] = { error: e.message }; }
+    }
+    for (const [id, st] of ha.states) if (id.startsWith('media_player.')) { out.players.total++; if (st.attributes?.mass_player_type != null || st.attributes?.active_queue != null) out.players.ma++; }
+    log('Music diagnostics:', JSON.stringify(out));
+    return json(res, 200, out);
+  }
   // Browse a media player's library the generic Home Assistant way (works for any player that can browse).
   if (route === 'browse' && req.method === 'POST') {
     const { entity_id, media_content_id, media_content_type } = await readBody(req);

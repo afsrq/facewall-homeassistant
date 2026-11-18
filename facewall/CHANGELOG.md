@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.50.7
+- **Music page tells you why Music Assistant isn't answering.** When search can't go through Music Assistant, a note says what Home Assistant reports: no Music Assistant integration, an integration that isn't running (and why), or no search action. It has a button to add or open the integration, and the details line shows the integration's state, its actions and how many speakers are Music Assistant ones. The same details go to Facewall's log.
+
 ## 1.50.6
 - **Music page search goes to Music Assistant every time.** Facewall no longer trusts Home Assistant's list of actions to decide whether Music Assistant is there (that list can be missing or out of date). It simply asks Music Assistant, trying the built-in integration and then the older HACS one, and remembers which answers.
 - If Music Assistant needs its instance and Facewall doesn't have it yet (say right after a reinstall), Facewall looks it up again and retries.

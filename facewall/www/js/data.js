@@ -85,6 +85,7 @@ export class Store extends EventTarget {
   /** Call a service that answers (e.g. Music Assistant search). Resolves to the response, or throws. */
   ask(domain, service, data = {}, target) { return this.adapter.ask ? this.adapter.ask(domain, service, data, target) : Promise.reject(new Error('not supported')); }
   /** Browse a media player's library (Home Assistant's media browser). */
+  musicDiag() { return this.adapter.musicDiag ? this.adapter.musicDiag() : Promise.resolve(null); }
   browse(id, uri, type) { return this.adapter.browse ? this.adapter.browse(id, uri, type) : Promise.reject(new Error('not supported')); }
   /** { entities: { id: { pl: integration, di: device } }, ma: [Music Assistant entry ids] } — fetched once, then cached. */
   registry(fresh) {
@@ -232,6 +233,7 @@ class ServerAdapter {
     return (await fetchJSON('api/service', { method: 'POST', body: JSON.stringify({ domain, service, data, target, response: true }) }, 30000)).response;
   }
   async registry(fresh) { return fetchJSON('api/registry' + (fresh ? '?fresh=1' : ''), {}, 20000); }
+  async musicDiag() { return fetchJSON('api/diag/music', {}, 35000); }
   async browse(entity_id, media_content_id, media_content_type) {
     return fetchJSON('api/browse', { method: 'POST', body: JSON.stringify({ entity_id, media_content_id, media_content_type }) }, 35000);
   }
