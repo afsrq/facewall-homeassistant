@@ -89,6 +89,15 @@ function customChoice(list, hex) {
   return out;
 }
 const pick = (list, v) => (typeof v === 'string' && HEX.test(v) ? customChoice(list, v) : list.find((c) => c.v === v) || list[0]);
+/** Hour markers and numbers: the face's own colours, or one colour of your choice. */
+const MARKERS = [
+  { v: 'auto', label: 'Auto', color: 'linear-gradient(135deg, #f3f0e8 50%, #1c1c1e 50%)' },
+  { v: 'white', label: 'White', color: '#ffffff' }, { v: 'black', label: 'Black', color: '#111111' },
+  { v: 'gold', label: 'Gold', color: '#d9a441' }, { v: 'silver', label: 'Silver', color: '#c9ced6' },
+  { v: 'orange', label: 'Orange', color: '#ff9f0a' }, { v: 'teal', label: 'Teal', color: '#2f9e94' }, { v: 'coral', label: 'Coral', color: '#e0567f' },
+];
+const MARKER_OPT = { key: 'markers', label: 'Markers', type: 'swatch', choices: MARKERS, custom: true };
+const markerOf = (o, fallback) => (!o.markers || o.markers === 'auto' ? fallback : HEX.test(o.markers) ? o.markers : (MARKERS.find((m) => m.v === o.markers)?.color || fallback));
 
 // ============================================================ Classic
 const CLASSIC_DIALS = [
@@ -104,6 +113,7 @@ const classic = {
   name: 'Classic', blurb: 'Timeless hands and numerals.', category: 'Analog',
   options: [
     { key: 'dial', label: 'Dial', type: 'swatch', choices: CLASSIC_DIALS, custom: true },
+    MARKER_OPT,
     { key: 'accent', label: 'Seconds hand', type: 'swatch', choices: ACCENTS },
     { key: 'numerals', label: 'Numerals', type: 'choice', choices: [{ v: 'all', label: 'All' }, { v: 'quarters', label: 'Quarters' }, { v: 'none', label: 'None' }] },
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
@@ -116,7 +126,8 @@ const classic = {
     const svg = makeSvg(root, w, h);
     el('rect', { width: w, height: h, fill: dial.color }, svg);
     const { cx, cy, R } = dialBox(w, h, 0.46, arguments[2]);
-    const ticks = el('g', { stroke: dial.ink, 'stroke-linecap': 'round' }, svg);
+    const mk = markerOf(o, dial.ink);
+    const ticks = el('g', { stroke: mk, 'stroke-linecap': 'round' }, svg);
     for (let i = 0; i < 60; i++) {
       const hr = i % 5 === 0;
       const [x1, y1] = polar(cx, cy, R * (hr ? 0.9 : 0.945), i * 6);
@@ -127,7 +138,7 @@ const classic = {
     const big = o.numerals === 'quarters';
     for (const n of nums) {
       const [x, y] = polar(cx, cy, R * (big ? 0.68 : 0.77), n * 30);
-      el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': R * (big ? 0.22 : 0.145), 'font-family': FONT.sans, 'font-weight': big ? 600 : 450, fill: dial.ink }, svg, n);
+      el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': R * (big ? 0.22 : 0.145), 'font-family': FONT.sans, 'font-weight': big ? 600 : 450, fill: mk }, svg, n);
     }
     // Date: in the side margin when the screen is wide, otherwise under the centre.
     let dateDay, dateNum;
@@ -329,6 +340,7 @@ const roman = {
   options: [
     { key: 'dial', label: 'Dial', type: 'swatch', choices: ROMAN_DIALS, custom: true },
     { key: 'metal', label: 'Hands & case', type: 'swatch', choices: METALS },
+    MARKER_OPT,
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
   ],
   defaults: { dial: 'navy', metal: 'gold', seconds: true },
@@ -358,11 +370,11 @@ const roman = {
     for (let i = 0; i < 60; i++) {
       const hr = i % 5 === 0;
       const [x, y] = polar(cx, cy, R * 0.91, i * 6);
-      el('circle', { cx: x, cy: y, r: hr ? R * 0.014 : R * 0.0055, fill: hr ? `url(#${id}c)` : d.ink, opacity: hr ? 1 : 0.55 }, svg);
+      el('circle', { cx: x, cy: y, r: hr ? R * 0.014 : R * 0.0055, fill: hr ? (o.markers && o.markers !== 'auto' ? markerOf(o) : `url(#${id}c)`) : markerOf(o, d.ink), opacity: hr ? 1 : 0.55 }, svg);
     }
     ROMAN.forEach((n, i) => {
       const [x, y] = polar(cx, cy, R * 0.75, i * 30);
-      el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': FONT.serif, 'font-size': R * 0.12, 'font-weight': 500, fill: d.ink, 'letter-spacing': '-0.02em' }, svg, n);
+      el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': FONT.serif, 'font-size': R * 0.12, 'font-weight': 500, fill: markerOf(o, d.ink), 'letter-spacing': '-0.02em' }, svg, n);
     });
     const dauphine = (L, wd) => {
       const g = el('g', { filter: `url(#${id}s)` }, svg);
@@ -769,6 +781,7 @@ const starburst = {
   name: 'Starburst', blurb: 'Brass rays bursting from the centre, like a 1950s living-room clock.', category: 'Mid-century',
   options: [
     { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS, custom: true },
+    MARKER_OPT,
     { key: 'rays', label: 'Rays', type: 'choice', choices: [{ v: 'long', label: 'Long & short' }, { v: 'even', label: 'Even' }, { v: 'dots', label: 'With dots' }] },
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
   ],
@@ -779,7 +792,7 @@ const starburst = {
     const svg = makeSvg(root, w, h);
     dialBg(svg, w, h, d);
     const { cx, cy, R } = dialBox(w, h, 0.47, arguments[2]);
-    const rays = el('g', { fill: d.metal }, svg);
+    const rays = el('g', { fill: markerOf(o, d.metal) }, svg);
     for (let i = 0; i < 48; i++) {
       const hour = i % 4 === 0;
       const inner = R * 0.3, outer = o.rays === 'even' ? R * 0.92 : hour ? R : i % 2 ? R * 0.72 : R * 0.84;
@@ -792,7 +805,7 @@ const starburst = {
       if (o.rays === 'dots' && hour) { const [dx, dy] = polar(cx, cy, R * 0.97 + R * 0.04, a); el('circle', { cx: dx, cy: dy, r: R * 0.03 }, rays); }
     }
     el('circle', { cx, cy, r: R * 0.3, fill: d.color }, svg);
-    el('circle', { cx, cy, r: R * 0.3, fill: 'none', stroke: d.metal, 'stroke-width': R * 0.012, opacity: 0.8 }, svg);
+    el('circle', { cx, cy, r: R * 0.3, fill: 'none', stroke: markerOf(o, d.metal), 'stroke-width': R * 0.012, opacity: 0.8 }, svg);
     const hourH = taperHand(svg, R * 0.5, R * 0.07, d.ink, R * 0.05);
     const minH = taperHand(svg, R * 0.78, R * 0.05, d.ink, R * 0.05);
     let secH = null;
@@ -821,6 +834,7 @@ const atomic = {
   name: 'Atomic', blurb: 'Atomic stars for hours, orbiting dots and a boomerang second hand.', category: 'Mid-century',
   options: [
     { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS, custom: true },
+    MARKER_OPT,
     { key: 'accent', label: 'Accent', type: 'swatch', choices: MCM_PAL.map((c, i) => ({ v: String(i), label: ['Mustard', 'Teal', 'Orange', 'Coral', 'Aqua', 'Rust'][i], color: c })) },
     { key: 'scatter', label: 'Boomerangs in the background', type: 'bool' },
   ],
@@ -842,12 +856,13 @@ const atomic = {
       }
     }
     // Orbit ring with dots for the minutes.
-    el('circle', { cx, cy, r: R * 0.93, fill: 'none', stroke: d.ink, 'stroke-width': R * 0.004, opacity: 0.25 }, svg);
-    for (let i = 0; i < 60; i++) if (i % 5) { const [x, y] = polar(cx, cy, R * 0.93, i * 6); el('circle', { cx: x, cy: y, r: R * 0.008, fill: d.ink, opacity: 0.45 }, svg); }
+    const mk = markerOf(o, d.ink);
+    el('circle', { cx, cy, r: R * 0.93, fill: 'none', stroke: mk, 'stroke-width': R * 0.004, opacity: 0.25 }, svg);
+    for (let i = 0; i < 60; i++) if (i % 5) { const [x, y] = polar(cx, cy, R * 0.93, i * 6); el('circle', { cx: x, cy: y, r: R * 0.008, fill: mk, opacity: 0.45 }, svg); }
     const stars = el('g', {}, svg);
     for (let i = 0; i < 12; i++) {
       const [x, y] = polar(cx, cy, R * 0.93, i * 30);
-      atomStar(stars, x, y, i % 3 === 0 ? R * 0.085 : R * 0.05, i % 3 === 0 ? acc : d.ink);
+      atomStar(stars, x, y, i % 3 === 0 ? R * 0.085 : R * 0.05, i % 3 === 0 ? acc : mk);
     }
     // Hands: a slim hour lozenge, a long minute needle with a disc, and a boomerang seconds hand.
     const hourH = taperHand(svg, R * 0.5, R * 0.06, d.ink, R * 0.06);
@@ -877,6 +892,7 @@ const confetti = {
   name: 'Confetti', blurb: 'A different playful shape for every hour, in mustard, teal, orange and coral.', category: 'Mid-century',
   options: [
     { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS, custom: true },
+    MARKER_OPT,
     { key: 'size', label: 'Shapes', type: 'choice', choices: [{ v: 'small', label: 'Small' }, { v: 'big', label: 'Big' }] },
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
   ],
@@ -891,7 +907,7 @@ const confetti = {
     const r = o.size === 'small' ? R * 0.055 : R * 0.085;
     for (let i = 0; i < 12; i++) {
       const [x, y] = polar(cx, cy, R * 0.86, i * 30);
-      shapeAt(g, CONFETTI_SHAPES[i % CONFETTI_SHAPES.length], x, y, i % 3 === 0 ? r * 1.25 : r, MCM_PAL[i % MCM_PAL.length], i * 30);
+      shapeAt(g, CONFETTI_SHAPES[i % CONFETTI_SHAPES.length], x, y, i % 3 === 0 ? r * 1.25 : r, markerOf(o, MCM_PAL[i % MCM_PAL.length]), i * 30);
     }
     const hourH = el('g', {}, svg);
     el('rect', { x: -R * 0.035, y: -R * 0.5, width: R * 0.07, height: R * 0.58, rx: R * 0.035, fill: d.ink }, hourH);

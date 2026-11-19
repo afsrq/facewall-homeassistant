@@ -101,6 +101,7 @@ export function segmented(choices, value, onchange) {
 
 export function swatches(choices, value, onchange, opts = {}) {
   const wrap = h('div.swatches');
+  value ??= choices[0]?.v;
   const render = () => {
     wrap.innerHTML = '';
     for (const c of choices) {

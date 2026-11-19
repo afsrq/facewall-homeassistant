@@ -606,11 +606,28 @@ class App {
       mounted?.destroy();
       mounted = mountFace(preview, work, { store: this.store, w: innerWidth, h: innerHeight, use24h: this.settings.general.use24h, preview: true });
     };
+    // Which iPads show this face. "This iPad only" leaves the others alone, so if another iPad shows the same face,
+    // the first change makes this iPad its own copy (the other iPads keep the face as it was).
+    const others = Object.entries(this.settings.screens || {}).filter(([id]) => id !== this.screenId);
+    let showOn = 'this', forked = false;
+    const shownOn = (o) => { const s = this.settings; return o.faceId && s.faces.some((f) => f.id === o.faceId) ? o.faceId : s.active; };
+    const sharedElsewhere = (fid) => others.some(([, o]) => shownOn(o) === fid);
     const commit = () => {
-      if (mode === 'edit') { this.update((s) => { const i = s.faces.findIndex((f) => f.id === work.id); if (i >= 0) s.faces[i] = clone(work); }); this.renderFace(); }
+      if (mode !== 'edit') return;
+      if (showOn === 'this' && !forked && sharedElsewhere(work.id)) {
+        const orig = work.id; work.id = uid(); forked = true;
+        this.update((s) => { const i = s.faces.findIndex((f) => f.id === orig); s.faces.splice(i + 1, 0, clone(work)); s.screens ||= {}; (s.screens[this.screenId] ||= {}).faceId = work.id; });
+      } else this.update((s) => { const i = s.faces.findIndex((f) => f.id === work.id); if (i >= 0) s.faces[i] = clone(work); });
+      this.renderFace();
     };
     const change = (fn) => { fn(); remount(); commit(); };
     const opts = h('div.cz-options');
+    if (others.length) {
+      const sub = h('div.row-sub');
+      const say = () => { sub.textContent = showOn === 'this' ? `Other iPads keep their own faces${sharedElsewhere(work.id) && !forked ? '; changes here make a copy just for this iPad' : ''}` : `All ${others.length + 1} iPads switch to this face when you tap ${mode === 'add' ? 'Add' : 'Done'}`; };
+      say();
+      opts.append(row('Show on', segmented([{ v: 'this', label: 'This iPad only' }, { v: 'all', label: 'Every iPad' }], showOn, (v) => { showOn = v; say(); }), sub));
+    }
     for (const o of def.options) {
       const val = work.opts[o.key];
       let ctl;
@@ -679,11 +696,16 @@ class App {
     const close = () => { ov.classList.remove('open'); setTimeout(() => { mounted?.destroy(); ov.remove(); }, 300); };
     back.onclick = () => { close(); if (mode === 'edit') this.picker?.build(work.id); };
     done.onclick = () => {
-      if (mode === 'add') {
-        this.update((s) => { s.faces.push(clone(work)); s.active = work.id; s.screens ||= {}; (s.screens[this.screenId] ||= {}).faceId = work.id; });
-        this.renderFace();
-        this.gallery?.close();
-      }
+      const every = showOn === 'all' || !others.length;
+      this.update((s) => {
+        if (mode === 'add') s.faces.push(clone(work));
+        s.screens ||= {};
+        if (every) { s.active = work.id; for (const sc of Object.values(s.screens)) delete sc.faceId; }
+        (s.screens[this.screenId] ||= {}).faceId = work.id;
+      });
+      this.renderFace();
+      if (mode === 'add') this.gallery?.close();
+      if (others.length) toast(every ? 'Every iPad now shows this face' : 'This face is just for this iPad');
       close();
       this.picker?.build(work.id);
     };

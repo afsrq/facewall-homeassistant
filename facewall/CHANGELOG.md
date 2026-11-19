@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.53.0
+- **Marker colours.** Classic, Roman, Starburst, Atomic and Confetti have a **Markers** choice for the hour markers and numbers: Auto (the face's own), white, black, gold, silver, orange, teal, coral, or any colour with **Custom**.
+- **"This iPad only" right in Customize.** With more than one iPad, Customize has **Show on: This iPad only / Every iPad**.
+  - This iPad only: this iPad shows the face and the others keep theirs. If another iPad shows the same face, your changes make a copy just for this iPad, so the other one doesn't change.
+  - Every iPad: tapping Done puts this face on every iPad.
+
 ## 1.52.0
 - **Pick a face for each iPad.** Settings → This iPad → **Clock face** chooses this iPad's face from a list (holding the clock still works too).
 - **Set other iPads from here.** Under **Other screens**, each iPad has its own **Clock face** and **Opens on** pickers. A new face shows on that iPad straight away; a new start page applies the next time it opens.
