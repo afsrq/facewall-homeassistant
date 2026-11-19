@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.52.0
+- **Pick a face for each iPad.** Settings → This iPad → **Clock face** chooses this iPad's face from a list (holding the clock still works too).
+- **Set other iPads from here.** Under **Other screens**, each iPad has its own **Clock face** and **Opens on** pickers. A new face shows on that iPad straight away; a new start page applies the next time it opens.
+
 ## 1.51.0
 - **Any colour for the dial.** Faces with a Dial or Background choice now have a **Custom** swatch that opens the colour picker: Classic, Roman, the mid-century faces, both word clocks, Family and Countdown. Text, ticks, shading and hands adjust to suit a light or dark colour.
 - Word clocks: lit letters stay readable on a light background (white letters switch to ink).

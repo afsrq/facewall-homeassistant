@@ -1355,3 +1355,7 @@ body[data-look="retro"] .side-item.on .side-ic { color: #031003; }
 .swatch-custom.set { background-image: none; }
 .swatch-input { position: absolute; inset: -8px; width: calc(100% + 16px); height: calc(100% + 16px); opacity: 0; cursor: pointer; border: 0; padding: 0; }
 label.swatch { cursor: pointer; }
+.screen-card { border-radius: 16px; background: rgba(127,127,127,0.08); padding: 4px 8px 10px; margin: 6px 0; }
+.screen-ctl { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 2px 8px 0 52px; }
+.screen-ctl-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.screen-ctl-item > span { opacity: 0.65; }

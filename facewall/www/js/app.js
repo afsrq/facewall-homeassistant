@@ -800,12 +800,29 @@ class App {
       for (const c of [{ v: 'clock', label: 'Clock' }, ...s.pages.map((p) => ({ v: p.id, label: p.name }))]) startSel.append(h('option', { value: c.v, text: c.label }));
       startSel.value = sc.startPage && (sc.startPage === 'clock' || pageOf(s, sc.startPage)) ? sc.startPage : 'clock';
       startSel.onchange = () => { this.updateScreen((x) => { x.startPage = startSel.value; }); };
+      // Faces to pick from, named by type (numbered when there's more than one of a kind).
+      const faceChoices = (() => { const seen = {}; return s.faces.map((f) => { const n = FACES[f.type]?.name || f.type; seen[n] = (seen[n] || 0) + 1; return { v: f.id, n, i: seen[n] }; }).map((c, _, all) => ({ v: c.v, label: all.filter((x) => x.n === c.n).length > 1 ? `${c.n} ${c.i}` : c.n })); })();
+      const faceSel = (value, onchange) => {
+        const sel = h('select.select');
+        for (const c of faceChoices) sel.append(h('option', { value: c.v, text: c.label }));
+        sel.value = s.faces.some((f) => f.id === value) ? value : (s.faces.some((f) => f.id === s.active) ? s.active : s.faces[0]?.id);
+        sel.onchange = () => onchange(sel.value);
+        return sel;
+      };
+      const pageSel = (value, onchange) => {
+        const sel = h('select.select');
+        for (const c of [{ v: 'clock', label: 'Clock' }, ...s.pages.map((p) => ({ v: p.id, label: p.name }))]) sel.append(h('option', { value: c.v, text: c.label }));
+        sel.value = value && (value === 'clock' || pageOf(s, value)) ? value : 'clock';
+        sel.onchange = () => onchange(sel.value);
+        return sel;
+      };
       const link = location.origin + location.pathname + '?screen=' + encodeURIComponent(this.screenId);
       const others = Object.entries(s.screens || {}).filter(([id]) => id !== this.screenId);
       const screenSec = section('This screen',
         row('Name', h('input.text-in.wide-in', { value: sc.name || '', placeholder: 'e.g. Kitchen iPad', onchange: (e) => { this.renameScreen(e.target.value); render(); } }), 'Each iPad keeps its own start page and clock face'),
         row('Opens on', startSel, 'Where it starts, and after a restart'),
-        row('Clock face', h('div.row-value', { text: faceLabel(sc.faceId) }), 'Hold the clock on this screen to change it'),
+        row('Clock face', faceSel(sc.faceId, (v) => { this.updateScreen((x) => { x.faceId = v; }); this.renderFace(); render(); }),
+          this.rotation() ? 'Rotating faces is on for this iPad, so it takes turns with the faces chosen there' : 'Just for this iPad. Holding the clock and picking a face also sets it'),
         row('Tap the clock to', (() => {
           const sel = h('select.select');
           for (const p of s.pages) sel.append(h('option', { value: p.id, text: `Open ${p.name}` }));
@@ -829,10 +846,15 @@ class App {
           try { await navigator.clipboard.writeText(link); toast('Address copied'); } catch { toast('Couldn’t copy. Select the address instead.'); }
         } })),
         others.length ? h('div.set-sub', { text: 'Other screens' }) : null,
-        ...others.map(([id, o]) => h('div.ent-row', {},
-          h('span.ent-ic', { html: icon('grid') }),
-          h('div.ent-text', {}, h('div.ent-name', { text: o.name || id }), h('div.ent-sub', { text: `Opens on ${pageLabel(o.startPage)}  ·  ${faceLabel(o.faceId)} face` })),
-          h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Forget this screen', onclick: () => { this.update((x) => { delete x.screens[id]; }); render(); } }))));
+        ...others.map(([id, o]) => h('div.screen-card', {},
+          h('div.ent-row', {},
+            h('span.ent-ic', { html: icon('grid') }),
+            h('div.ent-text', {}, h('div.ent-name', { text: o.name || id }), h('div.ent-sub', { text: o.seen ? `Last seen ${new Date(o.seen).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : `Opens on ${pageLabel(o.startPage)}  ·  ${faceLabel(o.faceId)} face` })),
+            h('button.icon-btn.sm.danger', { html: icon('close'), 'aria-label': 'Forget this screen', onclick: () => { this.update((x) => { delete x.screens[id]; }); render(); } })),
+          // Set another iPad's face and start page from here; it changes straight away.
+          h('div.screen-ctl', {},
+            h('label.screen-ctl-item', {}, h('span', { text: 'Clock face' }), faceSel(o.faceId, (v) => { this.update((x) => { (x.screens[id] ||= {}).faceId = v; }); toast(`${o.name || 'That iPad'} now shows ${faceChoices.find((c) => c.v === v)?.label}`); })),
+            h('label.screen-ctl-item', {}, h('span', { text: 'Opens on' }), pageSel(o.startPage, (v) => { this.update((x) => { (x.screens[id] ||= {}).startPage = v; }); }))))));
 
       // ---------------- Pages
       const pagesList = h('div.ent-list');
