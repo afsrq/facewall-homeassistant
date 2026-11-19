@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.51.0
+- **Any colour for the dial.** Faces with a Dial or Background choice now have a **Custom** swatch that opens the colour picker: Classic, Roman, the mid-century faces, both word clocks, Family and Countdown. Text, ticks, shading and hands adjust to suit a light or dark colour.
+- Word clocks: lit letters stay readable on a light background (white letters switch to ink).
+
 ## 1.50.7
 - **Music page tells you why Music Assistant isn't answering.** When search can't go through Music Assistant, a note says what Home Assistant reports: no Music Assistant integration, an integration that isn't running (and why), or no search action. It has a button to add or open the integration, and the details line shows the integration's state, its actions and how many speakers are Music Assistant ones. The same details go to Facewall's log.
 

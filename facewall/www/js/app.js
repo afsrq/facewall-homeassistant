@@ -614,7 +614,7 @@ class App {
     for (const o of def.options) {
       const val = work.opts[o.key];
       let ctl;
-      if (o.type === 'swatch') ctl = swatches(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }));
+      if (o.type === 'swatch') ctl = swatches(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }), { custom: o.custom });
       else if (o.type === 'choice') ctl = segmented(o.choices, val, (v) => change(() => { work.opts[o.key] = v; }));
       else if (o.type === 'people') {
         const people = this.store.list(['person']);

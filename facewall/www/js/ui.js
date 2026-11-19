@@ -99,7 +99,7 @@ export function segmented(choices, value, onchange) {
   return wrap;
 }
 
-export function swatches(choices, value, onchange) {
+export function swatches(choices, value, onchange, opts = {}) {
   const wrap = h('div.swatches');
   const render = () => {
     wrap.innerHTML = '';
@@ -108,6 +108,21 @@ export function swatches(choices, value, onchange) {
         h('span.swatch-dot', { style: { background: c.color } }),
         h('span.swatch-label', { text: c.label }));
       wrap.append(sw);
+    }
+    // Any colour: the system colour picker, opened by tapping the swatch itself.
+    if (opts.custom) {
+      const isHex = /^#[0-9a-f]{6}$/i.test(value || '');
+      let timer;
+      const input = h('input.swatch-input', { type: 'color', value: isHex ? value : '#4a7bd0', 'aria-label': 'Pick any colour' });
+      const dot = h('span.swatch-dot.swatch-custom' + (isHex ? '.set' : ''), { style: isHex ? { background: value } : {} }, input);
+      const apply = (fire) => {
+        value = input.value; dot.style.background = value; dot.classList.add('set');
+        wrap.querySelectorAll('.swatch.on').forEach((x) => x.classList.remove('on')); dot.parentNode.classList.add('on');
+        clearTimeout(timer); if (fire) onchange(value); else timer = setTimeout(() => onchange(value), 180);
+      };
+      input.addEventListener('input', () => apply(false));
+      input.addEventListener('change', () => apply(true));
+      wrap.append(h('label.swatch' + (isHex ? '.on' : ''), {}, dot, h('span.swatch-label', { text: 'Custom' })));
     }
   };
   render();

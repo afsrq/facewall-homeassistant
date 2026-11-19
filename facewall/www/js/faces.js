@@ -71,7 +71,24 @@ const ACCENTS = [
   { v: 'green', label: 'Green', color: '#30d158' }, { v: 'pink', label: 'Pink', color: '#ff375f' },
   { v: 'cyan', label: 'Cyan', color: '#64d2ff' },
 ];
-const pick = (list, v) => (list.find((c) => c.v === v) || list[0]);
+const HEX = /^#[0-9a-f]{6}$/i;
+const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const toHex = (c) => '#' + c.map((x) => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('');
+const mixC = (a, b, t) => { const A = rgbOf(a), B = rgbOf(b); return toHex(A.map((x, i) => x + (B[i] - x) * t)); };
+const lumOf = (hex) => { const [r, g, b] = rgbOf(hex).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+/** A dial or background in any colour (from the colour picker), with matching text, shading and hands. */
+function customChoice(list, hex) {
+  const base = list[0], dark = lumOf(hex) < 0.22, out = { v: hex, label: 'Custom', color: hex };
+  if ('ink' in base) out.ink = dark ? '#f4f1ea' : '#1c1a17';
+  if ('c1' in base) out.c1 = mixC(hex, '#ffffff', 0.2);
+  if ('c2' in base) out.c2 = lumOf(base.c2) < lumOf(base.color) ? mixC(hex, '#000000', 0.5) : mixC(hex, '#ffffff', 0.1);
+  if ('metal' in base) out.metal = dark ? '#d9a441' : mixC(hex, '#000000', 0.7);
+  if ('dim' in base) { out.dim = dark ? 'rgba(255,255,255,0.11)' : 'rgba(0,0,0,0.13)'; out.light = !dark; }
+  if ('bg' in base) out.bg = `radial-gradient(120% 100% at 50% 40%, ${mixC(hex, '#ffffff', 0.12)}, ${mixC(hex, '#000000', 0.45)})`;
+  if ('ring' in base) out.ring = dark ? '#30d158' : '#2f9e5b';
+  return out;
+}
+const pick = (list, v) => (typeof v === 'string' && HEX.test(v) ? customChoice(list, v) : list.find((c) => c.v === v) || list[0]);
 
 // ============================================================ Classic
 const CLASSIC_DIALS = [
@@ -86,7 +103,7 @@ const CLASSIC_DIALS = [
 const classic = {
   name: 'Classic', blurb: 'Timeless hands and numerals.', category: 'Analog',
   options: [
-    { key: 'dial', label: 'Dial', type: 'swatch', choices: CLASSIC_DIALS },
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: CLASSIC_DIALS, custom: true },
     { key: 'accent', label: 'Seconds hand', type: 'swatch', choices: ACCENTS },
     { key: 'numerals', label: 'Numerals', type: 'choice', choices: [{ v: 'all', label: 'All' }, { v: 'quarters', label: 'Quarters' }, { v: 'none', label: 'None' }] },
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
@@ -310,7 +327,7 @@ const ROMAN = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 
 const roman = {
   name: 'Roman', blurb: 'A refined dress dial with a sunburst finish.', category: 'Analog',
   options: [
-    { key: 'dial', label: 'Dial', type: 'swatch', choices: ROMAN_DIALS },
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: ROMAN_DIALS, custom: true },
     { key: 'metal', label: 'Hands & case', type: 'swatch', choices: METALS },
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
   ],
@@ -679,7 +696,7 @@ const wordclock = {
   name: 'Word clock', blurb: 'The time in words: “It is half past ten.”', category: 'Words',
   options: [
     { key: 'color', label: 'Lit letters', type: 'swatch', choices: [...DIGI, { v: 'ink', label: 'Ink', color: '#2d2418' }] },
-    { key: 'bg', label: 'Background', type: 'swatch', choices: WORD_BG },
+    { key: 'bg', label: 'Background', type: 'swatch', choices: WORD_BG, custom: true },
     { key: 'font', label: 'Font', type: 'choice', choices: [{ v: 'sans', label: 'Sans' }, { v: 'serif', label: 'Serif' }, { v: 'mono', label: 'Mono' }, { v: 'condensed', label: 'Narrow' }] },
     { key: 'dots', label: 'Minute dots', type: 'bool' },
     SIZE_OPT,
@@ -688,7 +705,8 @@ const wordclock = {
   ink: (o) => (pick(WORD_BG, o.bg).light ? '#2d2418' : '#fff'),
   create(root, o, { w, h }) {
     const bg = pick(WORD_BG, o.bg);
-    const lit = o.color === 'ink' ? '#2d2418' : pick(DIGI, o.color).color;
+    const litC = o.color === 'ink' ? '#2d2418' : pick(DIGI, o.color).color;
+    const lit = bg.light && /^#[0-9a-f]{6}$/i.test(litC) && lumOf(litC) > 0.6 ? '#2d2418' : litC;
     const svg = makeSvg(root, w, h);
     el('rect', { width: w, height: h, fill: bg.color }, svg);
     const id = 'wg' + ++uid;
@@ -750,7 +768,7 @@ const dialBg = (svg, w, h, d) => {
 const starburst = {
   name: 'Starburst', blurb: 'Brass rays bursting from the centre, like a 1950s living-room clock.', category: 'Mid-century',
   options: [
-    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS },
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS, custom: true },
     { key: 'rays', label: 'Rays', type: 'choice', choices: [{ v: 'long', label: 'Long & short' }, { v: 'even', label: 'Even' }, { v: 'dots', label: 'With dots' }] },
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
   ],
@@ -802,7 +820,7 @@ function boomerangPath(x, y, s, rotDeg, fill, parent, opacity = 1) {
 const atomic = {
   name: 'Atomic', blurb: 'Atomic stars for hours, orbiting dots and a boomerang second hand.', category: 'Mid-century',
   options: [
-    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS },
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS, custom: true },
     { key: 'accent', label: 'Accent', type: 'swatch', choices: MCM_PAL.map((c, i) => ({ v: String(i), label: ['Mustard', 'Teal', 'Orange', 'Coral', 'Aqua', 'Rust'][i], color: c })) },
     { key: 'scatter', label: 'Boomerangs in the background', type: 'bool' },
   ],
@@ -858,7 +876,7 @@ function shapeAt(g, kind, x, y, r, fill, rotDeg) {
 const confetti = {
   name: 'Confetti', blurb: 'A different playful shape for every hour, in mustard, teal, orange and coral.', category: 'Mid-century',
   options: [
-    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS },
+    { key: 'dial', label: 'Dial', type: 'swatch', choices: MCM_DIALS, custom: true },
     { key: 'size', label: 'Shapes', type: 'choice', choices: [{ v: 'small', label: 'Small' }, { v: 'big', label: 'Big' }] },
     { key: 'seconds', label: 'Seconds hand', type: 'bool' },
   ],
@@ -981,7 +999,8 @@ const wordexact = {
   ink: wordclock.ink,
   create(root, o, { w, h }) {
     const bg = pick(WORD_BG, o.bg);
-    const lit = o.color === 'ink' ? '#2d2418' : pick(DIGI, o.color).color;
+    const litC = o.color === 'ink' ? '#2d2418' : pick(DIGI, o.color).color;
+    const lit = bg.light && /^#[0-9a-f]{6}$/i.test(litC) && lumOf(litC) > 0.6 ? '#2d2418' : litC;
     const short = o.words === 'short';
     const svg = makeSvg(root, w, h);
     el('rect', { width: w, height: h, fill: bg.color }, svg);
@@ -1536,7 +1555,7 @@ const family = {
   name: 'Family', blurb: 'A photo bubble for each person around the time, glowing when they’re home.', category: 'Fun',
   options: [
     { key: 'people', label: 'People', type: 'people' },
-    { key: 'bg', label: 'Background', type: 'swatch', choices: FAM_BG.map((b) => ({ v: b.v, label: b.label, color: b.bg.match(/#[0-9a-f]{6}/i)[0] })) },
+    { key: 'bg', label: 'Background', type: 'swatch', choices: FAM_BG.map((b) => ({ v: b.v, label: b.label, color: b.bg.match(/#[0-9a-f]{6}/i)[0] })), custom: true },
   ],
   defaults: { bg: 'night' },
   ink: (o) => pick(FAM_BG, o.bg).ink,
@@ -1612,7 +1631,7 @@ const countdown = {
   name: 'Countdown', blurb: 'Days to go, big enough to read across the room, with the time below.', category: 'Fun',
   options: [
     { key: 'which', label: 'Countdown', type: 'countdown' },
-    { key: 'bg', label: 'Background', type: 'swatch', choices: CD_BG },
+    { key: 'bg', label: 'Background', type: 'swatch', choices: CD_BG, custom: true },
     { key: 'time', label: 'Show the time', type: 'bool' },
   ],
   defaults: { which: 'next', bg: 'night', time: true },
