@@ -1,5 +1,5 @@
 name: Facewall
-version: "1.53.0"
+version: "1.54.0"
 slug: facewall
 description: Watch faces and home controls for a wall-mounted iPad
 arch:
@@ -23,4 +23,8 @@ map:
 ports:
   8099/tcp: 8099
 ports_description:
-  8099/tcp: Direct link for the wall iPad (no login). Clear it to use the sidebar only.
+  8099/tcp: Direct link for the wall iPad (no login, home network only). Clear it to use the sidebar only.
+options:
+  allow_outside_home_network: false
+schema:
+  allow_outside_home_network: bool

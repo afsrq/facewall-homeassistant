@@ -209,3 +209,10 @@ Classic, Numerals, Hourglow, Roman, **Starburst**, **Atomic** and **Confetti** (
 
 Port 8099 lets the wall iPad use Facewall **without logging in**, so anyone on your home network can open it and control the devices it shows.
 If you'd rather not allow that, clear the port under the app's **Network** settings and use the sidebar instead.
+
+## Safety
+- Facewall has **no keys or passwords of its own**. As an app it uses the login Home Assistant gives it while it runs; nothing secret is in the code or sent to the iPad.
+- The **direct link** (port 8099) has no login, so it only answers devices on your home network (and Tailscale). Don't forward this port on your router. Use Home Assistant's sidebar (or Nabu Casa / your usual remote access) from outside.
+- Facewall only runs everyday home controls. Admin actions (restarting Home Assistant, stopping apps, shell commands, backups, updates, notifications) are refused.
+- To use the direct link from outside your home network anyway, turn on **allow_outside_home_network** in the app's Configuration tab. Anyone who can reach the port can then control your lights and locks, so this isn't recommended.
+

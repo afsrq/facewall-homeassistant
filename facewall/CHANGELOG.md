@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.54.0
+- **Safety.**
+  - The direct link (port 8099, no login) now only answers devices on your home network (including Tailscale). If the port is ever opened to the internet by mistake, strangers get "Facewall only answers on your home network". Home Assistant's own sidebar and remote access keep working. To allow outside access anyway, turn on **allow_outside_home_network** in the app's Configuration (not recommended).
+  - Facewall only runs everyday home controls (lights, switches, climate, media, locks, scenes and so on). Admin actions such as restarting Home Assistant, stopping apps, shell commands, backups, updates and notifications are refused, even if someone on the network asks for them directly.
+  - Checked: no keys, tokens or passwords anywhere in the code or its history; nothing secret is sent to the browser; paths like /.env, /.git and ../ tricks return nothing.
+
 ## 1.53.0
 - **Marker colours.** Classic, Roman, Starburst, Atomic and Confetti have a **Markers** choice for the hour markers and numbers: Auto (the face's own), white, black, gold, silver, orange, teal, coral, or any colour with **Custom**.
 - **"This iPad only" right in Customize.** With more than one iPad, Customize has **Show on: This iPad only / Every iPad**.

@@ -12,7 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '1.53.0';
+const VERSION = '1.54.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(__dirname, '..', 'www');
 const PORT = Number(process.env.PORT || 8099);
@@ -559,6 +559,21 @@ function readBody(req, limit = 1_000_000) {
   });
 }
 const NAME = /^[a-z0-9_]+$/;
+// Safety: the direct port has no login, so Facewall only runs everyday home controls, never admin actions.
+const BLOCKED_DOMAINS = new Set(['hassio', 'supervisor', 'shell_command', 'python_script', 'pyscript', 'rest_command', 'command_line', 'recorder', 'logger',
+  'system_log', 'backup', 'update', 'cloud', 'frontend', 'auth', 'zwave_js', 'zha', 'matter', 'thread', 'mqtt', 'esphome', 'hacs', 'ffmpeg', 'downloader', 'notify', 'conversation']);
+const LIMITED = { homeassistant: ['turn_on', 'turn_off', 'toggle', 'update_entity'], automation: ['turn_on', 'turn_off', 'toggle', 'trigger'] };
+const serviceAllowed = (domain, service) => !BLOCKED_DOMAINS.has(domain) && (!LIMITED[domain] || LIMITED[domain].includes(service));
+// Only answer devices on the home network, unless the app's option says otherwise (Home Assistant's own sidebar always works).
+let ALLOW_OUTSIDE = false;
+try { ALLOW_OUTSIDE = !!JSON.parse(fs.readFileSync('/data/options.json', 'utf8')).allow_outside_home_network; } catch { /* not running as an app */ }
+function homeNetwork(ip) {
+  ip = String(ip || '').replace(/^::ffff:/, '');
+  if (ip === '::1' || /^127\./.test(ip) || /^10\./.test(ip) || /^192\.168\./.test(ip) || /^169\.254\./.test(ip)) return true;
+  const m = ip.match(/^172\.(\d+)\./); if (m && +m[1] >= 16 && +m[1] <= 31) return true;
+  const c = ip.match(/^100\.(\d+)\./); if (c && +c[1] >= 64 && +c[1] <= 127) return true; // Tailscale and carrier-grade NAT
+  return /^(fc|fd|fe8|fe9|fea|feb)/i.test(ip);
+}
 
 async function handleApi(req, res, route) {
   if (route === 'info' && req.method === 'GET') {
@@ -713,6 +728,7 @@ async function handleApi(req, res, route) {
   if (route === 'service' && req.method === 'POST') {
     const { domain, service, data, target, response } = await readBody(req);
     if (!NAME.test(domain || '') || !NAME.test(service || '')) return json(res, 400, { error: 'bad service' });
+    if (!serviceAllowed(domain, service)) { log('Blocked action', `${domain}.${service}`); return json(res, 403, { error: `Facewall doesn't run ${domain}.${service}` }); }
     try { const r = await callService(domain, service, data || {}, target, !!response); return json(res, 200, { ok: true, response: response ? r?.response ?? null : undefined }); }
     catch (e) { return json(res, 502, { error: e.message }); }
   }
@@ -825,6 +841,10 @@ async function serveStatic(req, res, urlPath) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    if (!ALLOW_OUTSIDE && !homeNetwork(req.socket.remoteAddress)) {
+      log('Refused a request from outside the home network:', req.socket.remoteAddress);
+      res.writeHead(403, { 'Content-Type': 'text/plain' }); return res.end('Facewall only answers on your home network.');
+    }
     const { pathname } = new URL(req.url, 'http://x');
     const m = pathname.match(/\/api\/(.+)$/);
     if (m) return await handleApi(req, res, m[1].replace(/\/+$/, ''));
