@@ -156,6 +156,14 @@ For a full page of music, open **Settings → Pages & tiles** and tap **Music pa
 ### A face for each iPad
 Every iPad keeps its own clock face and start page. In **Settings → This iPad**, **Clock face** sets this iPad's face. Under **Other screens** you can set any other iPad's face and start page from here; the face changes on that iPad straight away. Name each iPad (for example "Kitchen iPad") so they're easy to tell apart. When you hold the clock and tap **Customize**, **Show on** chooses between **This iPad only** (changes make a copy if another iPad shows the same face) and **Every iPad**.
 
+### Open Home Assistant on Facewall
+Home Assistant only lets you pick a dashboard as the start page, but Facewall can set itself:
+1. On the wall iPad, open the Home Assistant app and tap **Facewall** in the sidebar.
+2. Open Facewall's **Settings → This iPad** and turn on **Open with Home Assistant**.
+3. Close and reopen the Home Assistant app: it starts on Facewall. The sidebar is still there for anything else.
+
+The setting belongs to the Home Assistant user signed in, on every device they use. Give wall iPads their own user (Settings → People → Add person, with "Allow person to login") so your phone keeps opening normally.
+
 ## TV remote
 Add the TV's **media player** as a tile, then edit it → Style → **TV remote**. Swipe on the round pad (or tap its arrows) to move, tap the middle for OK. Back, Home, play/pause, volume, power and **Apps** (the TV's source list) sit underneath. Facewall works out the brand from Home Assistant (Apple TV, Roku, Android TV Remote, Android TV/Fire TV over ADB, LG webOS, Samsung, Sony Bravia, Philips) and finds the remote entity on the same device. If the arrows don't work, choose the remote in the tile's settings. Hold the tile for the full now-playing sheet.
 

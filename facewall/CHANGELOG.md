@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.55.0
+- **Make Home Assistant open on Facewall.** Settings → This iPad → **Open with Home Assistant**. Home Assistant's own settings only let you start on a dashboard; this switch sets its start page to Facewall for the signed-in Home Assistant user, so the companion app opens straight into Facewall with the sidebar still there. Turn it off to go back to the usual start page.
+- Home Assistant users who aren't admins can now open Facewall from the sidebar, so wall iPads can use their own non-admin user.
+
 ## 1.54.0
 - **Safety.**
   - The direct link (port 8099, no login) now only answers devices on your home network (including Tailscale). If the port is ever opened to the internet by mistake, strangers get "Facewall only answers on your home network". Home Assistant's own sidebar and remote access keep working. To allow outside access anyway, turn on **allow_outside_home_network** in the app's Configuration (not recommended).

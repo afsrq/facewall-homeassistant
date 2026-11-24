@@ -5,7 +5,7 @@ import { HomePage, mediaArt, SECTION_PRESETS, cameraUrl, TIMER_OK, ALL_OFF, SCEN
 import { THEMES, THEME_GROUPS, DEFAULT_THEME, themeById, themeVars, applyTheme, LOOKS, applyLook, WALLPAPERS } from './themes.js';
 import { loadIcons, loadCustom, customList, iconSvg, searchIcons, LIBRARIES, SETS, uploadIcons, deleteIcon, onIconsChanged, searchOnline, useOnlineIcon } from './iconlib.js';
 import { icon, domainIcon } from './icons.js';
-import { inHaPanel, setHaKiosk, openHaMenu, setHaFill, canFill, setHaChrome } from './hapanel.js';
+import { inHaPanel, setHaKiosk, openHaMenu, setHaFill, canFill, setHaChrome, haStartInfo, setHaStart } from './hapanel.js';
 import { FONTS, WEIGHTS, SEPARATORS, PARTS, DATE_FORMATS, fmtDate, defaultHeader, headerOf, headerSegments, headerContent, headerVars, weatherEntity } from './header.js';
 import { h, press, sheet, toast, toggle, segmented, swatches, row, entitySelect, openSheets } from './ui.js';
 
@@ -843,6 +843,16 @@ class App {
       const screenSec = section('This screen',
         row('Name', h('input.text-in.wide-in', { value: sc.name || '', placeholder: 'e.g. Kitchen iPad', onchange: (e) => { this.renameScreen(e.target.value); render(); } }), 'Each iPad keeps its own start page and clock face'),
         row('Opens on', startSel, 'Where it starts, and after a restart'),
+        // Home Assistant itself opening on Facewall, for whoever is signed in on this iPad.
+        (() => {
+          const info = inHaPanel ? haStartInfo() : null;
+          if (!info) return row('Open with Home Assistant', h('div.row-value', { text: 'Inside Home Assistant only' }), 'Open Facewall from Home Assistant’s sidebar to make Home Assistant start on it');
+          return row('Open with Home Assistant', toggle(info.on, async (v) => {
+            try { await setHaStart(v); toast(v ? `Home Assistant now opens on Facewall for ${info.user}` : `Home Assistant opens on its usual page for ${info.user} again`); }
+            catch (e) { toast('Couldn’t change it: ' + (e.message || e)); }
+            setTimeout(render, 400);
+          }), `When ${info.user} opens Home Assistant (on any device), it starts on Facewall. The sidebar is still a swipe away. Use a separate Home Assistant user for wall iPads so your phone isn’t affected`);
+        })(),
         row('Clock face', faceSel(sc.faceId, (v) => { this.updateScreen((x) => { x.faceId = v; }); this.renderFace(); render(); }),
           this.rotation() ? 'Rotating faces is on for this iPad, so it takes turns with the faces chosen there' : 'Just for this iPad. Holding the clock and picking a face also sets it'),
         row('Tap the clock to', (() => {

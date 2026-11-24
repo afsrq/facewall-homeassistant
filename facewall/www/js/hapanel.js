@@ -100,3 +100,39 @@ export function setHaChrome(top, bottom) {
   try { window.parent.dispatchEvent(new Event('settheme')); } catch { /* ignore */ }
 }
 if (inHaPanel) addEventListener('pagehide', () => setHaChrome(null, null));
+
+// ------------------------------------------------------------------ open Facewall when Home Assistant starts
+// Home Assistant opens each user's "default panel" when the app starts. Its settings only offer dashboards,
+// but the value can be any panel, including this app's. Facewall sits in Home Assistant's own page (same
+// address), so it can read the signed-in user and save that choice the same way Home Assistant's settings do.
+function haHass() { try { return window.parent.document.querySelector('home-assistant')?.hass || null; } catch { return null; } }
+/** Facewall's own panel (its place in Home Assistant's sidebar), if we're inside it. */
+function facewallPanel(hass) {
+  let here = '';
+  try { here = window.parent.location.pathname.split('/')[1] || ''; } catch { /* not reachable */ }
+  const panels = hass?.panels || {};
+  if (panels[here]) return here;
+  return Object.keys(panels).find((k) => /(^|_)facewall$/.test(k)) || null;
+}
+/** { user, panel, on } for the signed-in Home Assistant user, or null when Facewall isn't inside Home Assistant. */
+export function haStartInfo() {
+  const hass = haHass();
+  if (!hass?.connection) return null;
+  const panel = facewallPanel(hass);
+  if (!panel) return null;
+  return { user: hass.user?.name || 'this user', admin: !!hass.user?.is_admin, panel, on: hass.userData?.default_panel === panel };
+}
+/** Make Home Assistant open on Facewall for the signed-in user (on = true), or go back to its usual start page. */
+export async function setHaStart(on) {
+  const hass = haHass(), info = haStartInfo();
+  if (!hass || !info) throw new Error('Open Facewall from Home Assistant’s sidebar to set this');
+  const cur = { ...(hass.userData || {}) };
+  let before = null;
+  try { before = JSON.parse(localStorage.getItem('facewall.prevDefaultPanel') || 'null'); } catch { /* ignore */ }
+  if (on) {
+    if (cur.default_panel !== info.panel) { try { localStorage.setItem('facewall.prevDefaultPanel', JSON.stringify(cur.default_panel ?? null)); } catch { /* ignore */ } }
+    cur.default_panel = info.panel;
+  } else if (before && before !== info.panel) cur.default_panel = before;
+  else delete cur.default_panel;
+  await hass.connection.sendMessagePromise({ type: 'frontend/set_user_data', key: 'core', value: cur });
+}
