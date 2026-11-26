@@ -115,6 +115,9 @@ export const WALLPAPERS = [
   { id: 'boomerang', name: 'Boomerangs' },
   { id: 'dots', name: 'Eames dots' },
   { id: 'atomic', name: 'Atomic' },
+  // Whole-screen pictures (not repeating patterns), made for the Glass style.
+  { id: 'shapes', name: 'Liquid shapes', full: true },
+  { id: 'ribbons', name: 'Ribbons', full: true },
 ];
 const svgUrl = (w, h, body) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>${body}</svg>`)}")`;
 const star = (x, y, r, c, rot = 0) => {
@@ -124,6 +127,28 @@ const star = (x, y, r, c, rot = 0) => {
 };
 /** A wallpaper tile as a CSS url(), in colours a (accent), b (second colour) and c (text). */
 export function wallpaperUrl(id, a, b, c) {
+  if (id === 'shapes') {
+    // Big folded panels and rounded blobs, like Apple's abstract wallpapers.
+    const body = `<rect width='1600' height='1200' fill='${a}' opacity='0.55'/>`
+      + `<path d='M-100 900 L700 -100 L1150 -100 L250 1300 L-100 1300Z' fill='${b}' opacity='0.55'/>`
+      + `<path d='M600 1300 L1500 150 L1700 150 L1700 1300Z' fill='${a}' opacity='0.75'/>`
+      + `<path d='M900 -100 L1700 -100 L1700 500 C1450 380 1180 260 900 -100Z' fill='#ffffff' opacity='0.16'/>`
+      + `<path d='M-100 -100 L500 -100 C380 160 160 300 -100 360Z' fill='#000000' opacity='0.22'/>`
+      + `<circle cx='1180' cy='980' r='300' fill='${b}' opacity='0.45'/>`
+      + `<circle cx='320' cy='260' r='210' fill='#ffffff' opacity='0.12'/>`
+      + `<path d='M150 1300 C300 1000 560 860 820 900 C640 1000 520 1150 470 1300Z' fill='#000000' opacity='0.2'/>`
+      + `<path d='M760 520 L1060 220 L1240 400 L940 700Z' fill='#ffffff' opacity='0.1'/>`
+      + `<path d='M1000 700 L1300 1300 L900 1300Z' fill='#000000' opacity='0.16'/>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1200' preserveAspectRatio='xMidYMid slice'>${body}</svg>`)}")`;
+  }
+  if (id === 'ribbons') {
+    const body = `<rect width='1600' height='1200' fill='${a}' opacity='0.35'/>`
+      + `<path d='M-100 300 C300 100 700 500 1100 300 C1350 175 1550 200 1700 260 L1700 560 C1500 480 1300 520 1100 620 C700 820 300 420 -100 620Z' fill='${b}' opacity='0.6'/>`
+      + `<path d='M-100 700 C250 560 650 900 1050 760 C1300 670 1500 640 1700 700 L1700 960 C1450 900 1250 960 1050 1040 C650 1200 300 880 -100 1020Z' fill='${a}' opacity='0.7'/>`
+      + `<path d='M-100 120 C350 -40 800 260 1200 80 C1400 -10 1560 0 1700 40 L1700 180 C1500 150 1350 200 1200 260 C800 430 350 120 -100 280Z' fill='#ffffff' opacity='0.14'/>`
+      + `<path d='M-100 1080 C400 960 800 1200 1700 1060 L1700 1300 L-100 1300Z' fill='#000000' opacity='0.22'/>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1200' preserveAspectRatio='xMidYMid slice'>${body}</svg>`)}")`;
+  }
   if (id === 'starburst') {
     return svgUrl(240, 240, star(40, 50, 26, a) + star(170, 30, 14, b, 0.3) + star(130, 150, 30, c, 0.2) + star(30, 190, 12, b) + star(205, 205, 18, a, 0.4) + star(95, 95, 7, c) + star(215, 110, 8, a));
   }
@@ -158,11 +183,13 @@ export function applyLook(look = {}) {
   // Wallpaper, coloured from the theme that's on now.
   const wp = WALLPAPERS.some((x) => x.id === look.wallpaper) ? look.wallpaper : null;
   b.classList.toggle('has-wall', !!wp);
+  const full = !!WALLPAPERS.find((x) => x.id === wp)?.full;
+  b.classList.toggle('wall-full', full);
   if (wp) {
     const cs = getComputedStyle(document.documentElement);
     const v = (k, d) => cs.getPropertyValue(k).trim() || d;
     st.setProperty('--t-wall', wallpaperUrl(wp, v('--t-accent', '#e0a030'), v('--t-date', '#2aa198'), v('--t-text', '#888')));
-    st.setProperty('--t-wall-o', String(look.wallStrength === 'bold' ? 0.3 : look.wallStrength === 'faint' ? 0.08 : 0.16));
+    st.setProperty('--t-wall-o', String(full ? (look.wallStrength === 'bold' ? 1 : look.wallStrength === 'faint' ? 0.4 : 0.75) : (look.wallStrength === 'bold' ? 0.3 : look.wallStrength === 'faint' ? 0.08 : 0.16)));
     st.setProperty('--t-wall-size', look.wallSize === 'big' ? '380px' : look.wallSize === 'small' ? '150px' : '240px');
   } else st.removeProperty('--t-wall');
 }

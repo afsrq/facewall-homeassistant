@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.57.0
+- **Glass closer to Apple's.** Panes are clearer and less frosted, so what's behind them shows through, with slightly stronger text shadows to stay readable.
+- **Whole-screen wallpapers for Glass:** **Liquid shapes** (big folded panels and rounded shapes, like Apple's abstract wallpapers) and **Ribbons** (flowing waves). Both use your theme's colours. Settings → Theming → Background → Wallpaper; **Pattern strength** sets how strong they are.
+
 ## 1.56.0
 - **Liquid glass, redone.** Panes are clearer and more strongly blurred, with a bright rim that catches the light at the top-left and fades round the edge, a soft sheen across the top and a deeper shadow. Lights that are on become tinted glass glowing in their own colour; weather and climate cards keep their colours as tinted glass; buttons inside cards are small glass pills. The background behind is richer and more colourful so the glass has something to show, in both dark and light themes.
 
