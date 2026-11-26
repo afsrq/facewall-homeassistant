@@ -532,7 +532,8 @@ export class HomePage {
       this.applySize(card.el, w, hgt);
       // Per-tile icon position and size.
       const movable = ICON_MOVABLE.includes(kindFor(item));
-      card.el.classList.add('icon-' + (movable ? item.iconPos || 'tl' : 'tl'), 'name-' + (movable ? item.namePos || 'bottom' : 'bottom'));
+      const lkAll = this.app.settings?.general?.look || {};
+      card.el.classList.add('icon-' + (movable ? item.iconPos || lkAll.iconPos || 'tl' : 'tl'), 'name-' + (movable ? item.namePos || lkAll.namePos || 'bottom' : 'bottom'));
       if (item.iconScale && item.iconScale !== 1) card.el.style.setProperty('--icon-scale', String(item.iconScale));
       applyTileColors(card.el, item);
       if (this.editing) this.attachEditor(card.el, item, index);

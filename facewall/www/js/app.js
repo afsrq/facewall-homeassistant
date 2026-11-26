@@ -775,6 +775,9 @@ class App {
             row('Tile transparency', h('div.icon-ctl', {}, alpha, alphaVal), 'Let the background show through the tiles'),
             row('Blur behind tiles', segmented([{ v: null, label: 'Auto' }, { v: 0, label: 'None' }, { v: 12, label: 'Light' }, { v: 30, label: 'Strong' }], lk.blur ?? null, (v) => setLook((L) => { L.blur = v; }))),
             row('Corners', segmented([{ v: null, label: 'Auto' }, { v: 6, label: 'Square' }, { v: 18, label: 'Rounded' }, { v: 34, label: 'Round' }], lk.radius ?? null, (v) => setLook((L) => { L.radius = v; }))),
+            // Where icons and names sit on every tile (each tile can still choose its own in its Options).
+            row('Icon position', segmented(ICON_POSITIONS, lk.iconPos || 'tl', (v) => { setLook((L) => { L.iconPos = v === 'tl' ? null : v; }); this.rooms.forEach((r) => r.render()); }), 'For all light, switch, scene, cover and sensor tiles'),
+            row('Name position', segmented(NAME_POSITIONS, lk.namePos || 'bottom', (v) => { setLook((L) => { L.namePos = v === 'bottom' ? null : v; }); this.rooms.forEach((r) => r.render()); }), 'Middle icon with the name under it gives centred tiles'),
             row('Time-of-day colours', toggle(!!s.general.tod?.on, (v) => { this.update((x) => { x.general.tod = { ...(x.general.tod || {}), on: v }; }); render(); }), 'A warm tint that follows the day: peach at sunrise, none by day, golden at sunset, amber at night. Easier on the eyes after dark.'),
             s.general.tod?.on ? row('How warm', segmented([{ v: 'subtle', label: 'Subtle' }, { v: null, label: 'Normal' }, { v: 'strong', label: 'Strong' }], s.general.tod?.strength ?? null, (v) => this.update((x) => { x.general.tod = { ...x.general.tod, strength: v }; }))) : null,
             s.general.tod?.on ? row('Tint', segmented([{ v: null, label: 'Everything' }, { v: 'pages', label: 'Pages only' }], s.general.tod?.scope ?? null, (v) => { this.update((x) => { x.general.tod = { ...x.general.tod, scope: v }; }); }), 'Pages only leaves the clock faces in their own colours') : null,
@@ -1227,8 +1230,10 @@ class App {
       item.icon ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.icon; }) }) : null),
     item.icon || (haIcon ? `${haIcon} (from Home Assistant)` : 'Built-in icon')));
     if (ICON_MOVABLE.includes(kindFor(item))) {
-      rows.push(row('Icon position', segmented(ICON_POSITIONS, item.iconPos || 'tl', (v) => set((it) => { if (v === 'tl') delete it.iconPos; else it.iconPos = v; }))));
-      rows.push(row('Name position', segmented(NAME_POSITIONS, item.namePos || 'bottom', (v) => set((it) => { if (v === 'bottom') delete it.namePos; else it.namePos = v; })), 'Under or above the icon follows the icon’s position'));
+      // Defaults come from Settings → Theming → Tiles; choosing the same as there follows it again.
+      const lkAll = this.settings.general.look || {}, allIcon = lkAll.iconPos || 'tl', allName = lkAll.namePos || 'bottom';
+      rows.push(row('Icon position', segmented(ICON_POSITIONS, item.iconPos || allIcon, (v) => set((it) => { if (v === allIcon) delete it.iconPos; else it.iconPos = v; }))));
+      rows.push(row('Name position', segmented(NAME_POSITIONS, item.namePos || allName, (v) => set((it) => { if (v === allName) delete it.namePos; else it.namePos = v; })), 'Under or above the icon follows the icon’s position'));
     }
     // Icon size: 50%–300% of normal. The label follows the slider; the tile updates when you let go.
     const scale = item.iconScale || 1;

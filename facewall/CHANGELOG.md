@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.58.0
+- **Centred tiles for every tile at once.** Settings → Theming → Tiles now has **Icon position** (Top left, Top right, Middle) and **Name position** (Bottom, Under icon, Above icon) for all light, switch, scene, cover and sensor tiles. Middle + Under icon gives centred tiles like Apple's Home. A tile's own Options still override it.
+
 ## 1.57.0
 - **Glass closer to Apple's.** Panes are clearer and less frosted, so what's behind them shows through, with slightly stronger text shadows to stay readable.
 - **Whole-screen wallpapers for Glass:** **Liquid shapes** (big folded panels and rounded shapes, like Apple's abstract wallpapers) and **Ribbons** (flowing waves). Both use your theme's colours. Settings → Theming → Background → Wallpaper; **Pattern strength** sets how strong they are.
