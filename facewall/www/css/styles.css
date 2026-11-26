@@ -1079,30 +1079,109 @@ body[data-look="material"] .home-rail { border-radius: 30px; box-shadow: none; b
 body[data-look="material"] .rail-btn.on { background: transparent; box-shadow: none; color: var(--t-text); }
 body[data-look="material"] .rail-btn.on .rail-ic { background: var(--m-tonal); color: var(--t-text); border-radius: 99px; padding: 4px 16px; }
 
-/* ---- Liquid glass */
+/* ---- Liquid glass
+   Clear, strongly blurred panes over a colourful background. Each pane has a bright rim that catches
+   light at the top-left and fades round the edge, a soft sheen across the top, and a gentle shadow. */
 body[data-look="glass"] {
-  --g-fill: rgba(255,255,255,0.13); --g-edge: rgba(255,255,255,0.42); --g-on: rgba(255,255,255,0.34);
+  --g-fill: rgba(255,255,255,0.075);
+  --g-sheen: rgba(255,255,255,0.17);
+  --g-rim-hi: rgba(255,255,255,0.85); --g-rim-lo: rgba(255,255,255,0.14);
+  --g-inner: rgba(255,255,255,0.10);
+  --g-shadow: 0 14px 34px rgba(0,0,0,0.30), 0 2px 6px rgba(0,0,0,0.16);
+  --g-on: rgba(255,255,255,0.30);
+  --g-blur: blur(28px) saturate(200%) brightness(1.06);
+  --g-pill: rgba(255,255,255,0.14);
+  --g-sheen-img: linear-gradient(160deg, var(--g-sheen) 0%, rgba(255,255,255,0.03) 34%, transparent 52%);
+  --g-k: 1; --g-bg-filter: blur(34px) saturate(1.7) brightness(1.25);
 }
-body[data-look="glass"].theme-light { --g-fill: rgba(255,255,255,0.42); --g-edge: rgba(255,255,255,0.85); --g-on: rgba(255,255,255,0.78); }
+body[data-look="glass"].theme-light {
+  --g-fill: rgba(255,255,255,0.24);
+  --g-sheen: rgba(255,255,255,0.6);
+  --g-k: 1.45; --g-bg-filter: blur(34px) saturate(1.5);
+  --g-rim-hi: rgba(255,255,255,1); --g-rim-lo: rgba(255,255,255,0.4);
+  --g-inner: rgba(255,255,255,0.35);
+  --g-shadow: 0 14px 32px rgba(70,50,30,0.13), 0 1px 3px rgba(0,0,0,0.07);
+  --g-on: rgba(255,255,255,0.78);
+  --g-blur: blur(26px) saturate(180%) brightness(1.05);
+  --g-pill: rgba(255,255,255,0.5);
+}
 body[data-look="glass"]:not(.tile-alpha) { --t-card: var(--g-fill); }
+/* A richer, softer background for the glass to bend: the theme's glow colours, its accent and date colours. */
 body[data-look="glass"] .home-bg {
   background:
-    radial-gradient(60% 55% at 15% 20%, color-mix(in srgb, var(--t-accent) 55%, transparent), transparent 70%),
-    radial-gradient(55% 60% at 85% 80%, color-mix(in srgb, var(--t-date) 45%, transparent), transparent 70%),
-    conic-gradient(from 210deg at 70% 30%, color-mix(in srgb, var(--t-accent) 30%, transparent), transparent 25%, color-mix(in srgb, var(--t-accent) 22%, transparent) 50%, transparent 75%),
-    var(--t-pattern, none), var(--t-bg);
+    radial-gradient(46% 56% at 10% 14%, color-mix(in srgb, var(--t-accent) 42%, transparent), transparent 70%),
+    radial-gradient(50% 58% at 90% 16%, color-mix(in srgb, var(--t-date) 50%, transparent), transparent 70%),
+    radial-gradient(60% 62% at 76% 94%, color-mix(in srgb, var(--t-glow2) 100%, var(--t-glow1)), transparent 72%),
+    radial-gradient(48% 52% at 20% 92%, var(--t-glow1), transparent 70%),
+    radial-gradient(36% 40% at 50% 50%, var(--t-glow3), transparent 70%);
+  filter: var(--g-bg-filter);
+}
+/* Light themes have few glow colours, so add a soft wash of their own "on" colour low down. */
+body[data-look="glass"].theme-light .home-bg {
+  background:
+    radial-gradient(46% 56% at 10% 14%, color-mix(in srgb, var(--t-accent) 30%, transparent), transparent 70%),
+    radial-gradient(50% 58% at 90% 16%, color-mix(in srgb, var(--t-date) 34%, transparent), transparent 70%),
+    radial-gradient(60% 50% at 70% 100%, color-mix(in srgb, var(--t-on-base) 45%, transparent), transparent 72%),
+    radial-gradient(48% 52% at 20% 92%, var(--t-glow1), transparent 70%),
+    radial-gradient(36% 40% at 50% 50%, var(--t-glow3), transparent 70%);
 }
 body[data-look="glass"] .home-grid > .card {
-  border: 1px solid var(--g-edge); border-right-color: color-mix(in srgb, var(--g-edge) 40%, transparent); border-bottom-color: color-mix(in srgb, var(--g-edge) 30%, transparent);
-  box-shadow: inset 0 1px 0 var(--g-edge), inset 0 0 24px rgba(255,255,255,0.06), 0 12px 34px rgba(0,0,0,0.18);
+  border: 0;
+  background-color: var(--t-card);
+  background-image: var(--g-sheen-img);
+  box-shadow: inset 0 1px 1px var(--g-inner), inset 0 -10px 24px -14px rgba(255,255,255,0.12), var(--g-shadow);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.18);
 }
-body[data-look="glass"]:not(.tile-blur) .home-grid > .card { -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); }
-body[data-look="glass"] :is(.toggle.on, .cover.on):not(.tc-on) { background: var(--g-on); color: var(--t-text); }
+body[data-look="glass"].theme-light .home-grid > .card { text-shadow: none; }
+body[data-look="glass"]:not(.tile-blur) .home-grid > .card { -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); }
+/* The rim: a 1.5px ring, brightest at the top-left corner, fading along the sides, catching a little light again bottom-right. */
+body[data-look="glass"] :is(.home-grid > .card, .home-rail)::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 3;
+  background: linear-gradient(135deg, var(--g-rim-hi) 0%, var(--g-rim-lo) 26%, transparent 48%, transparent 62%, var(--g-rim-lo) 84%, color-mix(in srgb, var(--g-rim-hi) 55%, transparent) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Switched on: a brighter, frostier pane with a glowing icon. */
+body[data-look="glass"] :is(.toggle.on, .cover.on):not(.tc-on) { background-color: var(--g-on); color: var(--t-text); }
 body[data-look="glass"] :is(.toggle.on, .cover.on):not(.tc-on) .tile-ic { color: var(--t-accent); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--t-accent) 70%, transparent)); }
-body[data-look="glass"] .light.on:not(.tc-on) { background: linear-gradient(160deg, rgba(var(--lc), calc(0.55 * var(--tile-alpha, 1))), rgba(var(--lc), calc(0.22 * var(--tile-alpha, 1)))); color: #fff; }
-body[data-look="glass"] .light.on:not(.tc-on) .tile-ic { color: #fff; filter: drop-shadow(0 0 12px rgba(var(--lc), 0.9)); }
-body[data-look="glass"] :is(.round-btn, .mode, .chip) { background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.22); }
-body[data-look="glass"] .home-rail { background: var(--g-fill); border: 1px solid var(--g-edge); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); }
+/* Lights on: tinted glass in the light's colour, glowing from inside, still showing the background through it. */
+body[data-look="glass"] .light.on:not(.tc-on) {
+  background-color: transparent;
+  background-image: var(--g-sheen-img), linear-gradient(160deg, rgba(var(--lc), calc(0.46 * var(--tile-alpha, 1))), rgba(var(--lc), calc(0.16 * var(--tile-alpha, 1))));
+  box-shadow: inset 0 1px 1px var(--g-inner), inset 0 0 34px rgba(var(--lc), 0.32), var(--g-shadow), 0 0 28px -6px rgba(var(--lc), 0.45);
+  color: #fff;
+}
+body[data-look="glass"] .light.on:not(.tc-on) .tile-ic { color: #fff; filter: drop-shadow(0 0 12px rgba(var(--lc), 0.95)); }
+body[data-look="glass"].theme-light .light.on:not(.tc-on), body[data-look="glass"].theme-light .light.on:not(.tc-on) .tile-ic { color: var(--t-text); }
+/* Weather and climate keep their colours, as tinted glass. */
+body[data-look="glass"] .weather.wx-sunny { background-image: var(--g-sheen-img), linear-gradient(160deg, rgb(47 134 222 / calc(0.62 * var(--g-k))), rgb(106 183 243 / calc(0.38 * var(--g-k)))); }
+body[data-look="glass"] .weather.wx-partly { background-image: var(--g-sheen-img), linear-gradient(160deg, rgb(63 120 182 / calc(0.62 * var(--g-k))), rgb(134 171 208 / calc(0.36 * var(--g-k)))); }
+body[data-look="glass"] .weather.wx-cloudy { background-image: var(--g-sheen-img), linear-gradient(160deg, rgb(79 89 103 / calc(0.62 * var(--g-k))), rgb(124 134 147 / calc(0.36 * var(--g-k)))); }
+body[data-look="glass"] .weather.wx-rain { background-image: var(--g-sheen-img), linear-gradient(160deg, rgb(52 70 93 / calc(0.66 * var(--g-k))), rgb(91 114 144 / calc(0.4 * var(--g-k)))); }
+body[data-look="glass"] .weather.wx-storm { background-image: var(--g-sheen-img), linear-gradient(160deg, rgb(38 40 63 / calc(0.7 * var(--g-k))), rgb(74 78 116 / calc(0.42 * var(--g-k)))); }
+body[data-look="glass"] .weather.wx-snow { background-image: var(--g-sheen-img), linear-gradient(160deg, rgb(116 137 162 / calc(0.6 * var(--g-k))), rgb(174 191 211 / calc(0.36 * var(--g-k)))); }
+body[data-look="glass"] .weather.wx-night { background-image: var(--g-sheen-img), linear-gradient(160deg, rgb(13 23 48 / calc(0.72 * var(--g-k))), rgb(38 54 95 / calc(0.44 * var(--g-k)))); }
+body[data-look="glass"] .weather { background-color: transparent; }
+body[data-look="glass"] .climate.on { background-color: transparent; }
+body[data-look="glass"] .climate.on.mode-cool { background-image: var(--g-sheen-img), linear-gradient(150deg, rgb(61 142 255 / calc(0.62 * var(--g-k))), rgb(29 91 224 / calc(0.38 * var(--g-k)))); }
+body[data-look="glass"] .climate.on.mode-heat { background-image: var(--g-sheen-img), linear-gradient(150deg, rgb(255 162 74 / calc(0.62 * var(--g-k))), rgb(239 90 43 / calc(0.4 * var(--g-k)))); }
+body[data-look="glass"] .climate.on.mode-dry { background-image: var(--g-sheen-img), linear-gradient(150deg, rgb(47 198 179 / calc(0.6 * var(--g-k))), rgb(18 138 128 / calc(0.38 * var(--g-k)))); }
+body[data-look="glass"] .climate.on.mode-fan_only { background-image: var(--g-sheen-img), linear-gradient(150deg, rgb(124 147 255 / calc(0.6 * var(--g-k))), rgb(66 83 214 / calc(0.38 * var(--g-k)))); }
+body[data-look="glass"] .climate.on:is(.mode-auto, .mode-heat_cool) { background-image: var(--g-sheen-img), linear-gradient(150deg, rgb(67 207 114 / calc(0.6 * var(--g-k))), rgb(28 154 82 / calc(0.38 * var(--g-k)))); }
+body[data-look="glass"].theme-light :is(.weather, .climate.on) { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+/* Buttons inside panes: small glass pills. */
+body[data-look="glass"] :is(.round-btn, .mode, .chip) {
+  background: var(--g-pill); border: 0;
+  box-shadow: inset 0 1px 0.5px rgba(255,255,255,0.55), inset 0 -1px 1px rgba(255,255,255,0.08), 0 2px 8px rgba(0,0,0,0.12);
+  -webkit-backdrop-filter: blur(10px) saturate(160%); backdrop-filter: blur(10px) saturate(160%);
+}
+body[data-look="glass"] .climate.on .mode.on { background: rgba(255,255,255,0.92); }
+body[data-look="glass"] .home-rail {
+  position: relative; background: var(--g-fill); border: 0;
+  background-image: var(--g-sheen-img);
+  box-shadow: inset 0 1px 1px var(--g-inner), var(--g-shadow);
+  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+}
 
 /* ---- Facewall Bold */
 body[data-look="bold"] .home-grid > .card { border-radius: clamp(14px, 1.6vw, 20px); border: 2px solid var(--t-soft-2); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -1134,7 +1213,6 @@ body[data-look="bold"] .rail-btn.on .rail-ic { color: #fff; }
 [data-look-preview="bold"] .look-mini i { border-radius: 5px; background: transparent; border: 2px solid var(--t-soft-2); }
 [data-look-preview="bold"] .look-mini i.on { background: var(--t-accent); border-color: var(--t-accent); }
 .look-sub { padding: 2px 0 6px; }
-body[data-look="glass"].theme-light .light.on:not(.tc-on), body[data-look="glass"].theme-light .light.on:not(.tc-on) .tile-ic { color: var(--t-text); }
 /* Rotate faces */
 .face-page { transition: opacity 0.45s ease; }
 .face-page.face-swap { opacity: 0; }

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.56.0
+- **Liquid glass, redone.** Panes are clearer and more strongly blurred, with a bright rim that catches the light at the top-left and fades round the edge, a soft sheen across the top and a deeper shadow. Lights that are on become tinted glass glowing in their own colour; weather and climate cards keep their colours as tinted glass; buttons inside cards are small glass pills. The background behind is richer and more colourful so the glass has something to show, in both dark and light themes.
+
 ## 1.55.0
 - **Make Home Assistant open on Facewall.** Settings → This iPad → **Open with Home Assistant**. Home Assistant's own settings only let you start on a dashboard; this switch sets its start page to Facewall for the signed-in Home Assistant user, so the companion app opens straight into Facewall with the sidebar still there. Turn it off to go back to the usual start page.
 - Home Assistant users who aren't admins can now open Facewall from the sidebar, so wall iPads can use their own non-admin user.
