@@ -1106,6 +1106,8 @@ body[data-look="glass"].theme-light {
   --g-pill: rgba(255,255,255,0.5);
 }
 body[data-look="glass"]:not(.tile-alpha) { --t-card: var(--g-fill); }
+/* Glass draws its own soft background, so the theme's small repeating pattern is left out (it looked busy behind clear panes). */
+body[data-look="glass"] .home-page { background: var(--t-bg); }
 /* A richer, softer background for the glass to bend: the theme's glow colours, its accent and date colours. */
 body[data-look="glass"] .home-bg {
   background:

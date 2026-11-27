@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.58.1
+- Glass style: the theme's small repeating pattern (for example the rounded squares of the Palm Springs themes) no longer shows sharply behind the clear tiles. Glass draws its own soft background instead, as it did before 1.56.
+
 ## 1.58.0
 - **Centred tiles for every tile at once.** Settings → Theming → Tiles now has **Icon position** (Top left, Top right, Middle) and **Name position** (Bottom, Under icon, Above icon) for all light, switch, scene, cover and sensor tiles. Middle + Under icon gives centred tiles like Apple's Home. A tile's own Options still override it.
 
