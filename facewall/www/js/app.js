@@ -905,14 +905,14 @@ class App {
           });
           this.renderRooms(); render();
         };
-        pagesList.append(h('div.ent-row' + (p.id === base ? '.sel' : ''), {},
-          h('span.ent-ic', { html: icon(i === 0 ? 'home' : 'grid') }),
+        pagesList.append(h('div.ent-row', {},
+          h('span.ent-ic', { html: icon(p.kind === 'music' ? 'music' : i === 0 ? 'home' : 'grid') }),
           h('input.text-in.name-in', { value: p.name, 'aria-label': 'Page name', onchange: (e) => {
             const v = e.target.value.trim(); if (!v) return;
             this.update((x) => { pageOf(x, p.id).name = v; }); this.renderRooms(); render();
           } }),
-          h('span.ent-sub.count', { text: `${p.entities.length} tile${p.entities.length === 1 ? '' : 's'}${p.sections?.length ? ` · ${p.sections.length + 1} sections` : ''}` }),
-          h('button.pill.sm' + (p.id === base ? '.primary' : ''), { text: p.id === base ? 'Editing' : 'Edit', onclick: () => { editPage = p.id; openTile = null; render(); } }),
+          h('span.ent-sub.count', { text: p.kind === 'music' ? 'Music Assistant' : `${p.entities.length} tile${p.entities.length === 1 ? '' : 's'}${p.sections?.length ? ` · ${p.sections.length + 1} sections` : ''}` }),
+          p.kind === 'music' ? null : h('button.pill.sm', { html: icon('grid') + '<span>Tiles</span>', onclick: () => goTiles(p.id) }),
           h('button.icon-btn.sm', { html: icon('copy'), 'aria-label': 'Copy this page', onclick: () => {
             const id = 'p-' + uid();
             this.update((x) => { const src = pageOf(x, p.id); x.pages.splice(i + 1, 0, { ...structuredClone(src), id, name: `${src.name} copy` }); });
@@ -939,14 +939,15 @@ class App {
         editPage = id; this.renderRooms(); render();
         toast(`Added ${area} with ${ents.length} tile${ents.length === 1 ? '' : 's'}`);
       };
-      const pagesSec = section('Pages',
-        h('div.about.small', { text: 'Swipe left from the clock to move through your pages.' }),
-        pagesList,
+      const pagesSec = section('Your pages',
+        h('div.about.small', { text: 'Swipe left from the clock to move through your pages. Tap a name to rename it; Tiles opens that page’s tiles.' }),
+        pagesList);
+      const addPageSec = section('Add a page',
         h('div.add-page-row', {},
           h('button.pill', { html: icon('plus') + '<span>Blank page</span>', onclick: () => {
             const id = 'p-' + uid();
             this.update((x) => { x.pages.push({ id, name: `Page ${x.pages.length + 1}`, entities: [], layout: { cols: null, rows: null } }); });
-            editPage = id; this.renderRooms(); render();
+            this.renderRooms(); goTiles(id);
           } }),
           h('button.pill', { html: icon('music') + '<span>Music page</span>', onclick: () => {
             const id = 'p-' + uid();
@@ -981,12 +982,22 @@ class App {
       if (!ents.length) list.append(h('div.ent-empty', { text: 'No tiles on this page yet.' }));
       const hasAllOff = ents.some((e) => e.id === ALL_OFF);
       const secs = basePg.sections || [];
-      const tilesSec = section(`Tiles on “${basePg.name}${base !== editPage ? ' › ' + pg.name : ''}”`,
-        secs.length ? row('Section', segmented([{ v: base, label: basePg.mainName || 'All' }, ...secs.map((x) => ({ v: `${base}~${x.id}`, label: x.name }))], editPage, (v) => { editPage = v; openTile = null; render(); })) : null,
+      // The Tiles tab: pick a page, then its tiles, then the extras and grid for that page.
+      const pagePick = s.pages.length <= 5
+        ? segmented(s.pages.map((p) => ({ v: p.id, label: p.name })), base, (v) => { editPage = v; openTile = null; render(); })
+        : (() => { const sel = h('select.select'); for (const p of s.pages) sel.append(h('option', { value: p.id, text: p.name })); sel.value = base; sel.onchange = () => { editPage = sel.value; openTile = null; render(); }; return sel; })();
+      const isMusic = basePg.kind === 'music';
+      const tilePageSec = section('Page',
+        row('Show tiles for', pagePick),
+        !isMusic && secs.length ? row('Section', segmented([{ v: base, label: basePg.mainName || 'All' }, ...secs.map((x) => ({ v: `${base}~${x.id}`, label: x.name }))], editPage, (v) => { editPage = v; openTile = null; render(); })) : null,
+        isMusic ? h('div.about.small', { text: 'The Music page has no tiles: it shows your Music Assistant player and library.' }) : h('div.tile-actions', {},
+          h('button.pill.primary', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.entityBrowser(editPage, () => { render(); refreshRoom(); }) }),
+          h('button.pill', { html: icon('grid') + '<span>Arrange on screen</span>', onclick: () => { sh.close(); this.goToRoom(editPage); this.roomFor(editPage)?.setEditing(true); } })));
+      const tilesSec = section(`${ents.length} tile${ents.length === 1 ? '' : 's'} on “${basePg.name}${base !== editPage ? ' › ' + pg.name : ''}”`,
+        h('div.about.small', { text: 'Tap a size to open a tile’s options. The arrows change the order.' }),
+        list);
+      const extrasSec = section('Extras for this page',
         row('Sections', h('button.pill.sm', { html: icon('sliders') + '<span>' + (secs.length ? 'Edit sections' : 'Add sections') + '</span>', onclick: () => this.sectionsEditor(base, () => render()) }), 'A menu down the left of the page, e.g. Lights, Climate and Media, each with its own tiles'),
-        h('button.pill.wide.primary', { html: icon('grid') + '<span>Edit layout on screen</span>', onclick: () => { sh.close(); this.goToRoom(editPage); this.roomFor(editPage)?.setEditing(true); } }),
-        list,
-        h('button.pill.wide', { html: icon('plus') + '<span>Add tiles</span>', onclick: () => this.entityBrowser(editPage, () => { render(); refreshRoom(); }) }),
         row('Scenes row', h('button.pill.sm', { html: icon('plus') + '<span>Add</span>', onclick: () => {
           const pick = this.store.list(['scene']).map((x) => x.entity_id);
           upd((a) => a.push({ id: SCENES, scenes: pick.slice(0, 4) }));
@@ -994,7 +1005,7 @@ class App {
         } }), 'One tile with a row of one-tap scene and script buttons'),
         row('“All lights off” tile', toggle(hasAllOff, (v) => upd((a) => { const k = a.findIndex((e) => e.id === ALL_OFF); if (v && k < 0) a.push({ id: ALL_OFF }); if (!v && k >= 0) a.splice(k, 1); })), 'Turns off every light on this page'));
       const setL = (k, v) => { this.update((x) => { const p2 = pageOf(x, base); p2.layout = { ...(p2.layout || {}), [k]: v }; }); refreshRoom(); render(); };
-      const layoutSec = section(`Grid on “${basePg.name}”`,
+      const layoutSec = section('Grid for this page',
         row('Columns across', segmented([{ v: null, label: 'Auto' }, ...[3, 4, 5, 6, 7, 8].map((v) => ({ v, label: String(v) }))], L.cols ?? null, (v) => setL('cols', v)), 'More columns = smaller tiles'),
         row('Fit to screen', toggle(L.fit !== false, (v) => setL('fit', v ? null : false)), 'Stretch or shrink the rows so your tiles exactly fill the screen, upright or sideways'),
         L.fit === false ? row('Rows per screen', segmented([{ v: null, label: 'Auto' }, ...[2, 3, 4, 5, 6].map((v) => ({ v, label: String(v) }))], L.rows ?? null, (v) => setL('rows', v)), 'Taller tiles can span several rows') : null);
@@ -1116,14 +1127,15 @@ class App {
       const TABS = [
         { id: 'look', label: 'Theming', ic: 'sparkles', secs: lookGroups },
         { id: 'clock', label: 'Clock', ic: 'clock', secs: [clockSec, rotSec, glowSec, dimSec] },
-        { id: 'pages', label: 'Pages & tiles', ic: 'grid', secs: [pagesSec, tilesSec, layoutSec] },
+        { id: 'pages', label: 'Pages', ic: 'home', secs: [pagesSec, addPageSec] },
+        { id: 'tiles', label: 'Tiles', ic: 'grid', secs: isMusic ? [tilePageSec] : [tilePageSec, tilesSec, extrasSec, layoutSec] },
         { id: 'ipad', label: 'This iPad', ic: 'tv', secs: [screenSec, photoSec, doorSec] },
         { id: 'extras', label: 'Countdowns', ic: 'calendar', secs: [cdSec] },
         { id: 'system', label: 'System', ic: 'gear', secs: [aboutSec, backupSec] },
       ];
       if (!tab) {
         const want = opts.section && TABS.find((t) => t.secs.some((x) => x.querySelector('.set-title')?.textContent === opts.section));
-        tab = want?.id || (opts.page ? 'pages' : this._settingsTab || 'look');
+        tab = want?.id || (opts.page ? 'tiles' : this._settingsTab || 'look');
       }
       tabBar.replaceChildren(...TABS.map((t) => h('button.set-tab' + (t.id === tab ? '.on' : ''), { onclick: () => { if (t.id === tab) return; tab = t.id; this._settingsTab = tab; render(); sh.body.scrollTop = 0; } },
         h('span.set-tab-ic', { html: icon(t.ic) }), h('span', { text: t.label }))));
@@ -1132,6 +1144,7 @@ class App {
       if (opts.section && !this._secScrolled) { this._secScrolled = true; requestAnimationFrame(() => [...sh.body.querySelectorAll('.set-title')].find((t) => t.textContent === opts.section)?.scrollIntoView({ block: 'start' })); }
     };
     let tab = opts.tab || null;
+    const goTiles = (id) => { editPage = id; openTile = null; tab = 'tiles'; this._settingsTab = tab; render(); sh.body.scrollTop = 0; };
     const tabBar = h('div.set-tabs');
     sh.body.parentNode.insertBefore(tabBar, sh.body);
     this._secScrolled = false;

@@ -1451,3 +1451,5 @@ label.swatch { cursor: pointer; }
 .screen-ctl { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 2px 8px 0 52px; }
 .screen-ctl-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .screen-ctl-item > span { opacity: 0.65; }
+.tile-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 4px; }
+.tile-actions .pill { flex: 1 1 200px; justify-content: center; }

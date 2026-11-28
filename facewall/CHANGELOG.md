@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.60.0
+- **Settings: Pages and Tiles are now separate tabs.**
+  - **Pages**: just your pages (rename, copy, reorder, delete) and the buttons to add one. **Tiles** on a row jumps to that page's tiles.
+  - **Tiles**: pick a page at the top, then **Add tiles** and **Arrange on screen**, the tile list, and below it the page's extras (sections, scenes row, All lights off) and grid.
+  - Music pages say "Music Assistant" instead of "0 tiles".
+
 ## 1.59.0
 - **Glass that bends light.** With the Glass style, the background now curves at each tile's rim, like looking through a rounded slab of glass (the "liquid" part of Apple's Liquid Glass). The amount of bend follows the physics of light through glass on a rounded bevel.
   - Browsers can only bend what's behind an element in Chrome, so Facewall gives each tile its own lined-up copy of the background and bends that, which is meant to work on iPads too.
