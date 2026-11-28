@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.59.0
+- **Glass that bends light.** With the Glass style, the background now curves at each tile's rim, like looking through a rounded slab of glass (the "liquid" part of Apple's Liquid Glass). The amount of bend follows the physics of light through glass on a rounded bevel.
+  - Browsers can only bend what's behind an element in Chrome, so Facewall gives each tile its own lined-up copy of the background and bends that, which is meant to work on iPads too.
+  - Shows best with a wallpaper (Liquid shapes or Ribbons).
+  - Settings → Theming → Tiles → **Bend the background at tile edges** turns it off. If a browser can't draw it, tiles fall back to plain clear glass.
+
 ## 1.58.1
 - Glass style: the theme's small repeating pattern (for example the rounded squares of the Palm Springs themes) no longer shows sharply behind the clear tiles. Glass draws its own soft background instead, as it did before 1.56.
 

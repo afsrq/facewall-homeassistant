@@ -775,6 +775,7 @@ class App {
             row('Tile transparency', h('div.icon-ctl', {}, alpha, alphaVal), 'Let the background show through the tiles'),
             row('Blur behind tiles', segmented([{ v: null, label: 'Auto' }, { v: 0, label: 'None' }, { v: 12, label: 'Light' }, { v: 30, label: 'Strong' }], lk.blur ?? null, (v) => setLook((L) => { L.blur = v; }))),
             row('Corners', segmented([{ v: null, label: 'Auto' }, { v: 6, label: 'Square' }, { v: 18, label: 'Rounded' }, { v: 34, label: 'Round' }], lk.radius ?? null, (v) => setLook((L) => { L.radius = v; }))),
+            cur.id === 'glass' ? row('Bend the background at tile edges', toggle(lk.refract !== false, (v) => setLook((L) => { L.refract = v ? null : false; })), 'Like real glass: the wallpaper curves at each tile’s rim. Turn off if an iPad feels slow') : null,
             // Where icons and names sit on every tile (each tile can still choose its own in its Options).
             row('Icon position', segmented(ICON_POSITIONS, lk.iconPos || 'tl', (v) => { setLook((L) => { L.iconPos = v === 'tl' ? null : v; }); this.rooms.forEach((r) => r.render()); }), 'For all light, switch, scene, cover and sensor tiles'),
             row('Name position', segmented(NAME_POSITIONS, lk.namePos || 'bottom', (v) => { setLook((L) => { L.namePos = v === 'bottom' ? null : v; }); this.rooms.forEach((r) => r.render()); }), 'Middle icon with the name under it gives centred tiles'),
@@ -1096,7 +1097,7 @@ class App {
       // Tabs across the top, each bundling related sections.
       // Theming is long, so it's split into titled groups: style, colours, tiles, background, header.
       const lookGroups = (() => {
-        const GROUP = { 'Theme': 'Colours', 'Night theme on this iPad': 'Colours', 'Time-of-day colours': 'Colours', 'Tile transparency': 'Tiles', 'Blur behind tiles': 'Tiles', 'Corners': 'Tiles', 'Wallpaper': 'Background', 'Weather in the background': 'Background', 'Seasonal touches': 'Background', 'Page header': 'Page header' };
+        const GROUP = { 'Theme': 'Colours', 'Night theme on this iPad': 'Colours', 'Time-of-day colours': 'Colours', 'Tile transparency': 'Tiles', 'Blur behind tiles': 'Tiles', 'Bend the background at tile edges': 'Tiles', 'Corners': 'Tiles', 'Wallpaper': 'Background', 'Weather in the background': 'Background', 'Seasonal touches': 'Background', 'Page header': 'Page header' };
         const order = ['Style', 'Colours', 'Tiles', 'Background', 'Page header'];
         const bins = Object.fromEntries(order.map((k) => [k, []]));
         let cur = 'Style';

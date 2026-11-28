@@ -1143,6 +1143,17 @@ body[data-look="glass"] :is(.home-grid > .card, .home-rail)::before {
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
+/* Refraction: each tile's own copy of the background, bent at the rim by an SVG filter (see glass.js). */
+.g-lens { position: absolute; inset: 0; z-index: -1; border-radius: inherit; overflow: hidden; pointer-events: none; background: inherit; }
+.g-lens-f { position: absolute; inset: 0; }
+.g-world { position: absolute; background: var(--t-bg); }
+.g-world .home-bg { filter: var(--g-bg-tone, none); }
+.g-lens::after { content: ''; position: absolute; inset: 0; background: inherit; }
+body[data-look="glass"] .home-grid > .card.has-lens { isolation: isolate; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+body[data-look="glass"] { --g-bg-tone: saturate(1.7) brightness(1.25); }
+body[data-look="glass"].theme-light { --g-bg-tone: saturate(1.5); }
+/* A soft dark line just inside the rim and a bright one at the very edge give the glass its thickness. */
+body[data-look="glass"] .home-grid > .card.has-lens { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 1px var(--g-inner), inset 0 0 14px -4px rgba(0,0,0,0.28), inset 0 -10px 24px -14px rgba(255,255,255,0.12), var(--g-shadow); }
 /* Switched on: a brighter, frostier pane with a glowing icon. */
 body[data-look="glass"] :is(.toggle.on, .cover.on):not(.tc-on) { background-color: var(--g-on); color: var(--t-text); }
 body[data-look="glass"] :is(.toggle.on, .cover.on):not(.tc-on) .tile-ic { color: var(--t-accent); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--t-accent) 70%, transparent)); }

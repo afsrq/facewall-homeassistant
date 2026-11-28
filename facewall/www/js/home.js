@@ -2,6 +2,7 @@
 import { icon, domainIcon } from './icons.js';
 import { domainOf, isOn, lightRGB, formatState, cap } from './data.js';
 import { h, press, sheet, toast, segmented } from './ui.js';
+import { syncGlass } from './glass.js';
 import { headerOf, headerContent, headerVars } from './header.js';
 import { iconSvg } from './iconlib.js';
 import { Fx, fxMode } from './fx.js';
@@ -548,7 +549,8 @@ export class HomePage {
     }
     if (this.editing) this.root.append(this.editBar());
     this.fit();
-    requestAnimationFrame(() => this.fit());
+    requestAnimationFrame(() => { this.fit(); syncGlass(this.root); });
+    this.grid.addEventListener('scroll', () => syncGlass(this.root), { passive: true });
     this.grid.scrollTop = scroll;
     this.root.scrollTop = 0;
     this.tick();
@@ -618,6 +620,7 @@ export class HomePage {
     if (Math.abs(unit - this.unitH) < 0.5) return;
     this.unitH = unit; this.rowH = unit - this.gap;
     this.root.style.setProperty('--subrow-h', (unit / SUB).toFixed(3) + 'px');
+    syncGlass(this.root);
   }
 
   setEditing(on) {

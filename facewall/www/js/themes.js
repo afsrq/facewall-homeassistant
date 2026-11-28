@@ -182,6 +182,7 @@ export function applyLook(look = {}) {
   b.classList.toggle('tile-r', look.radius != null);
   // Wallpaper, coloured from the theme that's on now.
   const wp = WALLPAPERS.some((x) => x.id === look.wallpaper) ? look.wallpaper : null;
+  b.classList.toggle('no-refract', look.refract === false);
   b.classList.toggle('has-wall', !!wp);
   const full = !!WALLPAPERS.find((x) => x.id === wp)?.full;
   b.classList.toggle('wall-full', full);
