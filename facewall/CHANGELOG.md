@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.61.1
+- **Settings no longer jump to the top** when you change something lower down. Same for a tile's Options, the page header and the sections editor.
+- **Picking a clock face only changes this iPad.** Before, it also changed every iPad that hadn't picked its own face. Use Customize → Show on → Every iPad to change them all.
+- **Open with Home Assistant** now names the Home Assistant user it applies to and says whether it's on for them.
+
 ## 1.61.0
 - **Tile depth for Glass and Bold.** Settings → Theming → Tiles → **Tile depth**, from Flat to 200%.
   - Glass: thicker glass, with a wider bend at the rim, a heavier edge and a deeper shadow. Flat turns the bend off.

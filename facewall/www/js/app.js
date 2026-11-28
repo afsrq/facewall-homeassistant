@@ -575,8 +575,14 @@ class App {
     setTimeout(() => { mounts.forEach((m) => m.destroy()); ov.remove(); }, 300);
   }
   chooseFace(id, card) {
-    // This screen remembers its own face; it also becomes the default for screens that haven't picked one.
-    this.update((s) => { s.active = id; s.screens ||= {}; const sc = s.screens[this.screenId] ||= {}; sc.faceId = id; sc.seen = Date.now(); });
+    // This screen remembers its own face. Other iPads keep theirs: the shared default only changes when this is the only
+    // screen, or from Customize → Show on → Every iPad.
+    this.update((s) => {
+      s.screens ||= {};
+      const alone = !Object.keys(s.screens).some((k) => k !== this.screenId);
+      if (alone) s.active = id;
+      const sc = s.screens[this.screenId] ||= {}; sc.faceId = id; sc.seen = Date.now();
+    });
     if (this.rotation()) { this.rotId = id; this.rotAt = Date.now(); }
     this.renderFace();
     // Zoom a copy of the chosen card up to full screen, then reveal the live face underneath.
@@ -755,6 +761,7 @@ class App {
       if (!pageOf(s, editPage)) editPage = pageOf(s, String(editPage).split('~')[0]) ? String(editPage).split('~')[0] : s.pages[0]?.id;
       const pg = pageOf(s, editPage);
       const base = String(editPage).split('~')[0], basePg = pageOf(s, base);
+      const keepTop = sh.body.scrollTop;
       sh.body.innerHTML = '';
 
       // ---------------- Appearance
@@ -857,11 +864,11 @@ class App {
         (() => {
           const info = inHaPanel ? haStartInfo() : null;
           if (!info) return row('Open with Home Assistant', h('div.row-value', { text: 'Inside Home Assistant only' }), 'Open Facewall from Home Assistant’s sidebar to make Home Assistant start on it');
-          return row('Open with Home Assistant', toggle(info.on, async (v) => {
+          return row(`Open Home Assistant on Facewall for ${info.user}`, toggle(info.on, async (v) => {
             try { await setHaStart(v); toast(v ? `Home Assistant now opens on Facewall for ${info.user}` : `Home Assistant opens on its usual page for ${info.user} again`); }
             catch (e) { toast('Couldn’t change it: ' + (e.message || e)); }
             setTimeout(render, 400);
-          }), `When ${info.user} opens Home Assistant (on any device), it starts on Facewall. The sidebar is still a swipe away. Use a separate Home Assistant user for wall iPads so your phone isn’t affected`);
+          }), `${info.on ? 'On' : 'Off'} for ${info.user}, the Home Assistant user signed in here. It follows that user to every device they sign in on, and no other user. To change it for someone else, sign in as them and open this page`);
         })(),
         row('Clock face', faceSel(sc.faceId, (v) => { this.updateScreen((x) => { x.faceId = v; }); this.renderFace(); render(); }),
           this.rotation() ? 'Rotating faces is on for this iPad, so it takes turns with the faces chosen there' : 'Just for this iPad. Holding the clock and picking a face also sets it'),
@@ -1147,6 +1154,7 @@ class App {
         h('span.set-tab-ic', { html: icon(t.ic) }), h('span', { text: t.label }))));
       tabBar.querySelector('.set-tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       sh.body.append(...(TABS.find((t) => t.id === tab) || TABS[0]).secs);
+      sh.body.scrollTop = keepTop; // stay where you were; changing tabs scrolls to the top itself
       if (opts.section && !this._secScrolled) { this._secScrolled = true; requestAnimationFrame(() => [...sh.body.querySelectorAll('.set-title')].find((t) => t.textContent === opts.section)?.scrollIntoView({ block: 'start' })); }
     };
     let tab = opts.tab || null;
@@ -1417,6 +1425,7 @@ class App {
         toast(preset ? `Added ${preset.name} with ${tiles.length} tile${tiles.length === 1 ? '' : 's'}${area && tiles.length ? ` from ${area}` : ''}` : 'Added a section. Rename it and add tiles.');
       };
       const used = new Set(secs.map((x) => x.name));
+      { const t = sh.body.scrollTop; queueMicrotask(() => { sh.body.scrollTop = t; }); }
       sh.body.replaceChildren(
         h('div.about.small', { text: 'Sections put a menu down the left side of this page. Each one has its own tiles, so one room can have Lights, Climate and Media screens. Tap an icon to change it.' }),
         h('div.ent-list', {}, ...rows),
@@ -1456,6 +1465,7 @@ class App {
       const it = pageOf(this.settings, pageId)?.entities?.[i];
       if (!it) return sh.close();
       sh.setTitle(tileName(this.store, it));
+      { const t = sh.body.scrollTop; queueMicrotask(() => { sh.body.scrollTop = t; }); }
       sh.body.innerHTML = '';
       sh.body.append(...this.tileOptionRows(pageId, i, render), this.tileCopyRow(pageId, i, () => { this.renderRooms(); render(); }), h('div.sheet-actions', {},
         h('button.pill.danger-pill', { text: 'Remove tile', onclick: () => { this.update((x) => { pageOf(x, pageId).entities.splice(i, 1); }); this.roomFor(pageId)?.render(); sh.close(); } })));
@@ -1873,6 +1883,7 @@ class App {
     const render = () => {
       const hd = headerOf(this.settings);
       drawPreview();
+      { const t = sh.body.scrollTop; queueMicrotask(() => { sh.body.scrollTop = t; }); }
       sh.body.innerHTML = '';
       const sec = (title, ...kids) => h('section.set-sec', {}, h('div.set-title', { text: title }), ...kids);
       // ---- the line's pieces
