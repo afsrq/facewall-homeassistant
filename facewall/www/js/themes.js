@@ -179,6 +179,8 @@ export function applyLook(look = {}) {
   if (look.blur != null) st.setProperty('--tile-blur', look.blur + 'px'); else st.removeProperty('--tile-blur');
   b.classList.toggle('tile-blur', look.blur != null);
   if (look.radius != null) st.setProperty('--tile-r', look.radius + 'px'); else st.removeProperty('--tile-r');
+  // Depth: how thick the glass looks (Glass) or how far tiles stand off the page (Bold). 1 = normal; Bold starts flat.
+  st.setProperty('--depth', String(look.depth == null ? (look.style === 'bold' ? 0 : 1) : Math.max(0, Math.min(200, look.depth)) / 100));
   b.classList.toggle('tile-r', look.radius != null);
   // Wallpaper, coloured from the theme that's on now.
   const wp = WALLPAPERS.some((x) => x.id === look.wallpaper) ? look.wallpaper : null;

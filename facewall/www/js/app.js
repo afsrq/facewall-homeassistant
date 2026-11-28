@@ -768,6 +768,11 @@ class App {
           const alphaVal = h('span.row-value', { text: lk.alpha == null || lk.alpha >= 100 ? 'Solid' : `${100 - lk.alpha}% see-through` });
           alpha.addEventListener('input', () => { const v = Number(alpha.value); alphaVal.textContent = v >= 100 ? 'Solid' : `${100 - v}% see-through`; applyLook({ ...(this.settings.general.look || {}), alpha: v >= 100 ? null : v }); });
           alpha.addEventListener('change', () => { const v = Number(alpha.value); setLook((L) => { L.alpha = v >= 100 ? null : v; }); });
+          const depthDef = cur.id === 'bold' ? 0 : 100, depthNow = lk.depth ?? depthDef;
+          const depth = h('input.range', { type: 'range', min: 0, max: 200, step: 10, value: depthNow, 'aria-label': 'Tile depth' });
+          const depthVal = h('span.row-value', { text: depthNow === 0 ? 'Flat' : `${depthNow}%` });
+          depth.addEventListener('input', () => { const v = Number(depth.value); depthVal.textContent = v === 0 ? 'Flat' : `${v}%`; applyLook({ ...(this.settings.general.look || {}), depth: v }); });
+          depth.addEventListener('change', () => { const v = Number(depth.value); setLook((L) => { L.depth = v === depthDef ? null : v; }); });
           return [
             h('div.look-pick', {}, ...LOOKS.map((l) => h('button.look-card' + (l.id === cur.id ? '.sel' : ''), { 'data-look-preview': l.id, onclick: () => setLook((L) => { L.style = l.id === 'apple' ? null : l.id; }) },
               h('div.look-mini', {}, h('i.lm-a'), h('i.lm-b.on'), h('i.lm-c'), h('i.lm-d.on')), h('div.look-name', { text: l.name })))),
@@ -775,6 +780,7 @@ class App {
             row('Tile transparency', h('div.icon-ctl', {}, alpha, alphaVal), 'Let the background show through the tiles'),
             row('Blur behind tiles', segmented([{ v: null, label: 'Auto' }, { v: 0, label: 'None' }, { v: 12, label: 'Light' }, { v: 30, label: 'Strong' }], lk.blur ?? null, (v) => setLook((L) => { L.blur = v; }))),
             row('Corners', segmented([{ v: null, label: 'Auto' }, { v: 6, label: 'Square' }, { v: 18, label: 'Rounded' }, { v: 34, label: 'Round' }], lk.radius ?? null, (v) => setLook((L) => { L.radius = v; }))),
+            ['glass', 'bold'].includes(cur.id) ? row('Tile depth', h('div.icon-ctl', {}, depth, depthVal), cur.id === 'glass' ? 'How thick the glass looks: a wider bend at the rim and a deeper shadow. Each tile can set its own in its Options' : 'How far tiles stand off the page, with a solid block shadow. Each tile can set its own in its Options') : null,
             cur.id === 'glass' ? row('Bend the background at tile edges', toggle(lk.refract !== false, (v) => setLook((L) => { L.refract = v ? null : false; })), 'Like real glass: the wallpaper curves at each tile’s rim. Turn off if an iPad feels slow') : null,
             // Where icons and names sit on every tile (each tile can still choose its own in its Options).
             row('Icon position', segmented(ICON_POSITIONS, lk.iconPos || 'tl', (v) => { setLook((L) => { L.iconPos = v === 'tl' ? null : v; }); this.rooms.forEach((r) => r.render()); }), 'For all light, switch, scene, cover and sensor tiles'),
@@ -1108,7 +1114,7 @@ class App {
       // Tabs across the top, each bundling related sections.
       // Theming is long, so it's split into titled groups: style, colours, tiles, background, header.
       const lookGroups = (() => {
-        const GROUP = { 'Theme': 'Colours', 'Night theme on this iPad': 'Colours', 'Time-of-day colours': 'Colours', 'Tile transparency': 'Tiles', 'Blur behind tiles': 'Tiles', 'Bend the background at tile edges': 'Tiles', 'Corners': 'Tiles', 'Wallpaper': 'Background', 'Weather in the background': 'Background', 'Seasonal touches': 'Background', 'Page header': 'Page header' };
+        const GROUP = { 'Theme': 'Colours', 'Night theme on this iPad': 'Colours', 'Time-of-day colours': 'Colours', 'Tile transparency': 'Tiles', 'Blur behind tiles': 'Tiles', 'Tile depth': 'Tiles', 'Bend the background at tile edges': 'Tiles', 'Corners': 'Tiles', 'Wallpaper': 'Background', 'Weather in the background': 'Background', 'Seasonal touches': 'Background', 'Page header': 'Page header' };
         const order = ['Style', 'Colours', 'Tiles', 'Background', 'Page header'];
         const bins = Object.fromEntries(order.map((k) => [k, []]));
         let cur = 'Style';
@@ -1257,6 +1263,16 @@ class App {
     slider.addEventListener('change', () => set((it) => { const v = Number(slider.value) / 100; if (v === 1) delete it.iconScale; else it.iconScale = v; }));
     if (item.id !== SCENES) rows.push(row('Icon size', h('div.range-ctl', {}, slider, sizeLabel,
       scale !== 1 ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.iconScale; }) }) : null)));
+    // Depth, for the Glass and Bold styles: this tile's own, or follow Settings → Theming → Tiles.
+    const lkD = this.settings.general.look || {};
+    if (['glass', 'bold'].includes(lkD.style)) {
+      const allD = lkD.depth ?? (lkD.style === 'bold' ? 0 : 100), d = item.depth ?? allD;
+      const dLabel = h('span.range-val', { text: d === 0 ? 'Flat' : `${d}%` });
+      const dSl = h('input.range', { type: 'range', min: 0, max: 200, step: 10, value: d, 'aria-label': 'Depth' });
+      dSl.addEventListener('input', () => { dLabel.textContent = Number(dSl.value) === 0 ? 'Flat' : `${dSl.value}%`; });
+      dSl.addEventListener('change', () => set((it) => { const v = Number(dSl.value); if (v === allD) delete it.depth; else it.depth = v; }));
+      rows.push(row('Depth', h('div.range-ctl', {}, dSl, dLabel, item.depth != null ? h('button.pill.sm', { text: 'Reset', onclick: () => set((it) => { delete it.depth; }) }) : null), item.depth != null ? 'This tile’s own depth' : 'Follows Tile depth in Theming'));
+    }
     // Tile colours: one for when it's on (or unlocked, running…) and one for when it's off.
     const slots = colorSlots(item);
     for (const sl of slots) {

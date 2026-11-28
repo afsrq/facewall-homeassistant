@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.61.0
+- **Tile depth for Glass and Bold.** Settings → Theming → Tiles → **Tile depth**, from Flat to 200%.
+  - Glass: thicker glass, with a wider bend at the rim, a heavier edge and a deeper shadow. Flat turns the bend off.
+  - Bold: tiles stand off the page with a solid block shadow (Bold starts flat, as before).
+  - Each tile can have its own depth: open the tile's Options and use **Depth**. Reset follows the setting for all tiles again.
+
 ## 1.60.0
 - **Settings: Pages and Tiles are now separate tabs.**
   - **Pages**: just your pages (rename, copy, reorder, delete) and the buttons to add one. **Tiles** on a row jumps to that page's tiles.

@@ -536,6 +536,7 @@ export class HomePage {
       const lkAll = this.app.settings?.general?.look || {};
       card.el.classList.add('icon-' + (movable ? item.iconPos || lkAll.iconPos || 'tl' : 'tl'), 'name-' + (movable ? item.namePos || lkAll.namePos || 'bottom' : 'bottom'));
       if (item.iconScale && item.iconScale !== 1) card.el.style.setProperty('--icon-scale', String(item.iconScale));
+      if (item.depth != null) card.el.style.setProperty('--depth', String(Math.max(0, Math.min(200, item.depth)) / 100));
       applyTileColors(card.el, item);
       if (this.editing) this.attachEditor(card.el, item, index);
       this.dress(card, item);

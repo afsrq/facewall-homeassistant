@@ -51,8 +51,8 @@ function displacementMap(w, h, r, bez) {
   return cv.toDataURL('image/png');
 }
 
-function filterFor(w, h, r) {
-  const key = `${w}x${h}x${r}`;
+function filterFor(w, h, r, depth) {
+  const key = `${w}x${h}x${r}x${depth}`;
   if (made.has(key)) return made.get(key);
   if (!holder) {
     holder = document.createElementNS(SVG, 'svg');
@@ -60,8 +60,8 @@ function filterFor(w, h, r) {
     holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
     document.body.append(holder);
   }
-  const bez = Math.round(Math.max(10, Math.min(30, Math.min(w, h) * 0.2)));
-  const shift = bez * 0.85, pad = 12, id = `lg-${key}`;
+  const bez = Math.round(Math.max(6, Math.min(30, Math.min(w, h) * 0.2) * (0.45 + 0.55 * depth)));
+  const shift = bez * 0.85 * Math.min(1.25, 0.4 + 0.6 * depth), pad = 12, id = `lg-${key}`;
   const el = (name, attrs) => { const n = document.createElementNS(SVG, name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; };
   const f = el('filter', { id, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', x: -pad, y: -pad, width: w + pad * 2, height: h + pad * 2, 'color-interpolation-filters': 'sRGB' });
   const im = el('feImage', { x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none', result: 'map' });
@@ -85,15 +85,17 @@ function sync(root) {
     let lens = card.querySelector(':scope > .g-lens');
     const c = on ? card.getBoundingClientRect() : null;
     const w = c ? Math.round(c.width) : 0, h = c ? Math.round(c.height) : 0;
-    if (!on || w < 40 || h < 40 || w * h > 900000) { lens?.remove(); card.classList.remove('has-lens'); continue; }
+    const cs = on ? getComputedStyle(card) : null;
+    const depth = cs ? Math.round((parseFloat(cs.getPropertyValue('--depth')) || 0) * 10) / 10 : 0;
+    if (!on || depth <= 0 || w < 40 || h < 40 || w * h > 900000) { lens?.remove(); card.classList.remove('has-lens'); continue; }
     if (!lens) {
       lens = document.createElement('div'); lens.className = 'g-lens';
       lens.innerHTML = '<div class="g-lens-f"><div class="g-world"><div class="home-bg"></div><div class="home-wall"></div></div></div>';
       card.prepend(lens); card.classList.add('has-lens');
     }
-    const r = Math.round(parseFloat(getComputedStyle(card).borderTopLeftRadius) || 0);
-    const key = `${w}x${h}x${r}`, fl = lens.firstChild, world = fl.firstChild;
-    if (lens.dataset.k !== key) { lens.dataset.k = key; fl.style.filter = `url(#${filterFor(w, h, r)})`; }
+    const r = Math.round(parseFloat(cs.borderTopLeftRadius) || 0);
+    const key = `${w}x${h}x${r}x${depth}`, fl = lens.firstChild, world = fl.firstChild;
+    if (lens.dataset.k !== key) { lens.dataset.k = key; fl.style.filter = `url(#${filterFor(w, h, r, depth)})`; }
     world.style.cssText = `left:${(R.left - c.left).toFixed(1)}px;top:${(R.top - c.top).toFixed(1)}px;width:${R.width}px;height:${R.height}px`;
   }
 }
@@ -111,4 +113,5 @@ export function syncGlass(root) {
 
 // Style or setting changed: catch up.
 new MutationObserver(() => syncGlass()).observe(document.body, { attributes: true, attributeFilter: ['data-look', 'class'] });
+new MutationObserver(() => syncGlass()).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
 window.addEventListener('resize', () => syncGlass());
